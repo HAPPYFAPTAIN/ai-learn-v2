@@ -1,0 +1,3 @@
+libreoffice-writer
+poppler-utils
+fonts-noto-cjk

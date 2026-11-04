@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "upstream": {
+    "repository": "https://github.com/HAPPYFAPTAIN/learn-everything",
+    "commit": "59275eb6a58e31e98d9f123101fd0d9ea9e0e75b",
+    "kotaemonCommit": "9ad3e4e49aa35b8acddd235918a5d9753c1cfdf9"
+  },
+  "adapterOrigin": {
+    "repository": "https://github.com/AetherMindHarness/AetherMind-Official-Site",
+    "commit": "8a9286e8fc867fd8627054d78c46013246d6333f",
+    "paths": [
+      "products/learn-everything",
+      "vendor/learn-everything"
+    ],
+    "upstreamChanges": [
+      "custom_app.py",
+      "learning_ext/action_learning/service.py",
+      "learning_ext/agent/tools.py",
+      "learning_ext/app.py",
+      "learning_ext/assets/nav.js",
+      "learning_ext/assets/server_session.js",
+      "learning_ext/chat_connections.py",
+      "learning_ext/chat_recovery.py",
+      "learning_ext/chat_thinking.py",
+      "learning_ext/document_preview.py",
+      "learning_ext/exporter/service.py",
+      "learning_ext/home_content.py",
+      "learning_ext/library_ui.py",
+      "learning_ext/llm/client.py",
+      "learning_ext/llm/request_gate.py",
+      "learning_ext/model_platforms.py",
+      "learning_ext/practice/auto_setup.py",
+      "learning_ext/presentation.py",
+      "learning_ext/progress/adapt.py",
+      "learning_ext/progress/prep.py",
+      "learning_ext/progress/study.py",
+      "learning_ext/reasoning_settings.py",
+      "tests/test_notes_resources.py"
+    ]
+  }
+}

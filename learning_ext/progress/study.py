@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 import threading
 from typing import List, Optional
@@ -619,6 +620,9 @@ def generate_node_summary_to_db(
         return True
     except Exception as e:
         logger.warning(f"后台生成教学内容失败 (node {node_id}): {e}")
+        if os.getenv('LE_ISOLATED_WORKER') == '1':
+            from le_platform.worker import terminal_model_error
+            if terminal_model_error(e):raise
         return False
 
 

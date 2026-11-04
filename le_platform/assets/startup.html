@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>正在准备学习空间 · Learn Everything</title>
+<style>
+  :root { color-scheme: light; font: 16px/1.8 system-ui, sans-serif; color: #1b3348; background: #f5f7fa; }
+  body { max-width: 560px; margin: 15vh auto; padding: 24px; }
+  .brand { color: #42647e; letter-spacing: .12em; font-size: .8rem; }
+  h1 { font-size: clamp(1.5rem, 5vw, 2rem); line-height: 1.4; }
+  progress { width: 100%; accent-color: #2d6496; }
+  button, a { display: inline-block; padding: 12px 20px; border-radius: 12px; }
+  button { background: #2d6496; color: white; border: 0; font: inherit; cursor: pointer; }
+  a { color: #2d6496; }
+  :focus-visible { outline: 3px solid #2d6496; outline-offset: 4px; }
+  [hidden] { display: none; }
+</style>
+<body>
+<main>
+  <p class="brand">LEARN EVERYTHING</p>
+  <h1 id="title">正在准备你的学习空间</h1>
+  <p id="status" role="status" aria-live="polite">首次打开或较久未使用时需要准备片刻，就绪后会自动进入。</p>
+  <progress id="progress" aria-label="正在准备学习空间"></progress>
+  <p><button id="retry" hidden>重新连接</button><a href="/official/products/learn-everything/">返回产品页</a></p>
+  <noscript><p>请启用 JavaScript 以自动进入，或稍后刷新此页面。</p></noscript>
+</main>
+<script>
+  (() => {
+    const status = document.getElementById('status');
+    const retry = document.getElementById('retry');
+    const started = Date.now();
+    const deadline = started + 330000;
+    let stopped = false, timer, request;
+    retry.addEventListener('click', () => location.reload());
+    const fail = message => {
+      stopped = true;
+      document.getElementById('title').textContent = '学习空间暂未就绪';
+      status.textContent = message;
+      document.getElementById('progress').hidden = true;
+      retry.hidden = false;
+    };
+    const poll = async () => {
+      if (stopped) return;
+      if (Date.now() >= deadline) return fail('准备时间较长，请重新连接。你的学习内容仍保存在个人空间。');
+      request = new AbortController();
+      const timeout = setTimeout(() => request.abort(), 10000);
+      try {
+        const response = await fetch('/official/learn-everything/platform/ready', { cache: 'no-store', signal: request.signal });
+        if (stopped) return;
+        if (response.status === 401 || response.status === 403) return fail('登录或产品资格已过期，请返回产品页重新进入。');
+        if (!response.ok) throw new Error('readiness unavailable');
+        const { state } = await response.json();
+        if (stopped) return;
+        if (state === 'ready') { stopped = true; location.reload(); return; }
+        if (state === 'failed') return fail('准备未能完成，请重新连接。你的学习内容仍保存在个人空间。');
+        if (Date.now() - started > 30000) status.textContent = '学习空间仍在准备中，请稍候，就绪后会自动进入。';
+      } catch {
+        if (!stopped) status.textContent = '连接暂时不稳定，正在重试…';
+      } finally {
+        clearTimeout(timeout);
+        if (!stopped) timer = setTimeout(poll, 1500);
+      }
+    };
+    window.addEventListener('pagehide', () => { stopped = true; clearTimeout(timer); request?.abort(); });
+    window.addEventListener('pageshow', event => { if (event.persisted) location.reload(); });
+    poll();
+  })();
+</script>
+</body>
+</html>

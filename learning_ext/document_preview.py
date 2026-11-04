@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 ENGINES = ROOT / "vendor" / "preview"
-CACHE = ROOT / "ktem_app_data" / "document_previews"
+CACHE = Path(os.getenv('LE_APP_DATA_DIR',str(ROOT / 'ktem_app_data'))) / 'document_previews'
 WORD = {".doc", ".docx", ".odt", ".rtf"}
 IMAGES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".tif", ".tiff"}
 SUPPORTED = WORD | IMAGES | {".pdf"}
@@ -21,6 +21,8 @@ _CONVERSION_LOCK = threading.Lock()
 
 
 def engine_paths():
+    if os.getenv('LE_ISOLATED_WORKER') == '1' and os.name != 'nt':
+        return Path(shutil.which('libreoffice') or '/usr/bin/libreoffice'), Path(shutil.which('pdftoppm') or '/usr/bin/pdftoppm')
     return ENGINES / "libreoffice/program/soffice.com", ENGINES / "sumatra/sumatrapdf-tool.exe"
 
 
@@ -68,12 +70,12 @@ def prepare_file(path, name):
         renderer = "图片"
         if suffix in WORD:
             document = folder / "original.pdf"
-            renderer = "LibreOffice · SumatraPDF"
+            renderer = "LibreOffice · Poppler" if os.getenv('LE_ISOLATED_WORKER') == '1' else "LibreOffice · SumatraPDF"
             if not document.exists():
                 office, _ = engine_paths()
                 if not office.is_file():
                     raise ValueError("软件内置的 Word 预览组件缺失，请修复应用安装。")
-                profile_root = ROOT / ".tmp"
+                profile_root = Path(os.environ['LE_WORKER_ROOT']) / 'tmp' if os.getenv('LE_ISOLATED_WORKER') == '1' else ROOT / ".tmp"
                 profile_root.mkdir(exist_ok=True)
                 with tempfile.TemporaryDirectory(prefix="office-", dir=profile_root) as temp:
                     profile = Path(temp) / "profile"
@@ -91,7 +93,7 @@ def prepare_file(path, name):
             if pdf.is_encrypted and not pdf.decrypt(""):
                 raise ValueError("这份文件有密码保护，请先上传已解锁的副本。")
             count = len(pdf.pages)
-            renderer = renderer if suffix in WORD else "SumatraPDF"
+            renderer = renderer if suffix in WORD else ("Poppler" if os.getenv('LE_ISOLATED_WORKER') == '1' else "SumatraPDF")
             kind = "pdf"
         else:
             from PIL import Image
@@ -117,7 +119,11 @@ def render_page(document, page_number=1):
                 _, sumatra = engine_paths()
                 if not sumatra.is_file():
                     raise ValueError("软件内置的 PDF 预览组件缺失，请修复应用安装。")
-                _run([sumatra, "draw", "-q", "-F", "png", "-r", "120", "-w", "1600", "-h", "2200", "-m", "268435456", "-o", output, path, str(page_number)])
+                if os.getenv('LE_ISOLATED_WORKER') == '1' and os.name != 'nt':
+                    _run([sumatra, '-f', page_number, '-l', page_number, '-singlefile', '-r', '120',
+                          '-scale-to', '1800', '-png', path, output.with_suffix('')])
+                else:
+                    _run([sumatra, "draw", "-q", "-F", "png", "-r", "120", "-w", "1600", "-h", "2200", "-m", "268435456", "-o", output, path, str(page_number)])
             else:
                 from PIL import Image, ImageOps
                 with Image.open(path) as image:

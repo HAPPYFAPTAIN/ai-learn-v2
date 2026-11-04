@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from learning_ext.page_design import page_intro, HELP_CARDS
 import gradio as gr
@@ -54,7 +55,7 @@ class LearningApp(KotaemonApp):
             logger.warning(f"learning_ext 初始化延迟: {e} (将在首次使用时重试)")
 
     def make(self):
-        asset_root = "/file=" + ASSETS.as_posix()
+        asset_root = os.getenv('LE_ROOT_PATH','') + "/file=" + ASSETS.as_posix()
         self._theme = type(self._theme)(
             font=["Quicksand", "ui-sans-serif", "sans-serif"],
             font_mono=["IBM Plex Mono", "ui-monospace", "monospace"],
@@ -116,7 +117,10 @@ class LearningApp(KotaemonApp):
 
     def _build_quick_setup_tab(self, visible: bool):
         """极简模型配置页 (替换 Kotaemon 复杂的 Resources 页)"""
-        from learning_ext.pages import QuickSetupPage
+        if os.getenv('LE_ISOLATED_WORKER') == '1':
+            from le_platform.models_page import PlatformModelsPage as QuickSetupPage
+        else:
+            from learning_ext.pages import QuickSetupPage
 
         with gr.Tab(
             "模型配置",
@@ -293,6 +297,11 @@ class LearningApp(KotaemonApp):
             from learning_ext.library_ui import polish_library_ui
 
             polish_library_ui(self)
+            if os.getenv('LE_ISOLATED_WORKER') == '1':
+                from le_platform.storage_page import MARKUP
+                with gr.Tab('空间管理',elem_id='learning-storage-tab',id='learning-storage-tab',visible=vis,
+                            elem_classes=['fill-main-area-height','scrollable']) as self._tabs['learning-storage-tab']:
+                    gr.HTML(MARKUP)
             self._build_quick_setup_tab(visible=vis)
             # 9. 帮助
             with gr.Tab(

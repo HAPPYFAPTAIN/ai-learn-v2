@@ -29,3 +29,9 @@ output/zcode-upstream/
 output/runtime/
 # 第三方图标包压缩件：可从上游重新获取，已解压进 assets/vendor/platform-icons
 output/icons-package.tgz
+
+# Official integration build outputs and secrets
+output/official/
+*.bundle
+.env.*
+!.env.example

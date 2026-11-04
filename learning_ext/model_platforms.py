@@ -53,7 +53,8 @@ def platform_icon_url(provider):
     from urllib.parse import quote
     key = provider if provider in PLATFORMS else "custom"
     path = Path(__file__).resolve().parent / "assets" / "vendor" / "platform-icons" / f"{key}.svg"
-    return "/file=" + quote(path.as_posix(), safe="/:")
+    import os
+    return os.getenv('LE_ROOT_PATH','') + "/file=" + quote(path.as_posix(), safe="/:")
 
 
 def is_opencode_go(url):

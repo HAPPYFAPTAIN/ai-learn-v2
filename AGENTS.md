@@ -31,11 +31,14 @@ pack_portable.bat  # 组装完整便携版
 # 停止: 关闭桌面窗口或 Ctrl+C
 ```
 
-## Git 远端
-- `origin` = redmaplewww/learn-everything（公开库）：当前 gh 账号 HAPPYFAPTAIN **只有 pull 权限，推不上去**。本地 main 跟踪它，别往这推
-- `personal` = HAPPYFAPTAIN/learn-everything（私有库，有 admin）：**唯一的推送目标**，`git push personal main`
-- 提交身份已写入仓库级 config：`HAPPYFAPTAIN <HAPPYFAPTAIN@users.noreply.github.com>`
-- `kotaemon/` 是子模块且只读，不要改动或提交其内部文件（当前仅有未跟踪的 `.tmp/`，属正常）
+## 官网适配仓库
+
+- `origin`：AetherMindHarness/ai-learn（私有），官网适配代码与修复的唯一提交目标。
+- `upstream`：HAPPYFAPTAIN/learn-everything，只读取和合并，不推送。
+- `kotaemon/` 固定子模块，只读；桌面模式继续使用上游启动器。
+- 修改经功能分支和 PR；不得直接覆盖生产不可变发布、用户数据或密钥。
+- `le_platform/` 是官网身份、存储、模型与进程适配层；接口约定见 `docs/OFFICIAL_API.md`。
+- `scripts/preview_home_rail.py` 只读渲染首页组件，不需要真实账号或模型。
 
 ## 代码约定
 - 学习特化模块全部放 `learning_ext/`，不修改 `kotaemon/` 底座

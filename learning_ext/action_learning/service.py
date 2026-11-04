@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import sqlite3
@@ -15,7 +16,7 @@ from .prompts import DECOMPOSE, HELP, LOCATE
 from learning_ext.practice.environment import adapt_steps
 from learning_ext.environment_agent import explore_environment
 
-LOG_PATH = Path(__file__).resolve().parents[2] / "output/runtime/action-learning.sqlite3"
+LOG_PATH = Path(os.getenv('LE_APP_DATA_DIR',str(Path(__file__).resolve().parents[2] / 'output/runtime'))) / 'action-learning.sqlite3'
 
 
 def redact(text):

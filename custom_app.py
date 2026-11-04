@@ -44,6 +44,10 @@ sys.path.insert(0, _HERE)
 _KOTAEMON_DIR = os.path.join(_HERE, "kotaemon")
 sys.path.insert(0, _KOTAEMON_DIR)
 
+if os.environ.get('LE_ISOLATED_WORKER') == '1':
+    from le_platform.worker import prepare
+    prepare()
+
 from theflow.settings import settings as flowsettings  # noqa: E402
 
 
@@ -132,6 +136,7 @@ from learning_ext.app import LearningApp  # noqa: E402
 
 def _presentation_stylesheet() -> str:
     """按需拼装全部样式：编辑 CSS 后刷新页面即可生效，不必重启进程。"""
+    import os
     assets = Path(_HERE, "learning_ext", "assets")
     order = (
         "theme_tokens.css",
@@ -144,10 +149,10 @@ def _presentation_stylesheet() -> str:
     from learning_ext.presentation import presentation_css  # noqa: WPS433
 
     css += "\n" + presentation_css()
-    return css.replace("__ASSETS__", "/file=" + assets.as_posix())
+    return css.replace("__ASSETS__", os.getenv('LE_ROOT_PATH','') + "/file=" + assets.as_posix())
 
 
-_PRESENTATION_CSS_URL = "/le-presentation.css"
+_PRESENTATION_CSS_URL = os.getenv('LE_ROOT_PATH', '') + "/le-presentation.css"
 
 
 def _register_presentation_route(routes_app) -> bool:
@@ -163,7 +168,7 @@ def _register_presentation_route(routes_app) -> bool:
             )
 
         routes_app.add_api_route(
-            _PRESENTATION_CSS_URL, stylesheet, methods=["GET"], include_in_schema=False
+            "/le-presentation.css", stylesheet, methods=["GET"], include_in_schema=False
         )
         return True
     except Exception as e:  # noqa: WPS433
@@ -183,8 +188,12 @@ def _hook_presentation_route_into_gradio() -> None:
         def create_app_with_styles(*args, **kwargs):
             created = original(*args, **kwargs)
             _register_presentation_route(created)
-            from learning_ext.account.routes import register_account_routes
-            register_account_routes(created)
+            if os.environ.get('LE_ISOLATED_WORKER') == '1':
+                from le_platform.worker import register_routes
+                register_routes(created,learning_app=app)
+            else:
+                from learning_ext.account.routes import register_account_routes
+                register_account_routes(created)
             return created
 
         create_app_with_styles._le_route_hooked = True
@@ -201,7 +210,7 @@ def _patch_gradio_template_for_learning_assets():
 
         script_path = "learning_ext/assets/word_lookup.js"
         word_lookup_js = Path(_HERE, script_path).read_text(encoding="utf-8")
-        assets_base = "/file=" + Path(_HERE, "learning_ext", "assets").as_posix()
+        assets_base = os.getenv('LE_ROOT_PATH', '') + "/file=" + Path(_HERE, "learning_ext", "assets").as_posix()
         theme_mode_js = Path(_HERE, "learning_ext/assets/theme_mode.js").read_text(encoding="utf-8")
         workspace_js = theme_mode_js.replace("__LE_ASSETS__", assets_base)
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/workspace.js").read_text(encoding="utf-8")
@@ -228,20 +237,31 @@ def _patch_gradio_template_for_learning_assets():
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/motion.js").read_text(encoding="utf-8")
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/fullscreen_shell.js").read_text(encoding="utf-8")
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/route_browser.js").read_text(encoding="utf-8")
-        script_tag = f"<script>\n{word_lookup_js}\n</script>"
+        if os.getenv('LE_ISOLATED_WORKER') == '1':
+            workspace_js += "\n" + Path(_HERE, "learning_ext/assets/server_session.js").read_text(encoding="utf-8")
+        import json
+        script_tag = f"<script>window.__LE_ROOT_PATH__={json.dumps(os.getenv('LE_ROOT_PATH', ''))};\n{word_lookup_js}\n</script>"
         script_tag = f"<script>\n{workspace_js}\n</script>" + script_tag
         # 样式走 <link>：内容由 /le-presentation.css 每次请求重新拼装，
         # 改完 CSS 刷新页面就能看到，不必重启应用（也不会被 Gradio 改写选择器）。
         style_tag = f'<link rel="stylesheet" href="{_PRESENTATION_CSS_URL}">'
+        if os.getenv('LE_ISOLATED_WORKER') == '1':
+            prefix=os.getenv('LE_ROOT_PATH','')+'/platform/storage/assets/'
+            style_tag+=f'<link rel="stylesheet" href="{prefix}storage.css"><script defer src="{prefix}storage.js"></script>'
         # CSS 的 {# 和脚本中的模板字符应按原文输出，不能交给 Jinja 解析。
         browser_assets = "{% raw %}" + style_tag + "\n" + script_tag + "{% endraw %}"
         template_root = Path(gradio_routes.STATIC_TEMPLATE_LIB)
         overrides = {}
         for template_name in ("frontend/index.html", "frontend/share.html"):
             source = (template_root / template_name).read_text(encoding="utf-8")
+            prefix = os.getenv('LE_ROOT_PATH', '')
+            if prefix:
+                source = source.replace('src="./assets/', f'src="{prefix}/assets/')
+                source = source.replace('href="./assets/', f'href="{prefix}/assets/')
+                source = source.replace('<gradio-app', '<gradio-app src="{{ config.root }}"', 1)
             source = source.replace(
                 "https://cdnjs.cloudflare.com/ajax/libs/iframe-resizer/4.3.1/iframeResizer.contentWindow.min.js",
-                "/file=" + Path(_HERE, "learning_ext/assets/vendor/iframe-resizer/iframeResizer.contentWindow.min.js").as_posix(),
+                os.getenv('LE_ROOT_PATH', '') + "/file=" + Path(_HERE, "learning_ext/assets/vendor/iframe-resizer/iframeResizer.contentWindow.min.js").as_posix(),
             )
             if script_path not in source:
                 marker = '<script type="module" crossorigin src='
@@ -276,8 +296,12 @@ demo.launch(
     favicon_path=app._favicon,
     inbrowser=False,
     prevent_thread_lock=False,
+    server_name=os.getenv('LE_SERVER_NAME','127.0.0.1'),
+    server_port=int(os.getenv('LE_SERVER_PORT','7860')),
+    root_path=os.getenv('LE_ROOT_PATH') or None,
+    auth_dependency=__import__('le_platform.worker',fromlist=['authenticated']).authenticated if os.getenv('LE_ISOLATED_WORKER')=='1' else None,
     allowed_paths=[
-        "libs/ktem/ktem/assets",
+        os.path.join(_KOTAEMON_DIR,"libs/ktem/ktem/assets"),
         os.path.join(_HERE, "learning_ext", "assets"),
         GRADIO_TEMP_DIR,
     ],

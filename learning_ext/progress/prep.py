@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import queue
 import threading
 import time
@@ -22,6 +23,11 @@ _LOCK = threading.RLock()
 _STATE: dict[int, dict] = {}
 _INFLIGHT: set[tuple[int, int]] = set()
 _STARTED = False
+
+
+def has_pending():
+    with _LOCK:
+        return bool(_INFLIGHT)
 
 
 def _ensure_workers() -> None:
@@ -65,6 +71,9 @@ def _run(job: tuple) -> None:
         except Exception as exc:  # noqa: BLE001
             logger.warning("备课 node#%s 第 %d 次失败: %s", nid, attempt + 1, exc)
             ok = False
+            if os.getenv('LE_ISOLATED_WORKER') == '1':
+                from le_platform.worker import terminal_model_error
+                if terminal_model_error(exc):break
         if ok:
             break
         time.sleep(2)

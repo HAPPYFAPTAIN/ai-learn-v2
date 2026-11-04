@@ -118,7 +118,8 @@ def polish_library_ui(app):
         if hasattr(page, "_build_chunk_panel"):
             page._build_chunk_panel = friendly_chunk_panel(page._build_chunk_panel)
         from importlib.util import find_spec
-        if type(index).__name__ == "GraphRAGIndex" and find_spec("graphrag") is None:
+        optional_module={"GraphRAGIndex":"graphrag","LightRAGIndex":"lightrag","NanoGraphRAGIndex":"nano_graphrag"}.get(type(index).__name__)
+        if optional_module and find_spec(optional_module) is None:
             for name in ("upload_button", "files", "urls"):
                 control = getattr(page, name, None)
                 if control is not None:

@@ -14,6 +14,8 @@ from learning_ext.db.models import (
     Card,
     KnowledgeNode,
     LearningProject,
+    NodeNote,
+    NodeAnnotation,
     QuizAttempt,
     QuizQuestion,
     ReviewLog,
@@ -105,6 +107,14 @@ def export_markdown(session: Session, project_id: int) -> str:
                 md += f"- **Q**: {c.front}\n  **A**: {c.back}\n\n"
         md += "---\n\n"
 
+    notes=session.exec(select(NodeNote).where(NodeNote.project_id==project_id,NodeNote.user_id==project.user_id)).all()
+    annotations=session.exec(select(NodeAnnotation).where(NodeAnnotation.project_id==project_id,NodeAnnotation.user_id==project.user_id)).all()
+    if notes:
+        md+='## 我的笔记\n\n'
+        for note in notes:md+=note.content+'\n\n'
+    if annotations:
+        md+='## 我的批注\n\n'
+        for annotation in annotations:md+='> '+annotation.quote.replace('\n','\n> ')+'\n\n'+annotation.body+'\n\n'
     return md
 
 

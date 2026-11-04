@@ -28,6 +28,10 @@ class RequestGate:
         self.acquire()
         return self
 
+    def busy(self):
+        with self._condition:
+            return self._active or bool(self._waiting)
+
     def acquire(self, blocking=True, timeout=None):
         if not blocking and timeout is not None:
             raise ValueError("can't specify timeout for non-blocking acquire")
@@ -68,4 +72,3 @@ class RequestGate:
                 raise ValueError("request slot released too many times")
             self._active = False
             self._condition.notify_all()
-
