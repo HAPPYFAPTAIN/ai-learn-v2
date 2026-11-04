@@ -35,3 +35,9 @@ output/official/
 *.bundle
 .env.*
 !.env.example
+
+# Source-only repository: all generated evidence and release artifacts stay local.
+/output/
+/playwright-report/
+/test-results/
+*.egg-info/

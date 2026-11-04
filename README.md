@@ -21,7 +21,7 @@ python3.11 -m venv .venv
 
 | 目录 | 内容 |
 |---|---|
-| `learning_ext/`、`custom_app.py` | 上游学习业务及必要官网适配；桌面入口保留 |
+| `learning_ext/`、`custom_app.py` | 学习业务及必要官网适配；仅提供官网运行入口 |
 | `kotaemon/` | 固定上游子模块；禁止修改运行时依赖与生成 JS |
 | `le_platform/` | 官网鉴权代理、每账号独立 UID/worker、模型归属、5GiB空间及管理界面 |
 | `runtime/` | 已验证 Linux 依赖锁、向量模型和 NLTK 校验数据、轻量测试依赖 |
@@ -38,7 +38,7 @@ python3.11 -m venv .venv
 - [来源与升级](docs/OFFICIAL_MAINTENANCE.md)：与官网单仓副本关系、上游更新、页面异常根因及检查。
 - [上游架构](docs/ARCHITECTURE.md)、[原账户接入设计](docs/ACCOUNT_INTEGRATION.md)：桌面主体与原接口预留；官网模式以本仓库的接口契约为准。
 
-官网模式保持账号数据库、资料和模型计量隔离；网页不能控制共享服务器桌面或安装软件。`default` 只表示一个隔离 worker 内的单用户，不是官网共享身份。桌面模式仍通过原 `launcher.py`、`run.bat` 使用，本轮未重新验证 Windows 打包。
+官网模式保持账号数据库、资料和模型计量隔离；网页不能控制共享服务器桌面或安装软件。`default` 只表示一个隔离 worker 内的单用户，不是官网共享身份。Windows 启动和打包入口在上游固定版本维护，本仓库不分发桌面应用。
 
 ## 首页布局与浏览器验证
 
@@ -52,3 +52,9 @@ PATH="$PWD/.venv/bin:$PATH" npm run test:browser
 ```
 
 手动启动的复现页请先退出，再运行自动浏览器测试。CI 在独立环境中启动它，不访问生产。完整学习业务回归需要 Linux 完整运行时；轻量平台测试不冒充完整业务验收。
+
+## 源码和发布包范围
+
+运行包由 `runtime/release-policy.json` 选择运行目录和辅助文件，排除测试、演示图、导出资料、参考 TypeScript 及开发产物。Kotaemon 子模块保持原提交；仅选择其必要运行内容发布，不修改子模块。CI 用 `scripts/check_repository.py` 防止输出、缓存、数据库和安装二进制重新入库。浏览器依赖、图片、字体及许可证按运行引用保留。
+
+[文档索引](docs/README.md) 与 [维护边界](docs/OFFICIAL_MAINTENANCE.md) 解释仍保留的共享桌面兼容依赖。

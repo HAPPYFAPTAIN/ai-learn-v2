@@ -1,7 +1,7 @@
 """学习 Agent 的启动入口。
 
 替换 Kotaemon 默认的 app.py，使用 LearningApp 加载学习特化 Tab。
-本地运行时通过 launcher.py 调用本文件。
+官网运行时由 le_platform.broker 为隔离账号启动本文件。
 """
 
 import os

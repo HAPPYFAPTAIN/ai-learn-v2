@@ -1,0 +1,45 @@
+{
+  "project": {
+    "trees": ["le_platform", "learning_ext"],
+    "files": [
+      "custom_app.py",
+      "INTEGRATION.json",
+      "runtime/release-policy.json",
+      "runtime/apt-packages.txt",
+      "runtime/requirements-linux-py311.lock",
+      "runtime/model.json",
+      "runtime/nltk.json",
+      "runtime/nltk-files.json",
+      "deploy/aethericai-learn.service",
+      "deploy/framework-css.conf",
+      "deploy/official-integration.nginx.conf",
+      "third_party/zcode/LICENSE",
+      "third_party/zcode/NOTICE.md",
+      "third_party/zcode/UPSTREAM-NOTICE.md"
+    ],
+    "exclude": [
+      "learning_ext/assets/illustrations/PROMPTS.md",
+      "learning_ext/agent/mcp.example.json"
+    ]
+  },
+  "kotaemon": {
+    "trees": [
+      "libs/ktem/ktem",
+      "libs/ktem/migrations",
+      "libs/kotaemon/kotaemon"
+    ],
+    "files": [
+      "flowsettings.py",
+      "LICENSE.txt",
+      "libs/ktem/pyproject.toml",
+      "libs/ktem/MANIFEST.in",
+      "libs/ktem/alembic.ini",
+      "libs/kotaemon/pyproject.toml",
+      "libs/kotaemon/README.md",
+      "settings.yaml.example",
+      "docs/about.md",
+      "docs/usage.md"
+    ],
+    "exclude": []
+  }
+}

@@ -16,6 +16,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install -r runtime/requirements-test.txt
+      - run: python scripts/check_repository.py
       - run: python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py
       - run: python scripts/official_release.py pack
   browser:

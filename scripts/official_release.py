@@ -10,30 +10,44 @@ import subprocess
 import tarfile
 
 ROOT=Path(__file__).resolve().parents[1]
+FORBIDDEN_PARTS={'__pycache__','node_modules','.venv','dist','build','.git','.pytest_cache'}
+FORBIDDEN_SUFFIXES={'.pyc','.pyo','.exe','.dll','.so','.dylib','.whl','.zip','.tar','.gz',
+    '.gguf','.onnx','.pt','.bin','.db','.sqlite','.sqlite3','.map'}
 
 
 def git(*args,cwd=ROOT):
     return subprocess.check_output(['git',*args],cwd=cwd,text=True).strip()
 
 
-def inputs(root=ROOT):
-    selected={}
-    paths=git('ls-files','-z',cwd=root).split('\0')
-    for name in paths:
-        if not name or name=='kotaemon':continue
+def runtime_files(root,policy):
+    tracked=set(git('ls-files','-z',cwd=root).split('\0'))-{''}
+    for name in [*policy['files'],*policy['exclude'],*policy['trees']]:
+        path=PurePosixPath(name)
+        if path.is_absolute() or '..' in path.parts:raise ValueError('Invalid release policy path')
+    missing=set(policy['files'])-tracked
+    if missing:raise ValueError('Required runtime inputs are not tracked: '+','.join(sorted(missing)))
+    for tree in policy['trees']:
+        if not any(name.startswith(tree+'/') for name in tracked):raise ValueError('Missing runtime tree: '+tree)
+    for name in sorted(tracked):
+        if name in policy['exclude']:continue
+        if name not in policy['files'] and not any(name.startswith(tree+'/') for tree in policy['trees']):continue
         path=root/name
-        if path.is_symlink():raise ValueError('Release inputs must be regular files: '+name)
-        prefix=name.split('/')[0]
-        if prefix=='le_platform':target='platform/'+name
-        elif prefix in {'runtime','deploy'}:target='product/'+name
-        elif prefix in {'learning_ext','tests','third_party'} or name=='custom_app.py':
-            target=('input-stubs/' if path.suffix=='.pyi' else 'source/')+name
-        else:continue
+        if path.is_symlink() or not path.is_file():raise ValueError('Release inputs must be regular files: '+name)
+        if FORBIDDEN_PARTS.intersection(path.relative_to(root).parts) or path.suffix.lower() in FORBIDDEN_SUFFIXES:
+            raise ValueError('Generated or binary runtime input: '+name)
+        if path.name=='.env' or path.name.startswith('.env.'):raise ValueError('Private runtime configuration: '+name)
+        yield name,path
+
+
+def inputs(root=ROOT):
+    policy=json.loads((root/'runtime/release-policy.json').read_text())
+    selected={}
+    for name,path in runtime_files(root,policy['project']):
+        if name.startswith('le_platform/'):target='platform/'+name
+        elif name.startswith(('runtime/','deploy/')) or name=='INTEGRATION.json':target='product/'+name
+        else:target=('input-stubs/' if path.suffix=='.pyi' else 'source/')+name
         selected[target]=path
-    for name in git('ls-files','-z',cwd=root/'kotaemon').split('\0'):
-        if not name:continue
-        path=root/'kotaemon'/name
-        if path.is_symlink():raise ValueError('Submodule symlinks are not release inputs')
+    for name,path in runtime_files(root/'kotaemon',policy['kotaemon']):
         target=('input-stubs/' if path.suffix=='.pyi' else 'source/')+'kotaemon/'+name
         selected[target]=path
     return selected

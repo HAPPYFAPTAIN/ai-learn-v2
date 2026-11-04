@@ -27,7 +27,7 @@ git submodule update --init --recursive
 python3 scripts/official_release.py pack --output output/official
 ```
 
-要求源码已提交、工作区干净、子模块提交一致。输出 archive、SHA256、源提交和所有输入摘要。`.pyi` 原始声明另存 `input-stubs`，发布安装时正常构建两份运行声明，不把生成文件当作手工源码修改。
+要求源码已提交、工作区干净、子模块提交一致。`runtime/release-policy.json` 只选择运行目录及必要辅助文件；测试应从开发 checkout 运行，不再随生产包发布。输出 archive、SHA256、源提交和所有输入摘要。`.pyi` 原始声明另存 `input-stubs`，发布安装时正常构建两份运行声明，不把生成文件当作手工源码修改。
 
 将包复制到已确认服务器，先核对传输前后的 SHA256，再在服务器 checkout 中执行：
 

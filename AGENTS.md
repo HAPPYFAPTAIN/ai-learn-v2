@@ -1,71 +1,37 @@
-# AGENTS.md - 开发代理指南
+# AI Learn 官网适配开发指南
 
-## 项目概述
-学习 Agent：基于 Kotaemon RAG 底座 + FSRS 记忆算法的自建学习平台。
-**Windows 桌面应用**，双击 exe 运行，PyWebView 包装窗口。
+## 范围与入口
 
-## 关键路径
-- 学习特化代码: `learning_ext/`
-- Kotaemon 底座(只读): `kotaemon/`
-- 后端入口: `custom_app.py`
-- 桌面启动器: `launcher.py`
-- 本地配置: `kotaemon/.env`
-- 架构文档: `docs/ARCHITECTURE.md`
+此仓库维护 Linux 官网学习应用。上游桌面启动器、便携版打包及历史演示资料由 `HAPPYFAPTAIN/learn-everything` 保留；本仓库不分发 Windows 桌面应用。
 
-## 开发命令
-```bash
-# 首次初始化 (联网装依赖，5-15分钟)
-setup.bat
+- `learning_ext/`：学习页面、课程、资料、复习、测验和共享工具。
+- `le_platform/`：官网鉴权、每账号独立 Unix UID/worker、模型网关、空间管理。
+- `custom_app.py`：由 broker 为隔离账号启动的应用入口。
+- `kotaemon/`：固定只读子模块；禁止直接修改依赖或生成 JS。
+- 接口、部署与来源入口见 `docs/README.md`。
 
-# 启动 (开发模式，浏览器或 PyWebView 窗口)
-run.bat
-# 或直接: kotaemon\.venv\Scripts\python.exe launcher.py
+## 分支与交付
 
-# 查看后端日志: 启动时控制台实时输出
-# 数据落: kotaemon\ktem_app_data\
+`origin` 为组织私有 `AetherMindHarness/ai-learn`，`upstream` 为只读参考 `HAPPYFAPTAIN/learn-everything`。改动经功能分支和 PR；不得直接覆盖生产发布、用户数据或密钥。清理当前文件不重写上游历史。
 
-# 打包 exe
-build_exe.bat      # 打 launcher.exe
-pack_portable.bat  # 组装完整便携版
+## 本地检查
 
-# 停止: 关闭桌面窗口或 Ctrl+C
+```sh
+python -m pip install -r runtime/requirements-test.txt
+python scripts/check_repository.py
+python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py
 ```
 
-## 官网适配仓库
+浏览器验证见 README；Linux 完整学习回归需要固定运行时。测试和 CI 只证明相应验证范围，不把本地页面截图当成生产验收。
 
-- `origin`：AetherMindHarness/ai-learn（私有），官网适配代码与修复的唯一提交目标。
-- `upstream`：HAPPYFAPTAIN/learn-everything，只读取和合并，不推送。
-- `kotaemon/` 固定子模块，只读；桌面模式继续使用上游启动器。
-- 修改经功能分支和 PR；不得直接覆盖生产不可变发布、用户数据或密钥。
-- `le_platform/` 是官网身份、存储、模型与进程适配层；接口约定见 `docs/OFFICIAL_API.md`。
-- `scripts/preview_home_rail.py` 只读渲染首页组件，不需要真实账号或模型。
+## 源码与发布边界
+
+`runtime/release-policy.json` 列出运行源码目录及必要辅助文件。测试、文档演示图、输出目录、参考 TypeScript、桌面入口不进入发布包。新增运行资源需核对策略、实际读取位置和许可证；打包前运行回归和候选启动验证。
+
+共享模块中的 Windows/桌面兼容分支仍受官网工具门禁保护，不能仅凭文件名删除。先检查实际导入、页面注册和测试，再移除不可达模块。所有新增二进制依赖应通过锁定版本与校验值在仓库外安装。
 
 ## 代码约定
-- 学习特化模块全部放 `learning_ext/`，不修改 `kotaemon/` 底座
-- service 函数第一参数恒为 `session: Session`
-- LLM 调用走 `learning_ext.llm.chat/chat_json`
-- 新增 Tab: `learning_ext/pages/` 加 BasePage 子类 + `app.py._build_learning_tabs` 注册
-- 提示词放各模块 `prompts.py`
-- 不写注释（除非复杂逻辑必要）
-- 前端样式：全部 CSS 由 `custom_app.py` 的 `/le-presentation.css` 路由按请求重新拼装，模板里只有一个 `<link>`（不走 `Blocks(css=...)`，避免 Gradio 改写选择器）。**改完 CSS 刷新页面即可生效，不要重启应用**。JS 仍是启动时内联进模板，改了要重启。明暗颜色只写在 `theme_tokens.css` 的 `--le-*` 变量里；暗色差异集中在运行期注入的 `dark_theme.css`
 
-## 架构关键点
-- **双 Python 进程**: launcher.exe (PyWebView) 用子进程跑 Kotaemon venv 的 python
-- **路径**: custom_app.py 把 `kotaemon/` 加入 sys.path，因 Kotaemon 用 `import flowsettings`
-- **环境变量占位**: cohere/voyage/mistral 缺 key 会崩，learning_ext/__init__.py 注入占位
-- **离线模式**: HF_HUB_OFFLINE=1 避免启动访问 huggingface.co 超时
+业务 service 函数第一参数为 `session: Session`，模型调用走 `learning_ext.llm.chat/chat_json`。新增页面放 `learning_ext/pages/` 并注册到 `app.py`，提示词放相应 `prompts.py`。
 
-## 阶段路线
-- [x] 阶段0: 脚手架 (Docker + 底座 + learning_ext 骨架 + 数据模型 + 路线Tab)
-- [x] **切换: 改为 Windows 桌面 exe 方案** (launcher + PyWebView + PyInstaller)
-- [ ] 阶段1: 路线闭环 (Agent调优 + 图谱可视化 + 节点状态机)
-- [ ] 阶段2: 认知巩固 (FSRS复习UI + AI卡片提炼)
-- [ ] 阶段3: 查漏+看板 (测验 + 错题本 + 热力图 + 日报)
-- [ ] 阶段4: 增强 (费曼 + 苏格拉底 + 实操 + 导出)
-- [ ] 阶段5: 演进 (Next.js 前端 + Kotaemon 作 RAG 微服务)
-
-## 已知问题
-- LSP 报错(ktem/theflow/sqlmodel 未解析)是本机 IDE 没识别 kotaemon/.venv，代码在 venv 内运行，忽略
-- 首次启动慢 (~30-60s)，因加载 chromadb/langchain 等重库
-- 国内网络需设 HF_HUB_OFFLINE=1 (custom_app.py 已默认设)
-- 学习路线等功能需配 LLM key 后在 Resources 页或 .env 配置
+CSS 经 `/le-presentation.css` 统一拼装，保留选择器优先级和主题变量。源码预览可刷新 CSS；生产采用不可变发布，不能在运行目录热改。JS 在应用启动时注入，更新需发布重启。离线模型及 NLTK 数据在部署前校验。

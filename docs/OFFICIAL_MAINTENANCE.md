@@ -23,3 +23,13 @@ Gradio 的 `.gradio-container-4-44-1 .prose ol` 设置 `list-style-position: ins
 修复仅提高 `#le-home-rail` 内列表与链接规则的优先级，显式使用外置编号及零项目外边距，不影响课程正文和其他 Markdown。原设计在1800 CSS像素以上显示主栏加概览栏，更窄时概览堆叠；截图物理像素不等于 CSS 视口宽度，不能据此随意修改断点。
 
 `scripts/preview_home_rail.py` 使用真实 `gr.HTML`、首页 HTML 和完整样式管线；`tests/browser/home-rail.spec.mjs` 检查编号与标题顶部一致、链接装饰、断点和溢出。该页面没有用户数据或模型调用，只用于复现，不是正式应用入口。
+
+## 线上源码清理边界
+
+当前树移除了 Windows 启动/安装/打包脚本、未注册的独立桌面练习演示、重复 Kotaemon 补丁、导出学习路线和历史报告。历史版本仍在 Git 与上游固定提交中，不进行强推或历史重写。`output/` 整体忽略，测试截图和发布包保留在本地。
+
+`runtime/release-policy.json` 允许学习和平台运行目录、固定配置/依赖清单、许可证，以及 Kotaemon 的运行包、迁移和最小帮助文本。包中不含 tests、上游文档图片、GGUF/PDF测试样本、开发工具及参考TypeScript。发布时若运行目录混入缓存、数据库、安装程序或模型二进制则拒绝。
+
+PDF.js、Markmap、D3等预构建浏览器文件是实际页面依赖；字体和插画也由组件使用，保留资源旁许可证。旧的未引用封面删除。ZCode TypeScript参考副本改为固定提交链接，Python适配及所有许可证/修改声明保留。
+
+`guided_desktop`、Everything查询及部分桌面工具分支仍被课程/搜索共享模块导入，因此保留代码与相应回归；官网工具白名单和动作学习门禁继续拒绝宿主操作。本轮仅移除未注册且引用已完整解除的 `CoachLessonPage → DesktopCoach → WPF练习器/原生润色` 链，不改网页课程练习和资料预览行为。

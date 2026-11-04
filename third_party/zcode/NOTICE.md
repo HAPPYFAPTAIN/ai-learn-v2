@@ -11,7 +11,10 @@ Copyright belongs to the original ZCode contributors.
 - `apps/zcode-cli/packages/core/src/agent/turn-machine.ts`: validated transitions, tool scheduling/completion, failure and terminal lifecycle.
 - `apps/zcode-cli/packages/core/src/permission/service.ts`: capability-based plan/build permission decisions.
 
-The exact upstream source files are preserved under `upstream/` for review.
+The exact upstream source files remain available at the pinned revision above:
+https://github.com/zai-org/ZCode/tree/3c5b227649371507ddc4eb46ac5133afe6db1cab/apps/zcode-cli/packages/core/src
+The reference TypeScript copies are omitted from this Python runtime repository;
+the license, upstream notice and adaptation attribution are retained.
 Modifications made on 2026-10-25: Python port, local journal event sink, sequential
 read-only discovery executor, stricter deny-by-default plan capabilities, no MCP
 exception or unattended execution mode. Permission decisions are made from host

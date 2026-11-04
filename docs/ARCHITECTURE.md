@@ -1,222 +1,28 @@
-# 学习 Agent 架构文档
+# 官网运行架构
 
-> 版本：阶段 0 完成（已切换为 Windows 桌面 exe 方案）
-> 状态：本地运行 + exe 打包全部跑通，学习特化模块骨架就位
+浏览器通过官网产品页取得短票，经 Nginx 鉴权进入学习 broker。broker 再调用官网现有授权接口，确认账号后复用或创建该账号的独立 Unix worker。worker 加载 `custom_app.py → LearningApp → Kotaemon`，提供 Gradio 页面、队列、学习业务和资料处理。
 
-## 1. 总体架构
+## 责任边界
 
-```
-┌──────────────────────────────────────────────────────────┐
-│           LearnEverything.exe (PyWebView 桌面窗口)        │
-│                  launcher.py (主进程)                     │
-└────────────────────────┬─────────────────────────────────┘
-                         │ subprocess (Kotaemon venv python)
-                         ▼
-┌──────────────────────────────────────────────────────────┐
-│              custom_app.py (Gradio 后端)                  │
-│              http://127.0.0.1:7860                        │
-│  Kotaemon 原生 Tab          学习特化 Tab (新增)           │
-│  ┌──────┐┌──────┐   ┌─────────┐┌─────┐┌─────┐┌─────┐   │
-│  │ Chat ││Files │   │🎯学习路线││🔄复习││📝测验││📊看板│   │
-│  └──┬───┘└──┬───┘   └────┬────┘└──┬──┘└──┬──┘└──┬──┘   │
-└─────┼───────┼────────────┼─────────┼──────┼──────┼───────┘
-      │       │            │         │      │      │
-┌─────▼───────▼────────────▼─────────▼──────▼──────▼───────┐
-│              LearningApp (继承 Kotaemon App)              │
-│         libs/ktem         +        learning_ext/          │
-│  ┌─────────────┐         ┌──────────────────────────┐    │
-│  │ reasoning   │         │ path_generator 路线生成   │    │
-│  │ (ReAct等)   │         │ fsrs_review   FSRS复习    │    │
-│  │ index/RAG   │         │ quiz          测验批改    │    │
-│  │ llms mgr    │◄────────│ progress      掌握度     │    │
-│  │ db engine   │  复用   │ feynman       费曼对话    │    │
-│  │ (SQLite)    │         │ practice      实操辅助    │    │
-│  └──────┬──────┘         │ exporter      导出        │    │
-│         │                └──────────┬───────────────┘    │
-│  ┌──────▼───────────────────────────▼───────────────┐    │
-│  │   共享: SQLite + LLM (ktem.llms.manager.llms)     │    │
-│  └──────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────┘
-                     │
-              ┌──────▼──────┐
-              │ LLM Provider│ DeepSeek/GLM/OpenAI/Ollama
-              └─────────────┘
-```
-┌──────────────────────────────────────────────────────────┐
-│                    浏览器 :7860                           │
-│  Kotaemon 原生 Tab          学习特化 Tab (新增)           │
-│  ┌──────┐┌──────┐   ┌─────────┐┌─────┐┌─────┐┌─────┐   │
-│  │ Chat ││Files │   │🎯学习路线││🔄复习││📝测验││📊看板│   │
-│  └──┬───┘└──┬───┘   └────┬────┘└──┬──┘└──┬──┘└──┬──┘   │
-└─────┼───────┼────────────┼─────────┼──────┼──────┼───────┘
-      │       │            │         │      │      │
-┌─────▼───────▼────────────▼─────────▼──────▼──────▼───────┐
-│              LearningApp (继承 Kotaemon App)              │
-│         libs/ktem         +        learning_ext/          │
-│  ┌─────────────┐         ┌──────────────────────────┐    │
-│  │ reasoning   │         │ path_generator 路线生成   │    │
-│  │ (ReAct等)   │         │ fsrs_review   FSRS复习    │    │
-│  │ index/RAG   │         │ quiz          测验批改    │    │
-│  │ llms mgr    │◄────────│ progress      掌握度     │    │
-│  │ db engine   │  复用   │ feynman       费曼对话    │    │
-│  │ (SQLite)    │         │ practice      实操辅助    │    │
-│  └──────┬──────┘         │ exporter      导出        │    │
-│         │                └──────────┬───────────────┘    │
-│         │                           │                    │
-│  ┌──────▼───────────────────────────▼───────────────┐    │
-│  │   共享: SQLite + LLM (ktem.llms.manager.llms)     │    │
-│  └──────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────┘
-                     │
-              ┌──────▼──────┐
-              │ LLM Provider│ DeepSeek/GLM/OpenAI/Ollama
-              └─────────────┘
-```
+| 层 | 责任 |
+|---|---|
+| 官网账号服务 | 登录、产品资格、短票签名和续期 |
+| `le_platform/broker.py` | 身份复核、实例准入、冷启动状态、代理与空闲回收 |
+| `le_platform/worker.py` | 私有传输头校验、账号目录与环境、模型归属及工具边界 |
+| `learning_ext/` | 学习路线、课程、复习、测验、笔记、看板、资料与网页交互 |
+| Kotaemon | RAG、索引、原始页面组件和基础数据库接口 |
+| 统一模型网关 | 模型权限、供应商调用和积分计量 |
 
-## 2. 核心设计决策
+## 运行与维护输入
 
-### 2.1 为什么 fork Kotaemon 作底座
-Kotaemon (25.5k★) 已成熟实现：多用户登录、文档集合、混合 RAG(全文+向量+rerank)、
-PDF 引用高亮、ReAct/ReWOO Agent、GraphRAG、Docker 部署。**这些占学习 Agent 所需
-功能的 60%，复用可省去重写 RAG/文档/对话轮子。**
+Git checkout 是维护输入。已提交源码按 `runtime/release-policy.json` 生成不可变 release，布局保持 `source/`、`platform/`、`product/` 与原始组件声明 `input-stubs/`。运行时正常生成声明并记录摘要。
 
-### 2.2 学习特化模块解耦
-`learning_ext/` 独立于 Kotaemon 代码树，只通过三个公共接口耦合：
-- `ktem.db.engine.engine` (共享 SQLite)
-- `ktem.llms.manager.llms` (共享 LLM 配置)
-- `ktem.app.BasePage` (Gradio Tab 基类)
+Kotaemon 仍以固定子模块获取；只有两个运行包、迁移文件、构建元数据、必要配置/帮助文本及许可证进入 release。上游测试、演示图片与独立 CLI 文档不属于官网运行包。本仓库测试和维护脚本在 CI/开发 checkout 使用，不复制到客户实例。
 
-**好处**：阶段 5 可把 `learning_ext` 抽出为独立 FastAPI 服务，配 Next.js 前端，
-Kotaemon 降级为 RAG 微服务，迁移成本最小。
+## 状态与权限
 
-### 2.3 FSRS v6 而非 SM-2
-采用 [Free Spaced Repetition Scheduler](https://github.com/open-spaced-repetition)
-v6 算法 (pip 包 `fsrs`)，比 Anki 经典 SM-2 先进 30%+，是当前最强开源间隔重复算法。
-核心参数：`stability`(记忆稳定性)、`difficulty`(难度)、`state`(新/学习/复习/重学)。
+每个账号拥有独立数据库、向量资料、临时文件、缓存和5GiB个人空间。`default` 只在单个隔离进程内部表示本账号，不能混用为共享官网身份。网页工具受白名单和本人路径约束；宿主命令、桌面控制和软件安装不能执行。
 
-## 3. 目录结构
+部分学习模块还导入桌面兼容组件，因此保留其依赖和回归测试；完整 Windows 启动/安装/便携版入口不在此仓库。独立桌面实践演示页未注册到线上页面，已移除；课程中的网页实践组件保留。
 
-```
-learn-everything/
-├── launcher.py               # 桌面启动器 (PyWebView + 子进程编排)
-├── custom_app.py             # 后端入口 (LearningApp，设置 sys.path/环境变量)
-├── setup.bat                 # 首次环境初始化 (uv + venv + 依赖)
-├── run.bat                   # 启动程序
-├── build_exe.bat             # PyInstaller 打 launcher.exe
-├── pack_portable.bat         # 组装完整便携版
-│
-├── kotaemon/                 # fork 的 Kotaemon 底座 (原样不动)
-│   ├── .env                  # 本地配置 (LLM key)
-│   ├── .venv/                # uv 创建的 Python 3.11 虚拟环境
-│   ├── flowsettings.py       # Kotaemon 读取的配置 (路径/LLM/索引)
-│   └── libs/{kotaemon,ktem}/ # RAG 引擎 + 应用层
-│
-├── learning_ext/             # 学习特化模块 (我们的核心代码)
-│   ├── app.py                # LearningApp (继承 Kotaemon App，加学习 Tab)
-│   ├── bootstrap.py          # 初始化 (建表、加载 fsrs)
-│   ├── db/models.py          # 11 个学习数据模型
-│   ├── llm/client.py         # LLM 调用封装 (复用 ktem llms)
-│   ├── path_generator/       # 阶段1: 选题→学习路线 DAG
-│   ├── fsrs_review/          # 阶段2: 艾宾浩斯记忆曲线
-│   ├── quiz/                 # 阶段3: 查漏补缺测验
-│   ├── progress/             # 阶段3: 进度+掌握度
-│   ├── feynman/              # 阶段4: 费曼/苏格拉底对话
-│   ├── practice/             # 阶段4: 环境/实操辅助
-│   ├── exporter/             # 阶段4: 导出 Anki/MD/PDF
-│   └── pages/                # Gradio Tab (路线Tab 已可用)
-│
-├── kotaemon/ktem_app_data/   # 运行时数据 (gitignore)
-│   └── user_data/
-│       ├── sql.db            # SQLite (Kotaemon + learning_ext 共用)
-│       ├── files/            # 上传的文献
-│       ├── docstore/         # LanceDB 全文索引
-│       └── vectorstore/      # Chroma 向量库
-│
-└── docs/ARCHITECTURE.md      # 本文档
-```
-
-## 4. 运行机制（双进程模型）
-
-```
-用户双击                    PyWebView              Gradio 后端
-LearnEverything.exe  ──>   launcher.py 主进程  ──>  custom_app.py 子进程
-(原生 Win 窗口)            (调度+窗口)             (Kotaemon venv python)
-                            │                        │
-                            │ subprocess.Popen        │ demo.launch()
-                            │ 日志转发                │ http://127.0.0.1:7860
-                            │                        │
-                            │ wait_for_server()  <────┘ 端口探测
-                            │
-                            │ webview.create_window(url)
-                            ▼
-                       桌面窗口打开
-                       (Edge WebView2)
-```
-
-**为什么双进程而非线程**：
-- Gradio/uvicorn 的信号处理与 PyWebView 冲突
-- 子进程隔离，崩溃不影响窗口
-- launcher.exe (PyInstaller) 和 Kotaemon venv 的 python 解耦，各自升级
-
-## 5. 数据模型
-
-全部复用 Kotaemon 的 SQLite engine，表名前缀 `le_` 避免冲突。
-
-| 表 | 说明 | 关键字段 |
-|---|---|---|
-| `le_project` | 学习项目(选题) | topic, goal, weekly_hours, roadmap_json |
-| `le_knode` | 知识图谱节点 | code, title, stage, est_hours, difficulty, **mastery**, status |
-| `le_kedge` | 依赖边 | source_id→target_id (target 是前置) |
-| `le_card` | FSRS 复习卡片 | front, back, **stability**, **difficulty**, state, next_review |
-| `le_reviewlog` | 复习记录 | card_id, rating(1-4), stability, difficulty |
-| `le_quiz` | 测验 | project_id, quiz_type, scope_node_ids |
-| `le_quiz_question` | 题目 | qtype, stem, options, answer, explanation |
-| `le_quiz_attempt` | 答题 | question_id, user_answer, **is_correct**, feedback |
-| `le_progress` | 进度时序 | node_id, metric, value, recorded_at |
-| `le_task` | 实操任务 | title, description, task_type, status |
-| `le_daily_report` | 日报 | content, study_minutes, cards_reviewed |
-
-**核心关系**：`User → Project → KnowledgeNode → {Card, Quiz, Task}`，
-掌握度 `mastery` 横跨 `测验正确率 + FSRS稳定性 + 状态进度` 三信号加权。
-
-## 6. Kotaemon 关键扩展点 (备忘)
-
-| 扩展点 | 位置 | 用途 |
-|---|---|---|
-| `App.ui()` | `ktem/main.py` | **插入新 Tab** ← 我们用了这个 |
-| `BasePage` | `ktem/app.py` | 编写 Tab 页面基类 |
-| `KH_REASONINGS` | `flowsettings.py` | 注册新 reasoning pipeline |
-| `ktem.llms.manager.llms` | `ktem/llms/manager.py` | 获取已配置 LLM |
-| `ktem.db.engine.engine` | `ktem/db/engine.py` | 共享 DB engine |
-| `IndexManager` | `ktem/index/` | 文档集合/RAG |
-| 事件系统 | `subscribe_event` | 跨 Tab 通信 |
-
-## 7. 阶段路线图
-
-| 阶段 | 内容 | 状态 |
-|---|---|---|
-| **0 脚手架** | 底座 + learning_ext 骨架 + 数据模型 + Windows exe 方案 | ✅ 完成 |
-| **1 路线闭环** | 路线生成 Agent 调优、图谱可视化、节点状态机 | 🔜 进行中 |
-| **2 认知巩固** | FSRS 复习队列完整 UI、AI 卡片提炼 | ⏳ 待做 |
-| **3 查漏+看板** | 测验出题/批改、错题本、热力图、甘特图、AI 日报 | ⏳ 待做 |
-| **4 增强** | 费曼对话、苏格拉底、实操辅助、导出 | ⏳ 待做 |
-| **5 演进** | Kotaemon→RAG微服务、Next.js 独立前端 | ⏳ 待做 |
-
-## 8. 开发约定
-
-- **依赖注入**：所有 service 函数第一个参数是 `session: Session`，便于测试
-- **LLM 调用**：统一走 `learning_ext.llm.chat/chat_json`，不直接碰 ktem
-- **提示词**：复杂提示词放各模块 `prompts.py`，不混在业务代码里
-- **新增 Tab**：在 `learning_ext/pages/` 加 BasePage 子类，在 `app.py._build_learning_tabs` 注册
-- **数据迁移**：当前用 `SQLModel.metadata.create_all` 自动建表；量大后引入 Alembic
-- **打包**：改完 launcher.py 需重新 `build_exe.bat`；改 learning_ext 或 custom_app.py 不用重打（venv 内直接生效）
-
-## 9. 动手学对话与引导
-
-`pages/coach.py` 使用 `agent/runtime.py` 的事件流。工具执行记录默认折叠，标题只呈现动作和状态；完整输入与结果保留在详情中。写入及桌面操作继续使用单次确认，提问选项不授予操作权限。
-
-`ask_user` 每次提出一个问题和 2–4 个选项，暂停运行时，支持点选或自由回答。问题 ID 随浏览器点击提交，不能使用执行时读取最新值的 `gr.State`，否则排队的旧点击可能误答下一题。回答后的问题保留在可见对话中。`agent_question_asked`、`agent_question_answered` 与已有工具操作记录共用本地 Journal。
-
-流式传输使用隐藏的 `le-coach-stream`：每帧是带递增序号的完整 JSON 消息快照，以容忍 Gradio 合并中间帧。历史 Markdown 缓存复用；浏览器只对改变的消息解析 HTML 并原位更新可见节点，保留文本选择、代码滚动、详情展开和阅读位置。新会话也拒绝晚到的旧序号。未变化的 Gradio 控件使用 `gr.skip()`。润色、设置、下拉和小助的全局观察器忽略这两个对话容器内部变化，但继续处理组件挂载与输入状态变化。
-
-回归覆盖在 `test_agent_questions.py`、`test_agent_runtime.py`、`test_coach_page.py`、`test_coach_frontend.py` 和 `test_coach_observers.py`，包括真实 Chromium 下的亮暗主题、宽窄布局、多帧更新与过期点击。
+详见 [接口契约](OFFICIAL_API.md)、[部署回退](OFFICIAL_DEPLOYMENT.md) 和 [维护与源码边界](OFFICIAL_MAINTENANCE.md)。
