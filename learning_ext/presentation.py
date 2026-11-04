@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 ASSETS = Path(__file__).parent / "assets"
 
@@ -59,10 +60,10 @@ def presentation_css():
         css += "\n" + (ASSETS / f"{workspace_layer}.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "reasoning_settings.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "typography.css").read_text(encoding="utf-8")
-    return css.replace("__ASSETS__", "/file=" + ASSETS.as_posix())
+    return css.replace("__ASSETS__", os.getenv('LE_ROOT_PATH','') + "/file=" + ASSETS.as_posix())
 
 
-BRAND = f"""<header class="le-topbar"><div class="le-brand"><img src="/file={ASSETS.as_posix()}/aethermind-logo.png" alt="以太智元 AetherMind" width="479" height="150" /></div><div class="le-app-title">Learn Everything <span>/ 学习首页</span></div></header>"""
+BRAND = f"""<header class="le-topbar"><div class="le-brand"><img src="{os.getenv('LE_ROOT_PATH','')}/file={ASSETS.as_posix()}/aethermind-logo.png" alt="以太智元 AetherMind" width="479" height="150" /></div><div class="le-app-title">Learn Everything <span>/ 学习首页</span></div></header>"""
 
 
 _BOOK_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 6c-3-2-6-2-10-1v15c4-1 7-1 10 1 3-2 6-2 10-1V5c-4-1-7-1-10 1v15"/></svg>'

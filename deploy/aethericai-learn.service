@@ -1,0 +1,36 @@
+[Unit]
+Description=AethericAI Learn Everything isolated account broker
+Wants=network-online.target
+After=network-online.target
+RequiresMountsFor=/data
+ConditionPathIsMountPoint=/data
+
+[Service]
+Type=exec
+User=root
+Group=root
+WorkingDirectory=@RELEASE@
+EnvironmentFile=/var/lib/learn-everything-platform/service.env
+ExecStart=/data/learn-everything/runtime/python311/bin/python -m uvicorn le_platform.broker:app --host 127.0.0.1 --port 7860 --no-access-log
+Restart=on-failure
+RestartSec=3
+TimeoutStartSec=180
+TimeoutStopSec=35
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+LimitNOFILE=4096
+TasksMax=64
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target

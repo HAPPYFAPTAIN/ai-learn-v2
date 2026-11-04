@@ -41,6 +41,9 @@ def generate_install_commands(
 
 def run_command_streaming(cmd: str) -> Iterator[str]:
     """流式执行单条 PowerShell 命令，yield 实时输出。"""
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        yield '[错误] 网页版不配置共享服务器环境，请在桌面端执行本机配置。\n'
+        return
     full_cmd = [
         "powershell",
         "-NoProfile",

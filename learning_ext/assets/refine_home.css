@@ -709,7 +709,7 @@
   color: var(--le-ink-3);
 }
 
-.le-rail-links a {
+#le-home-rail .le-rail-links a {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -723,32 +723,33 @@
   transition: color .16s var(--le-ease), padding-left .16s var(--le-ease);
 }
 
-.le-rail-links a:first-of-type {
+#le-home-rail .le-rail-links a:first-of-type {
   border-top: 0;
   padding-top: 10px;
 }
 
-.le-rail-links a b {
+#le-home-rail .le-rail-links a b {
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.le-rail-links a i {
+#le-home-rail .le-rail-links a i {
   font-style: normal;
   color: var(--le-ink-3);
   transition: transform .18s var(--le-ease), color .18s var(--le-ease);
 }
 
-.le-rail-links a:hover {
+#le-home-rail .le-rail-links a:hover {
   color: var(--le-accent);
 }
 
-.le-rail-links a:hover i {
+#le-home-rail .le-rail-links a:hover i {
   color: var(--le-accent);
   transform: translateX(2px);
 }
 
-.le-rail-steps {
+#le-home-rail .le-rail-steps {
+  list-style-position: outside;
   margin: 12px 0 0;
   padding-left: 18px;
   display: flex;
@@ -756,18 +757,19 @@
   gap: 12px;
 }
 
-.le-rail-steps li {
+#le-home-rail .le-rail-steps li {
+  margin: 0;
   font-size: 13px;
   color: var(--le-ink-2);
 }
 
-.le-rail-steps li b {
+#le-home-rail .le-rail-steps li b {
   display: block;
   font-weight: 550;
   color: var(--le-ink);
 }
 
-.le-rail-steps li span {
+#le-home-rail .le-rail-steps li span {
   display: block;
   margin-top: 2px;
   font-size: 11.5px;

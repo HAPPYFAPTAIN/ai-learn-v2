@@ -1,52 +1,54 @@
-# 学习 Agent (Learn Everything)
+# AI Learn · 官网接入版
 
-> 给任意选题，AI 制定学习路线 + 辅助搭建系统环境 + 给出实操；带知识库、文献管理、学习进度跟踪、艾宾浩斯记忆曲线复习、查漏补缺测验。**Windows 桌面应用，双击 exe 即用。**
+Learn Everything 的独立官网适配仓库。上游来自 [HAPPYFAPTAIN/learn-everything](https://github.com/HAPPYFAPTAIN/learn-everything)，完整保留上游 Git 历史；Kotaemon 以固定子模块管理。上游提交、子模块与官网适配来源见 [INTEGRATION.json](INTEGRATION.json)。
 
-基于开源 [Kotaemon](https://github.com/Cinnamon/kotaemon) (RAG 底座) + FSRS v6 (记忆算法) + 自建学习特化模块。
+本仓库负责学习页面、学习业务和 Linux 官网运行适配；官网账号服务继续负责登录/资格/短票，统一模型网关继续负责模型权限和积分。当前适配面向 Ubuntu 24.04、Python 3.11、Gradio 4.44.1。创建仓库和通过 CI 不等于已切换生产服务。
 
-## 快速开始
+## 获取与开发
 
-### 首次使用（开发者/高级用户）
-1. **初始化环境**（需联网，约 5-15 分钟）：双击 `setup.bat`
-2. **配置 LLM**：编辑 `kotaemon\.env`，填入任一 API key（DeepSeek 推荐）
-3. **启动**：双击 `run.bat`，或开发模式 `python launcher.py`
+```sh
+git clone --recurse-submodules git@github.com:AetherMindHarness/ai-learn.git
+cd ai-learn
+git remote add upstream https://github.com/HAPPYFAPTAIN/learn-everything.git
+python3.11 -m venv .venv
+.venv/bin/python -m pip install -r runtime/requirements-test.txt
+.venv/bin/python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py
+```
 
-### 打包成 exe 分发
-1. `build_exe.bat` — PyInstaller 打包 launcher 为 `LearnEverything.exe`
-2. `pack_portable.bat` — 组装完整便携版（含运行时，解压即用）
+私有仓库需本人已有 GitHub 访问权限；不要在 remote URL 中嵌入 token。服务器无 GitHub 凭据时可用 `git bundle` 传递经过审阅的分支，服务器的 origin 仍指向本仓库。使用 `git clone --branch <审阅分支> <bundle> <目录>` 后设置 origin；不向服务器复制个人 GitHub token。
 
-## 文件说明
+## 目录与边界
 
-| 文件 | 作用 |
+| 目录 | 内容 |
 |---|---|
-| `launcher.py` | 桌面启动器：启动 Gradio 后端 + PyWebView 桌面窗口 |
-| `custom_app.py` | 后端入口：加载 LearningApp（Kotaemon + 学习 Tab） |
-| `setup.bat` | 首次环境初始化（装 uv + venv + 依赖） |
-| `run.bat` | 启动程序 |
-| `build_exe.bat` | 打包 launcher.exe |
-| `pack_portable.bat` | 组装可分发的完整便携版 |
-| `learning_ext/` | 学习特化代码（路线/复习/测验/看板等） |
-| `kotaemon/` | RAG 底座（fork，不改动） |
+| `learning_ext/`、`custom_app.py` | 上游学习业务及必要官网适配；桌面入口保留 |
+| `kotaemon/` | 固定上游子模块；禁止修改运行时依赖与生成 JS |
+| `le_platform/` | 官网鉴权代理、每账号独立 UID/worker、模型归属、5GiB空间及管理界面 |
+| `runtime/` | 已验证 Linux 依赖锁、向量模型和 NLTK 校验数据、轻量测试依赖 |
+| `deploy/` | 学习服务单元及官网反向代理模板 |
+| `scripts/official_release.py` | 从已提交源码构建、核验、安装不可变候选发布 |
+| `scripts/activate_official.py` | 复用既有学习服务的备份、切换、回退流程；显式指定目标及主机名 |
+| `scripts/preview_home_rail.py` | 真实 Gradio 首页组件复现；无账号、模型或资料访问 |
+| `tests/browser/` | 首页列表、链接、响应式的真实浏览器回归 |
 
-## 功能矩阵
+## 接入与发布
 
-| 功能 | 状态 | 说明 |
-|---|---|---|
-| 🎯 选题→学习路线 | ✅ 阶段1 | AI 拆知识 DAG，分阶段，可调整重生成 |
-| 💬 知识库 RAG 问答 | ✅ 底座 | 上传 PDF/文献，带引用溯源 |
-| 🔄 艾宾浩斯复习 | 🔜 阶段2 | FSRS v6 调度，4 档评分 |
-| 📝 查漏测验 | ⏳ 阶段3 | AI 按薄弱点出题批改 |
-| 📊 学习看板 | ⏳ 阶段3 | 热力图/甘特/掌握度/日报 |
-| 🧑‍🏫 费曼对话 | ⏳ 阶段4 | AI 扮小白逼你讲解 |
-| 🛠️ 实操辅助 | ⏳ 阶段4 | 编程选题自动出环境清单+练习 |
-| 📤 导出 | ⏳ 阶段4 | Anki 牌组 / Markdown / PDF 报告 |
+- [接口契约](docs/OFFICIAL_API.md)：接口所有方、请求响应、资格/身份、模型与存储边界。
+- [部署与回退](docs/OFFICIAL_DEPLOYMENT.md)：依赖、候选包、服务器检出、正式切换、验证与回退。
+- [来源与升级](docs/OFFICIAL_MAINTENANCE.md)：与官网单仓副本关系、上游更新、页面异常根因及检查。
+- [上游架构](docs/ARCHITECTURE.md)、[原账户接入设计](docs/ACCOUNT_INTEGRATION.md)：桌面主体与原接口预留；官网模式以本仓库的接口契约为准。
 
-## 技术栈
-- **底座**: Kotaemon (Gradio + SQLite + Chroma + LanceDB)
-- **记忆**: fsrs (FSRS v6)
-- **桌面**: PyWebView (Edge WebView2)
-- **打包**: PyInstaller
-- **LLM**: DeepSeek / GLM / 通义 / OpenAI / Ollama (任选)
+官网模式保持账号数据库、资料和模型计量隔离；网页不能控制共享服务器桌面或安装软件。`default` 只表示一个隔离 worker 内的单用户，不是官网共享身份。桌面模式仍通过原 `launcher.py`、`run.bat` 使用，本轮未重新验证 Windows 打包。
 
-## 项目结构
-详见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+## 首页布局与浏览器验证
+
+```sh
+.venv/bin/python -m pip install -r runtime/requirements-browser.txt
+.venv/bin/python scripts/preview_home_rail.py --port 7863
+# 另一个终端，或让 playwright.config.mjs 自动启动测试页：
+npm ci
+npx playwright install chromium
+PATH="$PWD/.venv/bin:$PATH" npm run test:browser
+```
+
+手动启动的复现页请先退出，再运行自动浏览器测试。CI 在独立环境中启动它，不访问生产。完整学习业务回归需要 Linux 完整运行时；轻量平台测试不冒充完整业务验收。

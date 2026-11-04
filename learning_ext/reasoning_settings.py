@@ -8,7 +8,7 @@ import threading
 from pathlib import Path
 from urllib.parse import urlsplit
 
-STORE_FILE = Path(__file__).resolve().parent.parent / "ktem_app_data" / "reasoning_settings.json"
+STORE_FILE = Path(os.getenv('LE_APP_DATA_DIR',str(Path(__file__).resolve().parent.parent / 'ktem_app_data'))) / 'reasoning_settings.json'
 PURPOSES = {
     "qa": "提问与解释",
     "lesson": "课程与实操内容",
@@ -66,6 +66,8 @@ def save(values):
 def capability(base_url, model):
     host = (urlsplit(str(base_url or "")).hostname or "").lower()
     name = str(model or "").lower().split("/")[-1]
+    if os.getenv('LE_ISOLATED_WORKER') == '1' and host in {'127.0.0.1','localhost'} and name.startswith(('deepseek-v4','deepseek-flash')):
+        host='api.deepseek.com'
     if host in {"open.bigmodel.cn", "api.z.ai", "opencode.ai"} and name.startswith("glm-5.3"):
         return "forced"
     if host in {"open.bigmodel.cn", "api.z.ai"} and name.startswith(("glm-4.5", "glm-4.6", "glm-4.7", "glm-5")):

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import os
 import logging
 import re
 from datetime import datetime, timezone
@@ -36,7 +37,7 @@ from learning_ext.progress.study import course_code_sort_key
 
 logger = logging.getLogger(__name__)
 
-SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "kotaemon" / "ktem_app_data" / "adapt_snapshots"
+SNAPSHOT_DIR = Path(os.getenv('LE_APP_DATA_DIR',str(Path(__file__).resolve().parent.parent.parent / 'kotaemon/ktem_app_data'))) / 'adapt_snapshots'
 
 SYSTEM = """你是一位学习教练，负责根据学生的真实学习表现，调整其**尚未学习**的后续课程安排。
 

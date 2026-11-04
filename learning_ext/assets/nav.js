@@ -180,7 +180,7 @@
   }
   async function refreshIdentity() {
     try {
-      const response = await fetch('/api/v1/account/context', {cache: 'no-store'});
+      const response = await fetch((window.__LE_ROOT_PATH__ || '') + '/api/v1/account/context', {cache: 'no-store'});
       if (!response.ok) throw new Error('identity unavailable');
       const data = await response.json();
       const identity = data.identity;
@@ -193,6 +193,11 @@
       panel.querySelector('[data-account-workspace]').textContent = identity.workspace.name;
       panel.querySelector('[data-account-mode]').textContent = data.mode === 'local' ? '本机保存' : '服务器账户';
       panel.querySelector('[data-account-sync]').textContent = identity.capabilities?.cloud_sync ? '已启用' : '未启用';
+      if (data.mode === 'server' && data.storage?.managed) {
+        panel.querySelector('[data-account-mode]').textContent = '云端个人空间';
+        panel.querySelector('[data-account-sync]').previousElementSibling.textContent = '基础额度';
+        panel.querySelector('[data-account-sync]').textContent = '5 GB';
+      }
     } catch (_) {
       entry.querySelector('strong').textContent = '账户信息';
       entry.querySelector('small').textContent = '暂时无法读取';

@@ -53,6 +53,9 @@ def _parse_env_file() -> dict:
 
 def _load_config() -> dict:
     """加载 LLM 配置 (.env 文件 + 环境变量，带缓存)"""
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.worker import model_config
+        return model_config()
     now = time.time()
     if now - _cache["ts"] < _CACHE_TTL and _cache["data"]:
         return _cache["data"]
@@ -87,6 +90,9 @@ def _load_config() -> dict:
 
 def _get_client():
     """构造 openai 客户端"""
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.worker import model_client,model_config
+        return model_client(),model_config()
     from openai import OpenAI
 
     cfg = _load_config()
@@ -145,6 +151,9 @@ def chat(
         "show_thinking": show_thinking,
     })
     client, cfg = _get_client()
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.storage import ensure_capacity
+        ensure_capacity(os.environ['LE_WORKER_ROOT'])
     model = model_name or cfg["chat_model"]
     messages = []
     if system:
@@ -308,6 +317,9 @@ def friendly_error(exc: Exception) -> str:
 
 
 def stream_tool_response(messages, tools, *, selection=None):
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.storage import ensure_capacity
+        ensure_capacity(os.environ['LE_WORKER_ROOT'])
     from learning_ext.chat_messages import sanitize_messages
     from learning_ext.model_platforms import adapt_chat_params
     from learning_ext import chat_connections, chat_thinking, connection_store
@@ -315,6 +327,8 @@ def stream_tool_response(messages, tools, *, selection=None):
     if selection:
         record_id, model, preferences = chat_connections.parse_selection(selection)
     else:
+        record_id = ""
+    if os.getenv("LE_ISOLATED_WORKER") == "1":
         record_id = ""
     if record_id:
         from openai import OpenAI

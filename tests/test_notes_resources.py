@@ -5,6 +5,22 @@ from unittest.mock import MagicMock
 from learning_ext.db.models import KnowledgeNode, NodeResource
 
 
+def test_markdown_export_preserves_personal_notes_and_annotations(session,sample_project):
+    from sqlmodel import select
+    from learning_ext.db.models import NodeNote,NodeAnnotation
+    from learning_ext.exporter.service import export_markdown
+    node=session.exec(select(KnowledgeNode).where(KnowledgeNode.project_id==sample_project.id)).first()
+    note=NodeNote(project_id=sample_project.id,node_id=node.id,content='OWNED_NOTE_EXPORT_CHECK')
+    annotation=NodeAnnotation(project_id=sample_project.id,node_id=node.id,quote='source quote',body='OWNED_ANNOTATION_EXPORT_CHECK')
+    session.add(note);session.add(annotation);session.commit()
+    try:
+        result=export_markdown(session,sample_project.id)
+        assert 'OWNED_NOTE_EXPORT_CHECK' in result and 'OWNED_ANNOTATION_EXPORT_CHECK' in result
+        assert 'source quote' in result
+    finally:
+        session.delete(note);session.delete(annotation);session.commit()
+
+
 def test_generate_resources_returns_compact_sources_without_summary(monkeypatch):
     import learning_ext.llm as llm
     import learning_ext.notes.service as notes

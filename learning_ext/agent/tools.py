@@ -75,6 +75,8 @@ def _ps(command: str, timeout: float = 30.0, cwd: str | None = None) -> tuple[in
     Windows 上走 powershell（能力比 cmd 完整），并把输出编码统一到 UTF-8；
     非 Windows 走 /bin/sh，方便以后跨平台。
     """
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        return 126,'网页版不执行本机命令或配置共享服务器环境，请在桌面端使用这项能力。'
     if sys.platform == "win32":
         argv = [
             "powershell",
@@ -1068,6 +1070,9 @@ TOOLS: dict[str, ToolSpec] = {
 
 def build_tool_specs() -> list[dict]:
     """给模型的工具清单（含 MCP 工具，若配置了服务器）。"""
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.worker import tool_allowed
+        return [t.to_openai() for t in TOOLS.values() if tool_allowed(t.name)]
     specs = [t.to_openai() for t in TOOLS.values()]
     try:
         from learning_ext.agent.mcp_bridge import mcp_tool_specs
@@ -1091,6 +1096,12 @@ def tool_needs_approval(name: str) -> bool:
 def execute_tool(name: str, args: dict) -> str:
     """执行工具，任何异常都转成文本返回给模型，绝不让整轮对话崩掉。"""
     args = args or {}
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.worker import execute_tool as execute_owned
+        spec=TOOLS.get(name)
+        if spec is None:return '网页版不支持这项桌面工具。'
+        try:return execute_owned(name,args,spec.handler)
+        except Exception as exc:return f'学习空间操作失败：{type(exc).__name__}'
     if name.startswith("mcp__"):
         try:
             from learning_ext.agent.mcp_bridge import mcp_call

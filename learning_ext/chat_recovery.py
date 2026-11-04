@@ -1,6 +1,7 @@
 from functools import wraps
 from inspect import signature
 import logging
+import os
 
 import gradio as gr
 
@@ -18,6 +19,9 @@ def _failed(history):
 
 
 def _message(error):
+    if os.getenv('LE_ISOLATED_WORKER') == '1':
+        from le_platform.worker import terminal_model_error,model_error_message
+        if terminal_model_error(error):return model_error_message(error)
     if isinstance(error, LocalEmbeddingUnavailable):
         return str(error)
     kind = type(error).__name__.lower()
@@ -53,7 +57,11 @@ def configure_chat_recovery(page):
                 partial = ''
             state = latest[4] if isinstance(latest, tuple) and len(latest) == 5 else bound.arguments.get('chat_state')
             preferences = chat_thinking.from_state(state)
-            if not partial and isinstance(question, str) and question.strip():
+            terminal=False
+            if os.getenv('LE_ISOLATED_WORKER') == '1':
+                from le_platform.worker import terminal_model_error
+                terminal=terminal_model_error(error)
+            if not terminal and not partial and isinstance(question, str) and question.strip():
                 try:
                     from learning_ext.llm import chat as direct_chat
 

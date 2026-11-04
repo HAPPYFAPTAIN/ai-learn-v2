@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 
 
 _ART_ROOT = Path(__file__).parent / "assets" / "illustrations"
@@ -14,7 +15,7 @@ def illustration(kind, *, eager=False):
     path = (_ART_ROOT / _ART_FILES[kind]).as_posix()
     loading = 'loading="eager" fetchpriority="high"' if eager else 'loading="lazy"'
     return (
-        f'<img class="le-illustration" src="/file={path}" alt="" '
+        f'<img class="le-illustration" src="{os.getenv("LE_ROOT_PATH", "")}/file={path}" alt="" '
         f'width="1536" height="1024" {loading} decoding="async" draggable="false">'
     )
 

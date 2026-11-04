@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import os
 from contextvars import ContextVar
 from functools import wraps
 from inspect import signature
@@ -65,7 +66,7 @@ def is_default_selection(token):
 def resolve_selection(token):
     """返回 (模型实例或 None, 偏好)；默认连接不带凭据，仍走原默认模型。"""
     record_id, model, preferences = parse_selection(token)
-    if not record_id:
+    if os.getenv("LE_ISOLATED_WORKER") == "1" or not record_id:
         return None, preferences
     record = connection_store.find_connection(record_id=record_id)
     if not record:
@@ -142,6 +143,8 @@ def configure_model_routing(page):
 
 def saved_choices():
     choices = [("跟随默认连接", "(default)")]
+    if os.getenv("LE_ISOLATED_WORKER") == "1":
+        return choices
     try:
         records = connection_store.list_connections()
     except Exception:

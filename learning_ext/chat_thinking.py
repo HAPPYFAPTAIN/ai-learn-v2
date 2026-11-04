@@ -15,7 +15,7 @@ from typing import Mapping
 EFFORTS = ("low", "high", "max")
 DEFAULT_EFFORT = "low"
 DEFAULT_PREFERENCES = {"effort": DEFAULT_EFFORT, "show_thinking": False}
-EFFORT_MODELS = ("kimi-k3.1", "glm-5.3")
+EFFORT_MODELS = ("kimi-k3.1", "glm-5.3", "deepseek-v4", "deepseek-flash")
 STATE_KEY = "learning_chat_thinking"
 SUMMARY = "思考过程"
 REASONING_CLASS = "le-reasoning"
