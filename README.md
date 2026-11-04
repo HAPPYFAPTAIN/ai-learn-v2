@@ -15,7 +15,7 @@ python3.11 -m venv .venv
 .venv/bin/python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py
 ```
 
-私有仓库需本人已有 GitHub 访问权限；不要在 remote URL 中嵌入 token。服务器无 GitHub 凭据时可用 `git bundle` 传递经过审阅的分支，服务器的 origin 仍指向本仓库。
+私有仓库需本人已有 GitHub 访问权限；不要在 remote URL 中嵌入 token。服务器无 GitHub 凭据时可用 `git bundle` 传递经过审阅的分支，服务器的 origin 仍指向本仓库。使用 `git clone --branch <审阅分支> <bundle> <目录>` 后设置 origin；不向服务器复制个人 GitHub token。
 
 ## 目录与边界
 

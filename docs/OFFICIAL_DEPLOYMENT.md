@@ -18,7 +18,7 @@ MiniLM 模型按 `runtime/model.json` 的 repository、revision 和逐文件 SHA
 /data/learn-everything/runtime/python311/bin/python scripts/verify_runtime.py
 ```
 
-此命令只检查包版本、模型和 NLTK 文件，不修改运行时。新环境先独立初始化，验证通过再投入使用。
+此命令检查268个锁定包、模型及152个NLTK解压文件的SHA256，不修改运行时。解压数据清单从 `nltk.json` 中已验证SHA256的原始压缩包生成；原压缩包可清理，若仍保留则同时校验。新环境先独立初始化，验证通过再投入使用。
 
 ## 从源码生成候选
 

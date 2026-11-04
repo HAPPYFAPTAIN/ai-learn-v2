@@ -22,8 +22,11 @@ for name,digest in json.loads((specs/'model.json').read_text())['files'].items()
     if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:issues.append('Model file mismatch: '+name)
 for name,item in json.loads((specs/'nltk.json').read_text()).items():
     path=args.runtime/'nltk'/item['path']
-    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:issues.append('NLTK archive mismatch: '+name)
+    if path.exists() and hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:issues.append('NLTK archive mismatch: '+name)
     if not path.parent.joinpath(name).is_dir():issues.append('NLTK data missing: '+name)
+for name,digest in json.loads((specs/'nltk-files.json').read_text())['files'].items():
+    path=args.runtime/'nltk'/name
+    if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=digest:issues.append('NLTK data mismatch: '+name)
 check=subprocess.run([sys.executable,'-m','pip','check'],capture_output=True,text=True)
 if check.returncode:issues.append('pip check failed')
 print(json.dumps({'passed':not issues,'packages':packages,'issues':issues}))
