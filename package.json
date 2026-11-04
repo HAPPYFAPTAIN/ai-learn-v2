@@ -1,0 +1,6 @@
+{
+  "name": "aethermind-ai-learn-checks",
+  "private": true,
+  "scripts": {"test:browser": "playwright test tests/browser/home-rail.spec.mjs"},
+  "devDependencies": {"@playwright/test": "1.64.1"}
+}

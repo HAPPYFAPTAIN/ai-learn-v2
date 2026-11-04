@@ -16,8 +16,8 @@
 | `GET /official/learn-everything/api/v1/account/context` | worker | 官网身份、个人空间和功能能力；不返回任何 token 或密钥 |
 | `GET /official/learn-everything/platform/activity` | worker | 模型与备课状态；用于回收及发布前排空检查 |
 | `GET /official/learn-everything/platform/storage` | worker | 本人配额、用量分类与可管理项 |
-| `POST /official/learn-everything/platform/storage/download` | worker | 管理面板选项，返回受限本人单文件或ZIP流；具体结构以 `le_platform/storage_api.py` 为准 |
-| `POST /official/learn-everything/platform/storage/delete` | worker | 管理面板确认后的项及版本；本人归属、路径与版本校验；具体结构同上 |
+| `POST /official/learn-everything/platform/storage/download` | worker | `{expectedAccount, items:[item]}`；返回本人单文件或ZIP流，最多100项、批量512MiB |
+| `POST /official/learn-everything/platform/storage/delete` | worker | `{expectedAccount, confirm:true, item}`；本人归属、路径与版本校验；生成中返回409 |
 | `GET /v1/models`、`POST /v1/chat/completions` | 模型网关 | 服务端 Bearer、`X-End-User`、每次调用唯一 `X-Event-Id`；401/403 权限失败、402 积分不足不做收费重试 |
 
 浏览器 `server_session.js` 每 120 秒通过现有官网会话获取新的5分钟短票；Nginx 写入 HttpOnly、Secure、SameSite Cookie。不要把短票 URL 写入日志、文档或截图。
@@ -27,3 +27,18 @@ worker 仅监听回环地址，并要求 `X-Learn-User` 与 `X-Learn-Worker-Key`
 ## 兼容性
 
 沿用官网现有接口及 Gradio 4.44.1。学习服务的 `default` 身份仅存在于单个隔离 worker 的私有数据库内部，不代表跨账号共享身份。SSE 保持流式传输，不缓存、不聚合。静态代码允许按版本缓存，个人 HTML、配置、资料和学习记录不得公开缓存。
+
+## 存储请求对象
+
+先 GET storage 取得 `accountId`、`storage`、`items`；后续请求的 `expectedAccount` 必须等于本次返回的 accountId，切换账号后旧页操作返回409。item 从当前列表选取：
+
+- 文件：`{kind:"file", path, version}`，仅允许 workspace/tmp 下本人文件，version 不匹配拒绝。
+- 索引资料：`{kind:"source", index, id}`，复用当前账号索引的实际删除/下载。
+- 课程：`{kind:"project", id}`，导出 Markdown 或执行本人课程级联删除。
+- 问答：`{kind:"conversation", id}`，导出 JSON 或执行本人历史删除。
+
+非法 JSON、数量或未确认删除返回400；账号变化、文件变化或后台生成返回409；同账号已有下载准备返回429。超出空间额度时 broker 对新上传/生成返回507，但保留空间查看、下载和清理入口。删除不能盲目重放，客户端须展示明确确认并刷新列表。
+
+## 真实接口契约测试
+
+`OFFICIAL_SITE_SOURCE` 指向官网仓库后，运行 `pytest tests/test_official_contract.py`。测试使用官网实际 FastAPI 账号/短票代码与临时 SQLite，再经过本仓库实际 broker 校验授权、匿名拒绝、伪造用户头、篡改票据和资格撤销。测试不连接生产数据库，也不调用收费模型。未提供官网源码时明确跳过，不能宣称真实接口验证通过。

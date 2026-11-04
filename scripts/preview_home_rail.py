@@ -1,7 +1,6 @@
 """Render the real home rail with Gradio, using no accounts, models or learning data."""
 import argparse
 import ast
-import html
 from pathlib import Path
 import sys
 

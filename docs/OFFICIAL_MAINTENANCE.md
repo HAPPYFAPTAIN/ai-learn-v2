@@ -1,0 +1,25 @@
+# 来源、维护与界面回归
+
+## 源码所有权
+
+上游为 `HAPPYFAPTAIN/learn-everything`，当前基线为 `59275eb6a58e31e98d9f123101fd0d9ea9e0e75b`；Kotaemon 固定为 `9ad3e4e49aa35b8acddd235918a5d9753c1cfdf9`。官网适配源自 `AetherMindHarness/AetherMind-Official-Site`，准确提交与23个主体适配文件列于 `INTEGRATION.json`。
+
+新仓库保留原始历史，`main` 经 PR 接收官网维护改动。官网仓库的认证入口仍是接口所有方；其历史 `vendor/learn-everything`、`products/learn-everything` 暂作旧发布复现输入，不应与新仓库平行维护。正式迁移后从本仓库发布新的学习版本，旧发布留作回退。不要删除旧资料、私有配置或运行时。
+
+## 上游升级
+
+1. fetch `upstream`，记录目标提交和子模块指针。
+2. 在新分支审阅源码 diff，逐项核对 `INTEGRATION.json` 的适配文件；禁止整目录覆盖。
+3. 保留官网资格、独立 UID、存储额度、网关归属、续期与网页工具限制；不能退回上游的共享 `default` 服务。
+4. 更新来源记录，运行平台/接口测试、Linux核心业务及真实页面检查。
+5. 创建 PR，再通过候选发布和受控上线；不得在生产源码或安装依赖上直接热改。
+
+## 首页概览异常的根因
+
+“从这里开始”的编号与标题分行、“接下来”的链接出现默认下划线，可以用未经修复的上游首页组件与 Gradio 4.44.1 复现。相关 CSS 文件存在且已由服务器返回，不是仅凭截图推断的文件漏传。
+
+Gradio 的 `.gradio-container-4-44-1 .prose ol` 设置 `list-style-position: inside`；组件内部标题 `b` 是块级元素，于是编号占一行，标题换到下一行。`.prose a` 的优先级也高于原 `.le-rail-links a`，把 `text-decoration: none` 覆盖为 `underline`。
+
+修复仅提高 `#le-home-rail` 内列表与链接规则的优先级，显式使用外置编号及零项目外边距，不影响课程正文和其他 Markdown。原设计在1800 CSS像素以上显示主栏加概览栏，更窄时概览堆叠；截图物理像素不等于 CSS 视口宽度，不能据此随意修改断点。
+
+`scripts/preview_home_rail.py` 使用真实 `gr.HTML`、首页 HTML 和完整样式管线；`tests/browser/home-rail.spec.mjs` 检查编号与标题顶部一致、链接装饰、断点和溢出。该页面没有用户数据或模型调用，只用于复现，不是正式应用入口。
