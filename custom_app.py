@@ -93,43 +93,9 @@ if GRADIO_TEMP_DIR is None:
     GRADIO_TEMP_DIR = os.path.join(str(KH_APP_DATA_DIR), "gradio_tmp")
     os.environ["GRADIO_TEMP_DIR"] = GRADIO_TEMP_DIR
 
-def _make_umap_optional() -> None:
-    """umap 导入失败时放一个占位实现，避免整个应用起不来。
+from learning_ext.citation_visualization import configure_citation_visualization
 
-    背景：Kotaemon 的引用可视化模块在**模块级** `import umap`，而 umap 依赖
-    numba → llvmlite。Windows 11 的「智能应用控制」(Smart App Control) 会把
-    llvmlite.dll 判定为不受信任并直接拦掉（加载报 WinError 4551），于是
-    ktem 一 import 就崩，整个 App 连启动都做不到。
-
-    引用可视化只是「知识问答」里的一个附属图表，为它牺牲整个应用不值得。
-    这里先试真 import，能用就用真的；不能用就塞一个占位模块，
-    只让那一个功能在真正调用时报错，其余功能照常。
-    """
-
-    try:
-        import umap  # noqa: F401,WPS433
-
-        return
-    except Exception as exc:  # noqa: BLE001
-        import types
-
-        print(f"[learning_ext] umap 不可用，已降级（引用可视化将不可用）：{exc}", flush=True)
-        stub = types.ModuleType("umap")
-
-        class UMAP:  # noqa: D401
-            """占位：真正的 UMAP 依赖 llvmlite，被系统策略拦住了。"""
-
-            def __init__(self, *args, **kwargs):
-                raise RuntimeError(
-                    "引用可视化需要 umap/numba，但 llvmlite 被系统策略拦截"
-                    "（Windows 智能应用控制）。此功能暂不可用，其余功能不受影响。"
-                )
-
-        stub.UMAP = UMAP
-        sys.modules["umap"] = stub
-
-
-_make_umap_optional()
+configure_citation_visualization()
 
 from learning_ext.app import LearningApp  # noqa: E402
 
