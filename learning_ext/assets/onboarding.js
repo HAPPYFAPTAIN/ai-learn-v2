@@ -5,8 +5,8 @@
   let exploreRequested = false;
   let lastFeedback = '';
   const scrollBehavior = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
-  const primary = ['learning-guide-tab-button','learning-workbench-tab-button','learning-review-tab-button','learning-quiz-tab-button'];
-  const secondary = ['learning-path-tab-button','learning-dashboard-tab-button','learning-coach-tab-button','chat-tab-button','indices-tab-button'];
+  const primary = ['learning-guide-tab-button','learning-path-tab-button','learning-workbench-tab-button','learning-review-tab-button','learning-quiz-tab-button'];
+  const secondary = ['learning-dashboard-tab-button','learning-coach-tab-button','chat-tab-button','indices-tab-button'];
   let more = false;
   try { more = localStorage.getItem('le.nav.more') === 'true'; } catch (_) {}
   function syncNav() {

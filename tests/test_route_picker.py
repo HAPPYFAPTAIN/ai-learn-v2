@@ -44,6 +44,23 @@ def test_selected_route_loads_by_radio_value(route_page, sample_project):
     assert picker["value"] == project_id
 
 
+def test_reentering_restores_history_and_selection_together(route_page, sample_project):
+    picker, empty, markdown, raw, current, status = route_page._restore_history()
+    assert current == sample_project.id == picker['value']
+    assert len(picker['choices']) == 1 and not empty['visible']
+    assert len(json.loads(raw)['nodes']) == 3 and '入门概念' in markdown
+    assert not status
+
+
+def test_history_read_error_is_not_presented_as_no_saved_routes(route_page, monkeypatch):
+    import learning_ext.pages.path_generator as module
+    def failed(*args, **kwargs):
+        raise RuntimeError('database temporarily unavailable')
+    monkeypatch.setattr(module, 'Session', failed)
+    with pytest.raises(gr.Error, match='不表示记录已被删除'):
+        route_page._restore_history()
+
+
 def test_missing_route_is_not_treated_as_an_active_empty_route(route_page):
     markdown, raw, project_id, status = route_page._handle_load(999999)
 
@@ -251,3 +268,6 @@ def test_route_picker_events_use_real_radio_input_and_publish_switch(session, mo
     assert (page.project_list._id, "input") in reset_event.targets
     load_event = next(fn for fn in demo.fns.values() if fn.fn == page._handle_load)
     assert load_event.inputs == [page.project_list]
+    restore_event = next(fn for fn in demo.fns.values() if fn.fn == page._restore_history)
+    assert restore_event.queue is False
+    assert restore_event.outputs[:2] == [page.project_list, page.history_empty]

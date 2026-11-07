@@ -50,8 +50,8 @@ class GuidedHomePage:
             self.resume_id = gr.State(None)
             with gr.Row(elem_id="le-home-wide"):
                 with gr.Column(elem_id="le-home-main"):
-                    with gr.Row(visible=False, elem_id="le-resume-row") as self.resume_row:
-                        self.resume = gr.HTML("")
+                    with gr.Row(visible=True, elem_id="le-resume-row") as self.resume_row:
+                        self.resume = gr.HTML('<p role="status">正在读取你保存的学习路线…</p>')
                         self.resume_btn = gr.Button("继续学习 →", variant="primary", size="sm", min_width=110)
                     gr.HTML(HERO)
                     with gr.Column(elem_id="le-home-journey"):
@@ -189,7 +189,7 @@ class GuidedHomePage:
         def refresh_home():
             ready = connection_configured()
             return *self._resume_info(), ("已找到保存的模型配置。可以继续生成路线。" if ready else "先连接 AI，再回来继续，当前页面里的目标会保留。"), gr.update(value="生成学习路线 →" if ready else "先连接 AI →")
-        self.refresh.click(refresh_home, outputs=[self.resume_row, self.resume, self.resume_id, self.rail, self.connection, self.begin_btn], show_progress="hidden")
-        self._app.app.load(self._resume_info, outputs=[self.resume_row, self.resume, self.resume_id, self.rail], show_progress="hidden")
+        self.refresh.click(refresh_home, outputs=[self.resume_row, self.resume, self.resume_id, self.rail, self.connection, self.begin_btn], show_progress="hidden", queue=False)
+        self._app.app.load(self._resume_info, outputs=[self.resume_row, self.resume, self.resume_id, self.rail], show_progress="hidden", queue=False)
         self.resume_btn.click(wb._auto_init, [self.resume_id], wb.load_outputs).then(lambda: flow_target("learning-workbench-tab", "study"), outputs=self.marker)
         page.open_course.click(wb._auto_init, [page.current_project_id], wb.load_outputs).then(lambda: flow_target("learning-workbench-tab", "study"), outputs=self.marker)

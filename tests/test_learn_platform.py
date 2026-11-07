@@ -176,7 +176,7 @@ def test_concurrent_uploads_reserve_capacity_until_the_first_stream_finishes(wor
         workers=module.Workers();await workers.client.aclose()
         workers.client=httpx.AsyncClient(transport=httpx.MockTransport(upstream))
         value=module.Worker(owner,9999,'key','owned.service');workers.items[owner]=value;module.app.state.workers=workers
-        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=module.app),base_url='http://learn.test') as browser:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=module.app),base_url='http://learn.test',headers={'X-Learn-Expected-User':owner}) as browser:
             first=asyncio.create_task(browser.post('/upload',content=b'a'*100))
             await asyncio.wait_for(started.wait(),2)
             try:

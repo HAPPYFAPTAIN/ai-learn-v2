@@ -22,6 +22,10 @@
 
 浏览器 `server_session.js` 每 120 秒通过现有官网会话获取新的5分钟短票；Nginx 写入 HttpOnly、Secure、SameSite Cookie。不要把短票 URL 写入日志、文档或截图。
 
+每份学习HTML固定其渲染时的官网账号。浏览器访问 `config`、`info`、`upload`、`queue/*`、`api/*`、`run/*`、`call/*` 和 `platform/storage*` 时，必须带 `X-Learn-Expected-User`；EventSource通过 `__le_owner` 查询参数传递同一值。该字段只是页面归属约束，不能替代短票授权；broker仍独立验证Cookie并比较账号。缺少约束或不匹配返回409及 `X-Learn-Error: ACCOUNT_CHANGED`，在创建/选择worker前终止。broker转发时去除内部查询参数，个人HTML/配置/数据禁止缓存。
+
+续期前通过既有 `/console/me` 核对账号；另一个标签页换号、退出，或后台刷新返回前账号已变化时，旧页停止续期和业务请求、关闭队列流/弹窗并隐藏旧内容，引导重新进入。部署此版本后，未带页面归属约束的旧标签页需刷新。自动化/受控API客户端应在已知验证账号下附带相同字段，不能从用户输入任意指定账号。
+
 worker 仅监听回环地址，并要求 `X-Learn-User` 与 `X-Learn-Worker-Key` 同时匹配；broker 去除客户端伪造的同名头后重新设置。每账号独立 Unix UID、数据库、向量库、资料、临时目录与5GiB空间。桌面操作、宿主命令、剪贴板及任意文件路径不能通过网页调用。
 
 ## 兼容性

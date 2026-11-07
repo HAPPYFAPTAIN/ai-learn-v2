@@ -136,12 +136,13 @@ def test_navigation_exposes_primary_learning_tabs_and_keeps_existing_jump_behavi
 
     assert names("primary") == [
         "learning-guide-tab-button",
+        "learning-path-tab-button",
         "learning-workbench-tab-button",
         "learning-review-tab-button",
         "learning-quiz-tab-button",
     ]
     secondary = names("secondary")
-    assert "learning-path-tab-button" in secondary
+    assert "learning-path-tab-button" not in secondary
     assert "learning-review-tab-button" not in secondary
     assert "learning-quiz-tab-button" not in secondary
     assert "button.hidden = !more && !button.classList.contains('selected')" in js

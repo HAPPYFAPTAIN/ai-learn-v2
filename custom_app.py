@@ -207,7 +207,8 @@ def _patch_gradio_template_for_learning_assets():
             workspace_js += "\n" + Path(_HERE, "learning_ext/assets/server_session.js").read_text(encoding="utf-8")
         import json
         script_tag = f"<script>window.__LE_ROOT_PATH__={json.dumps(os.getenv('LE_ROOT_PATH', ''))};\n{word_lookup_js}\n</script>"
-        script_tag = f"<script>\n{workspace_js}\n</script>" + script_tag
+        account_id = os.getenv('LE_OFFICIAL_USER', '') if os.getenv('LE_ISOLATED_WORKER') == '1' else ''
+        script_tag = f"<script>window.__LE_ACCOUNT_ID__={json.dumps(account_id)};\n{workspace_js}\n</script>" + script_tag
         # 样式走 <link>：内容由 /le-presentation.css 每次请求重新拼装，
         # 改完 CSS 刷新页面就能看到，不必重启应用（也不会被 Gradio 改写选择器）。
         style_tag = f'<link rel="stylesheet" href="{_PRESENTATION_CSS_URL}">'

@@ -61,8 +61,8 @@ class PathGeneratorPage(BasePage):
                 elem_id="le-route-picker",
             )
             self.history_empty = gr.HTML(
-                '<div class="le-route-picker-empty"><strong>从第一条路线开始</strong>'
-                '<span>先选择你想学会的事。</span></div>',
+                '<div class="le-route-picker-empty" role="status"><strong>正在读取已有路线…</strong>'
+                '<span>记录保存在个人学习空间。</span></div>',
                 elem_id="le-route-history-empty",
             )
             with gr.Row(elem_id="le-route-actions"):
@@ -146,12 +146,11 @@ class PathGeneratorPage(BasePage):
     def on_register_events(self):
         """绑定按钮事件"""
         self._app.app.load(
-            fn=self._refresh_picker,
-            inputs=[self.current_project_id],
-            outputs=[self.project_list, self.history_empty],
-            show_progress="hidden",
-        )
-        self._app.app.load(self._latest_route, outputs=[self.roadmap_output, self.roadmap_json, self.current_project_id, self.status], show_progress="hidden").then(self._load_preparation, inputs=[self.current_project_id], outputs=[self.save_progress, self.prep_context, self.prep_timer], show_progress="hidden")
+            self._restore_history,
+            outputs=[self.project_list, self.history_empty, self.roadmap_output,
+                     self.roadmap_json, self.current_project_id, self.status],
+            show_progress="hidden", queue=False,
+        ).then(self._load_preparation, inputs=[self.current_project_id], outputs=[self.save_progress, self.prep_context, self.prep_timer], show_progress="hidden")
         self.roadmap_json.change(
             fn=self._route_actions,
             inputs=[self.roadmap_json, self.current_project_id],
@@ -249,7 +248,7 @@ class PathGeneratorPage(BasePage):
             outputs=[self.project_list, self.history_empty, self.roadmap_output,
                      self.roadmap_json, self.current_project_id, self.status,
                      self.save_progress, self.prep_context, self.prep_timer],
-            show_progress="hidden",
+            show_progress="hidden", queue=False,
         )
 
         self.project_list.input(
@@ -303,7 +302,7 @@ class PathGeneratorPage(BasePage):
             show_progress="hidden",
         ).then(self._load_preparation, inputs=[self.current_project_id], outputs=[self.save_progress, self.prep_context, self.prep_timer], show_progress="hidden")
 
-        self._app.app.load(self._batch_choices, outputs=self.batch_selection, show_progress="hidden")
+        self._app.app.load(self._batch_choices, outputs=self.batch_selection, show_progress="hidden", queue=False)
         self.current_project_id.change(self._batch_choices, outputs=self.batch_selection, show_progress="hidden")
         self.refresh_btn.click(self._batch_choices, outputs=self.batch_selection, show_progress="hidden")
         self.batch_selection.input(lambda: ([], "", gr.update(visible=False, interactive=False)),
@@ -532,7 +531,7 @@ class PathGeneratorPage(BasePage):
             selected = None
         return (
             gr.update(choices=choices, value=selected, visible=bool(choices)),
-            gr.update(visible=not choices),
+            gr.update(visible=not choices, value='<div class="le-route-picker-empty"><strong>还没有保存的学习路线</strong><span>生成预览后，点击“就按这个学”保存。</span></div>'),
         )
 
     def _refresh_picker(self, project_id=None):
@@ -618,6 +617,11 @@ class PathGeneratorPage(BasePage):
         if pid:
             return self._handle_load(pid)
         return self._roadmap_to_markdown({}), "{}", None, ""
+
+    def _restore_history(self):
+        rows = self._refresh_projects()
+        markdown, raw, current, status = self._latest_route()
+        return *self._picker_updates(rows, current), markdown, raw, current, status
 
     def _handle_export_roadmap(self, project_id):
         """导出项目学习路线为格式化 JSON 文件。"""
@@ -922,7 +926,7 @@ class PathGeneratorPage(BasePage):
             # 以前这里静默 return []，出错时界面上只是「空列表」，
             # 看起来跟「一条都没生成过」一模一样，没法排查。
             logger.exception("[路径页] 读取历史路线失败")
-            return []
+            raise gr.Error("读取已有路线失败，请刷新重试；这不表示记录已被删除。") from None
 
     @staticmethod
     def _audit_to_markdown(audit: dict) -> str:

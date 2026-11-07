@@ -317,6 +317,10 @@ async def proxy(request:Request,path:str):
     if auth.status_code!=204 or not UID_RE.fullmatch(owner):raise HTTPException(403,'请从官网重新进入学习工作台。')
     supplied=request.headers.get('x-learn-user')
     if supplied is not None and supplied!=owner:raise HTTPException(403,'工作空间身份不匹配。')
+    expected=request.headers.get('x-learn-expected-user') or request.query_params.get('__le_owner')
+    bound_path=(path in {'config','info','upload'} or path.startswith(('queue/','api/','run/','call/','platform/storage'))) and not path.startswith('platform/storage/assets/')
+    if (expected is not None and expected!=owner) or (bound_path and not expected):
+        raise HTTPException(409,'登录账号已变化，请从官网重新打开学习工作台。',headers={'X-Learn-Error':'ACCOUNT_CHANGED','Cache-Control':'no-store'})
     if request.method not in {'GET','HEAD','OPTIONS'}:
         origin=request.headers.get('origin')
         if origin and (urlsplit(origin).scheme,urlsplit(origin).netloc)!=(request.url.scheme,request.headers.get('host')):
@@ -368,7 +372,7 @@ async def proxy(request:Request,path:str):
             async with worker.upload_lock:
                 worker.upload_pending-=reserved;reserved=0
     upstream=workers.client.build_request(request.method,'http://127.0.0.1:'+str(worker.port)+'/'+path,
-        params=request.query_params,headers=headers,content=incoming())
+        params=[(k,v) for k,v in request.query_params.multi_items() if k!='__le_owner'],headers=headers,content=incoming())
     try:response=await workers.client.send(upstream,stream=True)
     except httpx.RequestError:
         await release_upload()
@@ -391,5 +395,7 @@ async def proxy(request:Request,path:str):
         try:
             async for chunk in response.aiter_raw():yield chunk
         finally:await finish()
+    response_headers={k:v for k,v in response.headers.items() if k.lower() not in HOP}
+    if not path.startswith(('assets/','static/')):response_headers['Cache-Control']='no-store'
     return StreamingResponse(body(),status_code=response.status_code,
-        headers={k:v for k,v in response.headers.items() if k.lower() not in HOP},background=BackgroundTask(finish))
+        headers=response_headers,background=BackgroundTask(finish))
