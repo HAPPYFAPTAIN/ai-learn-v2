@@ -16,10 +16,13 @@
 
 ## 本地检查
 
+推送前先运行 `scripts/ci-check.sh`，通过后再推；CI 只在 PR 上跑这一遍，合并到 main 后不再重跑，需要时可在 Actions 里手动运行。脚本不装依赖，前置依赖见脚本开头；`platform` / `browser` 参数只跑其中一部分。平台部分的打包检查要求改动已提交、工作区干净。
+
 ```sh
-python -m pip install -r runtime/requirements-test.txt
-python scripts/check_repository.py
-python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py
+git submodule update --init --recursive
+python -m pip install -r runtime/requirements-browser.txt   # 含 requirements-test.txt
+npm ci && npx playwright install chromium
+scripts/ci-check.sh
 ```
 
 浏览器验证见 README；Linux 完整学习回归需要固定运行时。测试和 CI 只证明相应验证范围，不把本地页面截图当成生产验收。
