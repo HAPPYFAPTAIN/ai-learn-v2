@@ -1,10 +1,14 @@
 name: Official integration
+# 只在 PR 上跑；合并到 main 后不再重跑，需要时在 Actions 里手动运行（workflow_dispatch）。
+# 检查内容在 scripts/ci-check.sh，推送前在本地跑的也是它。
 on:
   pull_request:
-  push:
-    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   platform:
     runs-on: ubuntu-24.04
@@ -16,13 +20,10 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m pip install -r runtime/requirements-test.txt
-      - run: python scripts/check_repository.py
-      - run: python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py tests/test_citation_visualization.py tests/test_learning_session_scope.py
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - run: node --test tests/server-session.test.cjs
-      - run: python scripts/official_release.py pack
+      - run: scripts/ci-check.sh platform
   browser:
     runs-on: ubuntu-24.04
     steps:
@@ -36,4 +37,4 @@ jobs:
       - run: python -m pip install -r runtime/requirements-browser.txt
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:browser
+      - run: scripts/ci-check.sh browser
