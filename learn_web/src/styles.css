@@ -1,0 +1,225 @@
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --border: #e3e3e8;
+  --text: #1d1d20;
+  --muted: #71717a;
+  --accent: #3b5bdb;
+  --danger: #c92a2a;
+  font-family: -apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  font-weight: 650;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 17px;
+}
+
+.hint,
+.muted {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+
+.section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+input,
+button {
+  font: inherit;
+}
+
+input {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  max-width: 100%;
+}
+
+button {
+  padding: 6px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.tab {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 12px;
+  border-radius: 6px 6px 0 0;
+}
+
+.tab.active {
+  color: var(--accent);
+  background: var(--surface);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+.cards {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.card a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.tag {
+  font-size: 12px;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  background: var(--surface);
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table th {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0;
+}
+
+.list > li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.review-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.weeks {
+  padding-left: 20px;
+}
+
+.weeks li {
+  margin: 10px 0;
+}
+
+.upload {
+  display: block;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.upload input {
+  margin-left: 8px;
+}
+
+.error {
+  color: var(--danger);
+  background: #fff5f5;
+  border: 1px solid #ffc9c9;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
