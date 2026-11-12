@@ -39,17 +39,26 @@
 | POST | `/search` | 向量 + 全文混合检索（RRF） |
 | GET | `/jobs/{id}` | 任务状态 |
 | GET | `/jobs/{id}/events` | SSE 进度流 |
+| GET/POST | `/projects/{id}/nodes` | 学习节点列表 / 新建 |
+| PATCH/DELETE | `/nodes/{id}` | 节点更新 / 删除 |
+| POST/GET | `/projects/{id}/progress` | 记录 / 列出学习进度 |
+| GET | `/projects/{id}/summary` | 项目概览（节点状态、掌握率、学时） |
+| POST | `/cards` | 新建复习卡片 |
+| GET | `/projects/{id}/cards` | 项目下卡片 |
+| GET | `/review/due` | 到期待复习卡片 |
+| POST | `/review/{id}` | 评分 1..4，推进排程 |
 
 错误体统一 `{"error":{"code","message","retryable","retryAfterSeconds"}}`，错误码见 `learn_api/errors.py`。
 
 ## 测试
 
-`pytest tests/learn_core -q` → 25 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
+`pytest tests/learn_core -q` → 34 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
 
 ## 还没做
 
 - 迁移工具：从旧 SQLite/Chroma 按账号搬进新表，需要 `migration_run` / `migration_orphan` 的完整实现；
-- 复习、测验、路径生成等学习业务的 service 层与接口；
+- 复习排程目前是阶梯间隔（`learn_core/review/scheduler.py`），FSRS 参数化待做；
+- 测验、路径生成等学习业务的 service 层与接口；
 - 前端（Vite + React，9 个页面）；
 - 生产部署清单：新机器规格、网关并发份额、异地备份；
 - 分支 `feat/learn-core-phase0` 尚未开 PR（等用户确认由谁创建）。

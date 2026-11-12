@@ -33,7 +33,8 @@ def create_source(
     tenant_id=Depends(get_tenant_id),
     session: Session = Depends(get_session),
 ) -> dict:
-    project_service.get_project(session, project_id)  # 不存在直接 404，不建无主任务
+    if project_service.get_project(session, project_id) is None:
+        raise ApiError("NOT_FOUND", "project not found")
 
     job_id = f"idx-{uuid4().hex[:12]}"
     session.add(
