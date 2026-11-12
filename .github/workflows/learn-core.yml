@@ -8,11 +8,13 @@ on:
       - "learn_api/**"
       - "learn_embed/**"
       - "learn_migrate/**"
+      - "learn_web/**"
       - "migrations/**"
       - "tests/learn_core/**"
       - "scripts/phase0/**"
       - "scripts/learn_migrate.py"
       - "requirements-learn-*.txt"
+      - "requirements-learn-embed.txt"
       - "alembic.ini"
       - ".github/workflows/learn-core.yml"
   workflow_dispatch:
@@ -72,3 +74,19 @@ jobs:
           python -m pytest tests/learn_core -q
           python scripts/phase0/validate_queue.py
           python scripts/phase0/validate_vector.py
+
+  web-build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: learn_web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: learn_web/package-lock.json
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npm run build
