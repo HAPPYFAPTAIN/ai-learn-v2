@@ -109,6 +109,9 @@ class StoredFile(SQLModel, table=True):
     sha256: str = Field(sa_column=Column(String(64), nullable=False))
     size_bytes: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, server_default="0"))
     storage_key: str = Field(sa_column=Column(Text, nullable=False))
+    original_name: str = Field(
+        default="", sa_column=Column(Text, nullable=False, server_default="")
+    )
     created_at: datetime = Field(sa_column=ts_column())
 
 
