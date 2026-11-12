@@ -29,6 +29,8 @@ EXPECTED = {
     ("GET", "/api/v2/projects/{project_id}/quizzes"),
     ("GET", "/api/v2/quizzes/{quiz_id}"),
     ("POST", "/api/v2/quizzes/{quiz_id}/submit"),
+    ("POST", "/api/v2/projects/{project_id}/reports"),
+    ("GET", "/api/v2/projects/{project_id}/reports"),
     ("POST", "/api/v2/projects/{project_id}/path"),
     ("POST", "/api/v2/projects/{project_id}/materials"),
     ("GET", "/api/v2/projects/{project_id}/materials"),
