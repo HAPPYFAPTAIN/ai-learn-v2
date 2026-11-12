@@ -29,6 +29,8 @@ export LEARN_DATABASE_URL=postgresql+psycopg://learn_app:app@127.0.0.1:5432/lear
 - 换 `ticket=别的名字` 就是另一个租户，两边数据互不可见（这就是行级安全在起作用）；
 - 页面右上角没有登录按钮是正常的，正式环境由官网发真票。
 
+![项目列表](images/demo-projects.png)
+
 ## 4. 看点
 
 - **知识节点**：四行节点，掌握度滑杆直接改（PATCH 落库）。
