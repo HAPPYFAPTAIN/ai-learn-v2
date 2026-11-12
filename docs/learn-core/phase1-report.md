@@ -52,6 +52,13 @@
 | POST | `/projects/{id}/materials` | 上传资料（multipart，202 + jobId） |
 | GET | `/projects/{id}/materials` | 资料列表 |
 | POST | `/projects/{id}/path` | 按依赖与每周学时排期 |
+| POST | `/projects/{id}/notes` | 新建笔记 |
+| GET | `/projects/{id}/notes` | 笔记列表（可按 nodeId） |
+| PATCH | `/notes/{id}` | 改笔记 |
+| DELETE | `/notes/{id}` | 删笔记 |
+| POST | `/projects/{id}/tasks` | 新建任务 |
+| GET | `/projects/{id}/tasks` | 任务列表（可按 status） |
+| PATCH | `/tasks/{id}` | 改状态/产出 |
 | POST | `/projects/{id}/reports` | 生成当日报告 |
 | GET | `/projects/{id}/reports` | 报告列表 |
 
@@ -59,7 +66,7 @@
 
 ## 测试
 
-`pytest tests/learn_core -q` → 43 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
+`pytest tests/learn_core -q` → 46 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
 
 ## 还没做
 
