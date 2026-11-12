@@ -47,18 +47,23 @@
 | GET | `/projects/{id}/cards` | 项目下卡片 |
 | GET | `/review/due` | 到期待复习卡片 |
 | POST | `/review/{id}` | 评分 1..4，推进排程 |
+| POST | `/projects/{id}/quizzes` | 建卷（取卷不下发答案） |
+| POST | `/quizzes/{id}/submit` | 判分并留痕 |
+| POST | `/projects/{id}/materials` | 上传资料（multipart，202 + jobId） |
+| GET | `/projects/{id}/materials` | 资料列表 |
+| POST | `/projects/{id}/path` | 按依赖与每周学时排期 |
 
 错误体统一 `{"error":{"code","message","retryable","retryAfterSeconds"}}`，错误码见 `learn_api/errors.py`。
 
 ## 测试
 
-`pytest tests/learn_core -q` → 34 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
+`pytest tests/learn_core -q` → 41 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
 
 ## 还没做
 
 - 迁移工具：从旧 SQLite/Chroma 按账号搬进新表，需要 `migration_run` / `migration_orphan` 的完整实现；
 - 复习排程目前是阶梯间隔（`learn_core/review/scheduler.py`），FSRS 参数化待做；
-- 测验、路径生成等学习业务的 service 层与接口；
+- 路径生成目前是拓扑排序 + 学时装箱的确定性算法，按掌握度动态调整待做；
 - 前端（Vite + React，9 个页面）；
 - 生产部署清单：新机器规格、网关并发份额、异地备份；
 - 分支 `feat/learn-core-phase0` 尚未开 PR（等用户确认由谁创建）。
