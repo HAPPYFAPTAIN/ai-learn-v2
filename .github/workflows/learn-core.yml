@@ -1,14 +1,17 @@
-name: Learn core (phase 0)
+name: Learn core (multi-tenant)
 # 与 official-integration 分开：这组测试需要真 Postgres + pgvector，
 # 跑的是多租户基线（行级安全、队列语义、向量召回）。
 on:
   pull_request:
     paths:
       - "learn_core/**"
+      - "learn_api/**"
       - "learn_embed/**"
+      - "learn_migrate/**"
       - "migrations/**"
       - "tests/learn_core/**"
       - "scripts/phase0/**"
+      - "scripts/learn_migrate.py"
       - "requirements-learn-*.txt"
       - "alembic.ini"
       - ".github/workflows/learn-core.yml"
