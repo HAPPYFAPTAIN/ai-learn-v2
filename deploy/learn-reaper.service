@@ -1,0 +1,19 @@
+[Unit]
+Description=Requeue stalled learn-core jobs
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=@RELEASE@
+EnvironmentFile=/var/lib/learn-everything-platform/service.env
+ExecStart=@PYTHON@ -m learn_core.jobs.reaper --seconds-since-heartbeat 120
+User=root
+Group=root
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/data/learn-everything
+TimeoutStartSec=60
