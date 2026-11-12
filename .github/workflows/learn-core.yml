@@ -1,0 +1,71 @@
+name: Learn core (phase 0)
+# 与 official-integration 分开：这组测试需要真 Postgres + pgvector，
+# 跑的是多租户基线（行级安全、队列语义、向量召回）。
+on:
+  pull_request:
+    paths:
+      - "learn_core/**"
+      - "learn_embed/**"
+      - "migrations/**"
+      - "tests/learn_core/**"
+      - "scripts/phase0/**"
+      - "requirements-learn-*.txt"
+      - "alembic.ini"
+      - ".github/workflows/learn-core.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  tenant-baseline:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: learn_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      LEARN_DATABASE_URL: postgresql+psycopg://learn_app:app@127.0.0.1:5432/learn_dev
+      LEARN_DATABASE_OWNER_URL: postgresql+psycopg://learn_owner:owner@127.0.0.1:5432/learn_dev
+      LEARN_PROCRASTINATE_DSN: postgresql://learn_app:app@127.0.0.1:5432/learn_dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install -r requirements-learn-core.txt
+      - name: Create roles, database and extensions
+        run: |
+          psql -d learn_dev <<'SQL'
+          CREATE ROLE learn_owner LOGIN PASSWORD 'owner';
+          CREATE ROLE learn_app LOGIN PASSWORD 'app';
+          CREATE ROLE learn_ops LOGIN PASSWORD 'ops' BYPASSRLS;
+          CREATE EXTENSION IF NOT EXISTS vector;
+          CREATE EXTENSION IF NOT EXISTS pg_trgm;
+          ALTER DATABASE learn_dev OWNER TO learn_owner;
+          GRANT ALL ON SCHEMA public TO learn_owner;
+          GRANT USAGE ON SCHEMA public TO learn_app, learn_ops;
+          SQL
+      - name: Apply schema
+        run: |
+          alembic upgrade head
+          python scripts/phase0/apply_queue_schema.py
+      - name: Tenant isolation, Kotaemon tables, queue and vector gates
+        run: |
+          python -m pytest tests/learn_core -q
+          python scripts/phase0/validate_queue.py
+          python scripts/phase0/validate_vector.py
