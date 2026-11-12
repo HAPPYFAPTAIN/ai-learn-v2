@@ -52,12 +52,14 @@
 | POST | `/projects/{id}/materials` | 上传资料（multipart，202 + jobId） |
 | GET | `/projects/{id}/materials` | 资料列表 |
 | POST | `/projects/{id}/path` | 按依赖与每周学时排期 |
+| POST | `/projects/{id}/reports` | 生成当日报告 |
+| GET | `/projects/{id}/reports` | 报告列表 |
 
 错误体统一 `{"error":{"code","message","retryable","retryAfterSeconds"}}`，错误码见 `learn_api/errors.py`。
 
 ## 测试
 
-`pytest tests/learn_core -q` → 41 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
+`pytest tests/learn_core -q` → 43 passed。覆盖：租户隔离（读写双向）、RLS 全表强制、切块与重切块清理、混合检索与降级、索引任务、对话事件 id 递增、网关 429 记账与租约释放、短票缺失/无效、跨租户读不到别人数据。
 
 ## 还没做
 
@@ -67,3 +69,9 @@
 - 前端（Vite + React，9 个页面）；
 - 生产部署清单：新机器规格、网关并发份额、异地备份；
 - 分支 `feat/learn-core-phase0` 尚未开 PR（等用户确认由谁创建）。
+
+
+## 阶段 2 进展（前端）
+
+`learn_web/` 是 Vite + React 骨架：项目列表、项目详情的六个页签（节点、复习、资料、测验、路径、报告），
+门票从 `?ticket=` 取并只存 sessionStorage。`npm run build` 通过；正式页面迁移与样式对齐官网设计仍需继续。
