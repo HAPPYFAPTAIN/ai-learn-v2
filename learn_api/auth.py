@@ -64,7 +64,26 @@ class HttpTicketVerifier:
         )
 
 
-_verifier: TicketVerifier = HttpTicketVerifier()
+class DevTicketVerifier:
+    """只在本地演示用：任何非空 ticket 都会变成一个独立租户。
+
+    生产环境绝不能用——它不做任何身份校验。只有显式设置
+    ``LEARN_DEV_AUTH=1`` 时才会被装上。
+    """
+
+    def verify(self, ticket: str) -> Principal:
+        return Principal(official_user_id=f"dev-{ticket}", display_name=ticket, ticket=ticket)
+
+
+def _default_verifier() -> TicketVerifier:
+    import os
+
+    if os.getenv("LEARN_DEV_AUTH") == "1":
+        return DevTicketVerifier()
+    return HttpTicketVerifier()
+
+
+_verifier: TicketVerifier = _default_verifier()
 
 
 def set_verifier(verifier: TicketVerifier) -> None:

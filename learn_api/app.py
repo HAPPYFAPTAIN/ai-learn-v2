@@ -18,13 +18,28 @@ from learn_api.routers import (
 log = logging.getLogger("learn_api")
 
 
+class _SPAStaticFiles(StaticFiles):
+    """前端是单页应用：刷新 /app/p/123 这类深链接时回落到 index.html。"""
+
+    async def get_response(self, path, scope):
+        from starlette.exceptions import HTTPException
+
+        try:
+            response = await super().get_response(path, scope)
+        except HTTPException:
+            return await super().get_response("index.html", scope)
+        if response.status_code == 404:
+            return await super().get_response("index.html", scope)
+        return response
+
+
 def _mount_web(app):
     """learn_web/dist 存在就挂在 /app 下；不存在（开发或纯 API 部署）就跳过。"""
     from pathlib import Path
 
     dist = Path(__file__).resolve().parent.parent / "learn_web" / "dist"
     if dist.is_dir():
-        app.mount("/app", StaticFiles(directory=str(dist), html=True), name="learn-web")
+        app.mount("/app", _SPAStaticFiles(directory=str(dist), html=True), name="learn-web")
 
 
 def create_app() -> FastAPI:
