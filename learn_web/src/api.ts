@@ -150,5 +150,10 @@ export const endpoints = {
     }),
   reports: (id: number) => api<{ items: DailyReport[] }>(`/projects/${id}/reports`),
   buildReport: (id: number) => api<DailyReport>(`/projects/${id}/reports`, { method: "POST" }),
+  chat: (projectId: number, messages: { role: string; content: string }[], background = false) =>
+    api<{ eventId: string; content: string; model: string; usage: Record<string, unknown> }>(
+      `/projects/${projectId}/chat`,
+      { method: "POST", body: JSON.stringify({ messages, background }) },
+    ),
   job: (jobId: string) => api<JobProgress>(`/jobs/${jobId}`),
 };

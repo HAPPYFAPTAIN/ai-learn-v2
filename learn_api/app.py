@@ -6,6 +6,7 @@ import logging
 import uuid
 
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -13,6 +14,15 @@ from learn_api.errors import ApiError, api_error_handler, error_response, unhand
 from learn_api.routers import chat, jobs, materials, nodes, paths, progress, projects, quizzes, reports, review, search, sources
 
 log = logging.getLogger("learn_api")
+
+
+def _mount_web(app):
+    """learn_web/dist 存在就挂在 /app 下；不存在（开发或纯 API 部署）就跳过。"""
+    from pathlib import Path
+
+    dist = Path(__file__).resolve().parent.parent / "learn_web" / "dist"
+    if dist.is_dir():
+        app.mount("/app", StaticFiles(directory=str(dist), html=True), name="learn-web")
 
 
 def create_app() -> FastAPI:
@@ -47,6 +57,9 @@ def create_app() -> FastAPI:
 
     for module in (projects, nodes, progress, reports, review, quizzes, materials, paths, search, jobs, sources, chat):
         app.include_router(module.router, prefix="/api/v2")
+
+    # 前端构建产物存在时直接由 API 进程托管，省一个 nginx location。
+    _mount_web(app)
 
     return app
 

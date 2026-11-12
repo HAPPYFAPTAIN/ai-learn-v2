@@ -13,9 +13,10 @@ import {
 } from "../api";
 import { describe } from "./Projects";
 
-type Tab = "nodes" | "review" | "materials" | "quizzes" | "path" | "reports";
+type Tab = "chat" | "nodes" | "review" | "materials" | "quizzes" | "path" | "reports";
 
 const TABS: { key: Tab; label: string }[] = [
+  { key: "chat", label: "对话" },
   { key: "nodes", label: "知识节点" },
   { key: "review", label: "今日复习" },
   { key: "materials", label: "资料" },
@@ -59,6 +60,7 @@ export default function Project() {
 
       {error && <p className="error">{error}</p>}
 
+      {tab === "chat" && <ChatTab projectId={id} onError={setError} />}
       {tab === "nodes" && <NodesTab projectId={id} onError={setError} />}
       {tab === "review" && <ReviewTab onError={setError} />}
       {tab === "materials" && <MaterialsTab projectId={id} onError={setError} />}
@@ -392,6 +394,56 @@ function ReportsTab({ projectId, onError }: TabProps) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+function ChatTab({ projectId, onError }: TabProps) {
+  const [messages, setMessages] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [draft, setDraft] = useState("");
+  const [eventId, setEventId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function send(event: React.FormEvent) {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text || busy) return;
+    const next = [...messages, { role: "user" as const, content: text }];
+    setMessages(next);
+    setDraft("");
+    setBusy(true);
+    try {
+      const reply = await endpoints.chat(projectId, next);
+      setMessages([...next, { role: "assistant", content: reply.content }]);
+      setEventId(reply.eventId);
+    } catch (exc) {
+      onError(describe(exc));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="chat">
+      <div className="chat-log">
+        {messages.length === 0 && <p className="muted">问点什么：解释概念、出题、排下一步。</p>}
+        {messages.map((message, index) => (
+          <div key={index} className={`bubble ${message.role}`}>
+            {message.content}
+          </div>
+        ))}
+        {busy && <div className="bubble assistant muted">思考中…</div>}
+      </div>
+      <form className="inline-form" onSubmit={send}>
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="输入问题，回车发送"
+          disabled={busy}
+        />
+        <button disabled={busy || !draft.trim()}>发送</button>
+      </form>
+      {eventId && <p className="muted">事件 id：{eventId}</p>}
     </div>
   );
 }
