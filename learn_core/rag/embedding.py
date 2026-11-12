@@ -21,12 +21,16 @@ class EmbeddingError(RuntimeError):
 class EmbeddingClient:
     def __init__(
         self,
-        base_url: str,
+        base_url: str | None = None,
         *,
         transport: httpx.BaseTransport | None = None,
         timeout: float = 60.0,
         retries: int = 2,
     ) -> None:
+        if base_url is None:
+            from learn_core.config import get_settings
+
+            base_url = get_settings().embed_url
         self._client = httpx.Client(
             base_url=base_url.rstrip("/"),
             timeout=timeout,

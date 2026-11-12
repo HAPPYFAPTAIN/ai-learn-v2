@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     files_root: str = "/tmp/learn-everything/files"
 
     # 本机嵌入服务
-    embed_url: str = "http://127.0.0.1:18090/v1/embeddings"
+    embed_url: str = "http://127.0.0.1:18090"
     embed_dim: int = 384
 
     # 官网模型网关

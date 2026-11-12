@@ -208,6 +208,26 @@ class MigrationOrphan(SQLModel, table=True):
     created_at: datetime = Field(sa_column=ts_column())
 
 
+class LlmLease(SQLModel, table=True):
+    """模型调用的并发租约。
+
+    每租户两条通道：交互（页面等待结果）和后台（生成、索引等工作）。
+    交互优先给 2 个并发，后台 1 个，避免一次批量生成把页面挤死。
+    用表而不是内存信号量，是因为 API 和 worker 是不同进程。
+    """
+
+    __tablename__ = "llm_lease"
+
+    tenant_id: UUID = Field(sa_column=Column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("tenant.id", ondelete="CASCADE"),
+        primary_key=True,
+    ))
+    lane: str = Field(sa_column=Column(String(16), primary_key=True))
+    holder: str = Field(sa_column=Column(String(100), primary_key=True))
+    expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
+
+
 # ---------------------------------------------------------------- 学习业务表
 
 
