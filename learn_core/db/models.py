@@ -543,3 +543,20 @@ class RagEmbedding(SQLModel, table=True):
     chunk_id: str = Field(sa_column=Column(String(64), primary_key=True))
     source_id: str = Field(sa_column=Column(String(64), nullable=False, index=True))
     embedding: Optional[list[float]] = Field(default=None, sa_column=Column(Vector(384), nullable=True))
+
+
+class LlmEventCounter(SQLModel, table=True):
+    """每租户每种事件类型一个自增号，用于拼事件 id ``ln-j12-3-1``。
+
+    用表而不是 sequence：租户是运行时建的，不可能为每个租户建 DDL 对象。
+    """
+
+    __tablename__ = "llm_event_counter"
+
+    tenant_id: UUID = Field(sa_column=Column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("tenant.id", ondelete="CASCADE"),
+        primary_key=True,
+    ))
+    kind: str = Field(sa_column=Column(String(8), primary_key=True))
+    value: int = Field(default=0, sa_column=Column(BigInteger, nullable=False, server_default=sql_text("0")))

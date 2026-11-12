@@ -10,7 +10,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from learn_api.errors import ApiError, api_error_handler, error_response, unhandled_handler
-from learn_api.routers import jobs, projects, search, sources
+from learn_api.routers import chat, jobs, projects, search, sources
 
 log = logging.getLogger("learn_api")
 
@@ -45,7 +45,7 @@ def create_app() -> FastAPI:
     def healthz() -> dict:
         return {"ok": True}
 
-    for module in (projects, search, jobs, sources):
+    for module in (projects, search, jobs, sources, chat):
         app.include_router(module.router, prefix="/api/v2")
 
     return app
