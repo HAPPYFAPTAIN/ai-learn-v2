@@ -52,6 +52,12 @@ def upsert_chunks(
     if not chunks:
         return 0
 
+    # RAG 表按租户 LIST 分区：写之前确保这个租户有分区。
+    # 函数是 SECURITY DEFINER，应用角色只拿到 EXECUTE。
+    session.execute(
+        text("SELECT ensure_rag_partition(NULLIF(current_setting('app.tenant_id', true), '')::uuid)")
+    )
+
     rows = [
         {
             "index_id": index_id,
