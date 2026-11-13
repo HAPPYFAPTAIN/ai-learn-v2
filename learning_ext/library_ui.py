@@ -42,6 +42,8 @@ def polish_library_ui(app):
             block.label = labels[label]
             if label == "Advanced indexing options":
                 block.elem_classes = [*(block.elem_classes or []), "le-import-options"]
+            elif label == "Advance options":
+                block.elem_classes = [*(block.elem_classes or []), "le-library-more"]
         if getattr(block, "info", None) == "(1) Case-insensitive. (2) Search with empty string to show all files.":
             block.info = "输入名称筛选，留空显示全部文件。"
         value = getattr(block, "value", None)
@@ -82,6 +84,7 @@ def polish_library_ui(app):
             "chunks": "le-source-chunks", "chat_button": "le-source-chat",
             "download_single_button": "le-source-download",
             "group_list": "le-source-groups",
+            "group_add_button": "le-library-group-add",
         }.items():
             component = getattr(page, name, None)
             if component is not None:
@@ -97,6 +100,11 @@ def polish_library_ui(app):
             page.filter.lines = 1
             page.filter.max_lines = 1
             page.filter.elem_classes = [*(page.filter.elem_classes or []), "le-library-search"]
+        for name in ("file_list", "group_list"):
+            table = getattr(page, name, None)
+            if table is not None:
+                table.wrap = True
+                table.column_widths = []
         if hasattr(page, "upload_progress_panel"):
             page.upload_progress_panel.elem_classes = [*(page.upload_progress_panel.elem_classes or []), "le-library-progress"]
             if hasattr(page, "upload_result") and hasattr(page, "upload_info"):

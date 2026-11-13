@@ -14,7 +14,7 @@ def lesson(tmp_path, monkeypatch):
     steps = [dict(title=f"操作{i}", action="打开练习中的选项", check="看到选项已展开", hint="先找到选项名称", source_index=0) for i in range(4)]
     monkeypatch.setattr(module, "chat_json", lambda *a, **k: {"steps": steps})
     service = ActionLearning(Journal(tmp_path / "journal.sqlite"))
-    state = service.start("alice", 1, dict(course="测试课程", lesson="课程原句：打开练习中的选项并检查状态。", practice="", goal="做练习"))
+    state = service.start("alice", 1, dict(course="测试课程", lesson="课程原句：打开练习中的选项并检查状态。", practice="", goal="做练习", learner_os="macos"))
     return service, state
 
 
@@ -43,7 +43,6 @@ def test_resume_is_owner_node_and_content_scoped(lesson):
     resumed = service.start("alice", 1, state["context"])
     assert resumed["id"] == state["id"]
     assert resumed["index"] == 1 and resumed["done"] == [0]
-    assert resumed["pending"] is None
     for owner, node, content in (("bob",1,state["context"]),("alice",2,state["context"]),("alice",1,{**state["context"],"goal":"新目标"})):
         other = service.start(owner,node,content)
         assert other["id"] != state["id"]
@@ -51,11 +50,8 @@ def test_resume_is_owner_node_and_content_scoped(lesson):
 
 def test_navigation_never_claims_mastery(lesson):
     service, state = lesson
-    state["pending"] = {"nonce":"unused"}
-    state["observation"] = {"window":{}}
     service.move(state, 99)
     assert state["index"] == 3 and state["done"] == []
-    assert state["pending"] is None and state["observation"] is None
     service.move(state, -99)
     assert state["index"] == 0
     service.complete(state)
@@ -68,7 +64,7 @@ def test_bad_model_output_rejected_without_saving(tmp_path, monkeypatch):
     service = ActionLearning(Journal(tmp_path / "journal.sqlite"))
     monkeypatch.setattr(module, "chat_json", lambda *a, **k: {"steps":[]})
     with pytest.raises(ValueError):
-        service.start("alice",1,{"lesson":"原句"})
+        service.start("alice",1,{"lesson":"原句", "learner_os":"macos"})
     assert events(service)[-1][0] == "decompose_failed"
     with service.journal.connect() as db:
         assert db.execute("SELECT count(*) FROM sessions").fetchone()[0] == 0
@@ -95,69 +91,20 @@ def test_ai_uses_full_context_and_current_step_only(lesson, monkeypatch):
         return "先展开菜单"
     monkeypatch.setattr(module, "chat", chat)
     assert service.help(state,"怎么做") == "先展开菜单"
-    assert captured["context"] == state["context"]
+    assert captured["context"]["lesson"] == state["context"]["lesson"]
+    assert captured["context"]["learner_os"] == "macOS"
+    assert "environment" not in captured
     assert captured["current"] == state["steps"][2]
 
 
-def make_pending(service, state, monkeypatch):
-    window = dict(hwnd=1,pid=2,started=3,title="练习窗口")
-    item = dict(key="1.2",name="学习选项",type="CheckBox",action="toggle")
-    state["observation"] = dict(window=window,items=[item],observed=time.time())
-    monkeypatch.setattr(desktop,"highlight",lambda *a:None)
-    monkeypatch.setattr(desktop,"stop_highlight",lambda *a:None)
-    service.prepare_operation(state,item)
-    assert state["pending"]
 
 
-@pytest.mark.parametrize("reason",["unapproved","expired","step_changed","node_changed"])
-def test_invalid_approval_does_not_operate(lesson,monkeypatch,reason):
-    service,state = lesson
-    make_pending(service,state,monkeypatch)
-    calls=[]
-    monkeypatch.setattr(desktop,"operate",lambda *a:calls.append(a))
-    if reason == "expired": state["pending"]["expires"] = 0
-    if reason == "step_changed": state["index"] += 1
-    if reason == "node_changed": state["node"] += 1
-    with pytest.raises(ValueError): service.execute(state,reason != "unapproved")
-    assert calls == [] and state["pending"] is None
-    assert events(service)[-1][0] == "operation_denied"
 
 
-def test_approval_is_single_use_and_failures_logged(lesson,monkeypatch):
-    service,state = lesson
-    make_pending(service,state,monkeypatch)
-    calls=[]
-    monkeypatch.setattr(desktop,"operate",lambda *a: calls.append(a) or {"message":"已发送操作"})
-    assert service.execute(state,True) == "已发送操作"
-    with pytest.raises(ValueError): service.execute(state,True)
-    assert len(calls) == 1
-    assert "operation_approved" in [event for event,_ in events(service)]
-    assert "operation_result" in [event for event,_ in events(service)]
-    make_pending(service,state,monkeypatch)
-    def fail(*args): raise ValueError("窗口已变化")
-    monkeypatch.setattr(desktop,"operate",fail)
-    with pytest.raises(ValueError): service.execute(state,True)
-    assert state["pending"] is None
-    assert events(service)[-1][0] == "operation_failed"
 
 
-def test_logging_failure_prevents_execution(lesson,monkeypatch):
-    service,state = lesson
-    make_pending(service,state,monkeypatch)
-    calls=[]
-    monkeypatch.setattr(desktop,"operate",lambda *a:calls.append(a))
-    def fail(*a,**k): raise OSError("disk full")
-    monkeypatch.setattr(service.journal,"record",fail)
-    with pytest.raises(OSError): service.execute(state,True)
-    assert not calls and state["pending"] is None
 
 
-def test_observation_expires_and_no_guessing(lesson,monkeypatch):
-    service,state = lesson
-    make_pending(service,state,monkeypatch)
-    state["observation"]["observed"] = 0
-    with pytest.raises(ValueError): service.prepare_operation(state,state["observation"]["items"][0])
-    assert state["pending"] is None
 
 
 def test_window_identity_and_protected_actions(monkeypatch):
@@ -200,13 +147,6 @@ def test_card_escapes_model_html(lesson):
     assert '<img' not in output and '&lt;img' in output
 
 
-def test_locate_cannot_invent_targets(lesson,monkeypatch):
-    service,state = lesson
-    make_pending(service,state,monkeypatch)
-    monkeypatch.setattr(module,"chat_json",lambda *a,**k:{"key":"invented","reason":"click"})
-    with pytest.raises(ValueError): service.locate(state)
-    state["observation"]["observed"] = 0
-    with pytest.raises(ValueError): service.locate(state)
 
 
 def test_entry_streams_focus_loading_before_generating(lesson, monkeypatch):
@@ -218,7 +158,7 @@ def test_entry_streams_focus_loading_before_generating(lesson, monkeypatch):
     monkeypatch.setattr(panel, "context", lambda *args: state["context"])
     original = service.start
     monkeypatch.setattr(service, "start", lambda *args: called.append(True) or original(*args))
-    updates = panel.dispatch("start", None, 1, 1, "alice", None, None, "", False, False)
+    updates = panel.dispatch("start", None, 1, 1, "alice", "", "macos")
     loading = next(updates)
     assert loading[1]["visible"] is True and 'data-le-focus="loading"' in loading[5]
     assert not called
@@ -234,7 +174,7 @@ def test_failed_decomposition_restores_reading_with_retry(lesson, monkeypatch):
     def unavailable(*args):
         raise ValueError("本节内容还在准备，正文就绪后再拆解。")
     monkeypatch.setattr(panel, "context", unavailable)
-    updates = list(panel.dispatch("start", None, 1, 1, "alice", None, None, "", False, False))
+    updates = list(panel.dispatch("start", None, 1, 1, "alice", "", "macos"))
     assert updates[-1][1]["visible"] is False
     assert "还在准备" in updates[-1][2]
     assert updates[-1][5] == ""
@@ -243,22 +183,10 @@ def test_failed_decomposition_restores_reading_with_retry(lesson, monkeypatch):
 def test_leaving_loading_state_restores_reading():
     from learning_ext.pages.action_learning import ActionLearningPanel
     panel = ActionLearningPanel(None)
-    result = panel.handle("close", {"loading": True}, 1, 1, "alice", None, None, "", False, False)
+    result = panel.handle("close", {"loading": True}, 1, 1, "alice", "", "macos")
     assert result[1]["visible"] is False and result[5] == ""
 
 
-def test_direct_screen_entry_opens_current_step_assistant(lesson, monkeypatch):
-    from learning_ext.pages.action_learning import ActionLearningPanel
-    service, state = lesson
-    panel = ActionLearningPanel(None)
-    panel.service = service
-    state.update(active=True, assist=False)
-    monkeypatch.setattr(desktop, "windows", lambda: [{"hwnd": 10, "title": "练习", "process": "fixture"}])
-    monkeypatch.setattr(desktop, "stop_highlight", lambda *args: None)
-    result = panel.handle("screen", state, 1, 1, "alice", None, None, "", False, False)
-    assert result[8]["visible"] and result[14]["visible"]
-    assert result[0]["index"] == 0 and result[0]["pending"] is None
-    assert events(service)[-1][0] == "screen"
 
 
 def test_action_entry_precedes_long_lesson_in_flex_layout():
@@ -271,3 +199,147 @@ def test_action_entry_precedes_long_lesson_in_flex_layout():
     body = re.search(r"#le-center-col\s*>\s*#le-content-tabs\s*>\s*\.tabitem\s*\{([^}]+)", workbench_css).group(1)
     order = lambda rule: int(re.search(r"order\s*:\s*(\d+)", rule).group(1))
     assert order(entry) < order(body)
+
+
+def test_cached_steps_never_probe_or_call_model_again(lesson, monkeypatch):
+    from learning_ext.practice import environment
+    from learning_ext import environment_agent
+    service, state = lesson
+    def forbidden(*args, **kwargs):
+        pytest.fail("Reading steps must not probe the host or call the model")
+    monkeypatch.setattr(module, "chat_json", forbidden)
+    monkeypatch.setattr(environment, "inspect_environment", forbidden)
+    monkeypatch.setattr(environment_agent, "explore_environment", forbidden)
+    for _ in range(2):
+        resumed = service.start("alice", 1, state["context"])
+        assert resumed["id"] == state["id"]
+        assert service.hint(resumed) == state["steps"][0]["hint"]
+    assert "environment" not in resumed
+
+
+def test_first_decomposition_uses_one_call_and_user_selected_os(tmp_path, monkeypatch):
+    from learning_ext.practice import environment
+    from learning_ext import environment_agent
+    monkeypatch.setattr(environment, "inspect_environment", lambda *a: pytest.fail("Host probe"))
+    monkeypatch.setattr(environment_agent, "explore_environment", lambda *a, **k: pytest.fail("AI exploration"))
+    captured = []
+    def planner(prompt, **kwargs):
+        captured.append(json.loads(prompt))
+        return {"steps": [dict(title="创建文件", action="创建练习文件", check="看到文件", hint="先找目录", source_index=0)] * 4}
+    monkeypatch.setattr(module, "chat_json", planner)
+    service = ActionLearning(Journal(tmp_path / "journal.sqlite"))
+    context = dict(course="练习", lesson="创建一个练习文件，并在自己的电脑查看它。", practice="", learner_os="windows")
+    state = service.start("alice", 1, context)
+    assert len(captured) == 1 and captured[0]["context"]["learner_os"] == "Windows"
+    assert "environment" not in captured[0]
+    other = service.start("alice", 1, {**context, "learner_os": "macos"})
+    assert other["id"] != state["id"] and captured[1]["context"]["learner_os"] == "macOS"
+
+
+def test_missing_platform_and_long_question_do_not_spend_tokens(lesson, monkeypatch):
+    service, state = lesson
+    monkeypatch.setattr(module, "chat", lambda *a, **k: pytest.fail("Invalid question reached model"))
+    monkeypatch.setattr(module, "chat_json", lambda *a, **k: pytest.fail("Missing OS reached model"))
+    with pytest.raises(ValueError, match="系统"):
+        service.start("alice", 1, {**state["context"], "learner_os": None})
+    with pytest.raises(ValueError, match="1000"):
+        service.help(state, "问" * 1001)
+    assert not [event for event, _ in events(service) if event == "ai_help_requested"]
+
+
+def test_help_limit_survives_reopening_and_is_owner_scoped(lesson, monkeypatch):
+    service, state = lesson
+    clock = [10000.0]
+    monkeypatch.setattr(module.time, "time", lambda: clock[0])
+    requests = []
+    monkeypatch.setattr(module, "chat", lambda *a, **k: requests.append(k) or "先检查文件")
+    service.help(state, "怎么做")
+    reopened = service.start("alice", 1, state["context"])
+    with pytest.raises(ValueError, match="10 秒"):
+        service.help(reopened, "再问一次")
+    bob = service.start("bob", 1, state["context"])
+    service.help(bob, "怎么做")
+    for _ in range(module.HELP_HOURLY_LIMIT - 1):
+        clock[0] += 11
+        service.help(reopened, "怎么做")
+    clock[0] += 11
+    with pytest.raises(ValueError, match="本小时"):
+        service.help(reopened, "继续问")
+    assert len(requests) == module.HELP_HOURLY_LIMIT + 1
+    assert all(request["max_tokens"] == 800 for request in requests)
+    assert service.hint(reopened)
+    clock[0] += 3601
+    assert service.help(reopened, "恢复提问")
+
+
+def test_legacy_desktop_session_is_not_reused(lesson, monkeypatch):
+    import hashlib
+    service, state = lesson
+    legacy = {**state, "id": "desktop-legacy", "index": -1,
+              "fingerprint": hashlib.sha256(json.dumps(state["context"], sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
+              "environment": {"items": [{"name": "Server Python"}]}}
+    service.journal.save(legacy)
+    resumed = service.start("alice", 1, state["context"])
+    assert resumed["id"] == state["id"] and resumed["index"] == 0
+    assert "environment" not in resumed
+
+
+def test_lightweight_ui_registers_no_desktop_callbacks():
+    import gradio as gr
+    from types import SimpleNamespace
+    from learning_ext.pages.action_learning import ActionLearningPanel
+    with gr.Blocks(analytics_enabled=False) as blocks:
+        host = SimpleNamespace(current_node_id=gr.State(1), current_project_id=gr.State(1),
+            course_drop=gr.Dropdown(), project_id=gr.Dropdown(),
+            _app=SimpleNamespace(user_id=gr.State("alice"), _tabs={}))
+        panel = ActionLearningPanel(host).build()
+        panel.register()
+    config = blocks.get_config_file()
+    ids = {item["props"].get("elem_id") for item in config["components"]}
+    assert "le-step-entry" in ids and "le-step-platform" in ids
+    assert "le-action-screen" not in ids and "le-action-assistant" in ids
+    commands = {fn.fn.args[0] for fn in blocks.fns.values() if hasattr(fn.fn, "args")}
+    assert commands == {"start", "close", "previous", "next", "hint", "assist", "done", "ask"}
+    assert all(len(fn.outputs) == 9 for fn in blocks.fns.values())
+
+
+def test_old_desktop_command_cannot_be_dispatched(lesson):
+    from learning_ext.pages.action_learning import ActionLearningPanel
+    service, state = lesson
+    state["active"] = True
+    panel = ActionLearningPanel(None)
+    panel.service = service
+    for command in ("screen", "execute", "locate", "recheck_environment"):
+        result = panel.handle(command, state, 1, 1, "alice", "", "macos")
+        assert "不可用" in result[2]
+
+
+def test_gradio_entry_streams_loading_then_steps_with_session_state(lesson, monkeypatch):
+    import asyncio
+    import gradio as gr
+    from gradio.state_holder import SessionState
+    from types import SimpleNamespace
+    from learning_ext.pages.action_learning import ActionLearningPanel
+    service, saved = lesson
+    with gr.Blocks(analytics_enabled=False) as blocks:
+        host = SimpleNamespace(current_node_id=gr.State(1), current_project_id=gr.State(1),
+            course_drop=gr.Dropdown(), project_id=gr.Dropdown(),
+            _app=SimpleNamespace(user_id=gr.State("alice"), _tabs={}))
+        panel = ActionLearningPanel(host).build()
+        panel.service = service
+        monkeypatch.setattr(panel, "context", lambda *args: saved["context"])
+        panel.register()
+    fn = next(fn for fn in blocks.fns.values() if getattr(fn.fn, "args", ()) == ("start",))
+    session = SessionState(blocks)
+    async def exercise():
+        loading = await blocks.process_api(fn, inputs=[None, None, None, None, "", "macos"], state=session)
+        assert 'data-le-focus="loading"' in loading["data"][5]
+        ready = await blocks.process_api(fn, inputs=[None, None, None, None, "", "macos"],
+                                         state=session, iterator=loading["iterator"])
+        assert 'data-le-step-active="true"' in ready["data"][5]
+        assert session[panel.state._id]["owner"] == "alice"
+        assert session[panel.state._id]["context"]["learner_os"] == "macos"
+        finished = await blocks.process_api(fn, inputs=[None, None, None, None, "", "macos"],
+                                            state=session, iterator=ready["iterator"])
+        assert finished["is_generating"] is False
+    asyncio.run(exercise())

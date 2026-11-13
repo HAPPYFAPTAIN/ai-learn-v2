@@ -6,6 +6,8 @@ from contextvars import ContextVar
 from functools import wraps
 import logging
 import os
+import sys
+import shutil
 from pathlib import Path
 import subprocess
 import threading
@@ -36,6 +38,13 @@ def _standard_local_address(base_url):
 
 
 def _installed_ollama():
+    if sys.platform == 'darwin':
+        roots = [Path('/Applications/Ollama.app/Contents/Resources/ollama'),
+                 Path('/opt/homebrew/bin/ollama'), Path('/usr/local/bin/ollama')]
+        found = shutil.which('ollama')
+        if found:
+            roots.insert(0, Path(found))
+        return next((path for path in roots if path.is_file() and os.access(path, os.X_OK)), None)
     if os.name != 'nt':
         return None
     roots = [Path(root) / suffix for root, suffix in (
@@ -91,7 +100,7 @@ def ensure_local_embeddings(base_url, model):
                     _STARTED_PROCESS = subprocess.Popen(
                         [str(executable), 'serve'], stdin=subprocess.DEVNULL,
                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                        creationflags=subprocess.CREATE_NO_WINDOW,
+                        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0) if os.name == 'nt' else 0,
                         env={**os.environ, 'OLLAMA_HOST': '127.0.0.1:11434'},
                     )
                     _LOG.info('local_embedding_service_started pid=%s', _STARTED_PROCESS.pid)

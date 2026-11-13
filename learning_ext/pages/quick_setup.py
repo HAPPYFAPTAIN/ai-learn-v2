@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 from html import escape
 from learning_ext import connection_store as connections
+from learning_ext.macos_keychain import KeychainError
 from learning_ext.model_platforms import (
     PLATFORMS, detect_platform, profile_for, platform_draft, origin,
     connection_error, is_local_ollama, request_key, model_ids,
@@ -81,6 +82,8 @@ def _write_env(updates: dict) -> None:
     for field, env_key in keys.items():
         if field in updates and field not in written:
             new_lines.append(f"{env_key}={updates[field]}")
+    if os.name != "nt":
+        ENV_FILE.chmod(0o600)
     ENV_FILE.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
 
 
@@ -223,7 +226,7 @@ class QuickSetupPage(BasePage):
             saved_choices = connections.connection_choices(current)
         except Exception:
             saved_choices = []
-            storage_error = "无法读取本机保存的连接。当前连接仍可使用，请检查 Windows 账户或文件权限。"
+            storage_error = "无法读取本机保存的连接。请检查系统账户、钥匙串访问和文件权限。"
         draft = platform_draft(provider, current)
         self.saved = gr.State(current)
         self.draft_provider = gr.State(provider)
@@ -242,7 +245,8 @@ class QuickSetupPage(BasePage):
             with gr.Column(scale=3, min_width=320, elem_id="le-settings-form"):
                 self.saved_connection = gr.Dropdown(
                     choices=saved_choices, value=connections.connection_id(provider, current["base_url"]) if saved_choices and any(v == connections.connection_id(provider, current["base_url"]) for _, v in saved_choices) else None,
-                    label="我的连接", elem_id="le-my-connections",
+                    label="已保存的连接", elem_id="le-my-connections",
+                    filterable=False, info="选择已保存的连接；新增连接请填写下方表单，再点「保存连接」。",
                 )
                 self.remember_status = gr.Markdown(storage_error, elem_id="le-remember-status")
                 self.platform_heading = gr.HTML(self._platform_heading(provider))
@@ -345,6 +349,8 @@ class QuickSetupPage(BasePage):
             if not record_id:
                 return gr.update(), "填好连接地址和密钥后即可保存。"
             return gr.update(choices=connections.connection_choices(_read_env()), value=record_id), "已记住此连接 · 仅保存在本机"
+        except KeychainError as exc:
+            return gr.update(), str(exc)
         except Exception:
             return gr.update(), "连接未能保存，请检查本机存储权限。填写的内容仍保留在页面中。"
 
@@ -400,9 +406,11 @@ class QuickSetupPage(BasePage):
             if result != "ok":
                 return "连接验证通过，配置已保存；部分运行设置未更新，请重启后检查。", self._build_status(updated), updated
             return "连接已启用，可以开始学习了。", self._build_status(updated), updated
-        except Exception:
+        except Exception as exc:
             logger.exception("保存连接失败")
             actual = _read_env()
+            if isinstance(exc, KeychainError):
+                return str(exc), self._build_status(actual), actual
             return "保存未完成，请重试。", self._build_status(actual), actual
 
     def on_register_events(self):
@@ -457,8 +465,6 @@ class QuickSetupPage(BasePage):
         remember_inputs = [self.draft_provider,self.api_key,self.base_url,self.chat_model,self.embed_model]
         remember_outputs = [self.saved_connection,self.remember_status]
         self.remember_btn.click(self._remember, remember_inputs, remember_outputs, show_progress="hidden")
-        self.api_key.blur(self._remember, remember_inputs, remember_outputs, show_progress="hidden")
-        self.chat_model.input(self._remember, remember_inputs, remember_outputs, show_progress="hidden")
         self.save_btn.click(self._save, [self.api_key,self.base_url,self.chat_model,self.embed_model,self.provider], [self.result,self.status_display,self.saved]).then(
             self._remember, remember_inputs, remember_outputs, show_progress="hidden",
         )

@@ -34,12 +34,16 @@ def test_picker_does_not_select_a_route_that_was_removed(route_page):
 
 
 def test_selected_route_loads_by_radio_value(route_page, sample_project):
+    from bs4 import BeautifulSoup
+
     markdown, raw, project_id, status = route_page._handle_load(sample_project.id)
 
     assert project_id == sample_project.id
     assert "入门概念" in markdown
     assert len(json.loads(raw)["nodes"]) == 3
     assert not status
+    soup = BeautifulSoup(markdown, 'html.parser')
+    assert soup.select_one('.le-route-browser > .le-goal-disclosure')
     picker, _ = route_page._refresh_picker(project_id)
     assert picker["value"] == project_id
 

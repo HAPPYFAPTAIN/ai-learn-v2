@@ -345,8 +345,9 @@ class TestStudyWorkbenchPageLogic:
         from learning_ext.progress import prep
         called = {}
 
-        def fake_queue(project_id, node_ids, project_topic):
+        def fake_queue(project_id, node_ids, project_topic, *, priority=False):
             called["args"] = (project_id, node_ids, project_topic)
+            called["priority"] = priority
 
         monkeypatch.setattr(
             prep, "start", fake_queue
@@ -356,7 +357,8 @@ class TestStudyWorkbenchPageLogic:
 
         assert current_node_id == node.id
         assert called["args"] == (sample_project.id, [node.id], sample_project.topic)
-        assert "正在写这一节" in guide
+        assert called["priority"] is True
+        assert "这一节已排队" in guide
         assert "路线里的短说明" not in guide
 
     def test_status_update_keeps_selected_course_visible(

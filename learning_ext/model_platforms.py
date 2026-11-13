@@ -1,5 +1,7 @@
 from urllib.parse import urlsplit
 from pathlib import Path
+from functools import lru_cache
+import base64
 import hashlib
 import hmac
 import json
@@ -49,12 +51,16 @@ def platform_css():
     return '\n'.join(f'#le-platform-picker label:has(input[value="{key}"]) {{ --platform-icon: url("{platform_icon_url(key)}"); --platform-tag: {json.dumps(cfg["tag"],ensure_ascii=False)}; }}' for key,cfg in PLATFORMS.items())
 
 
+@lru_cache(maxsize=128)
 def platform_icon_url(provider):
-    from urllib.parse import quote
     key = provider if provider in PLATFORMS else "custom"
     path = Path(__file__).resolve().parent / "assets" / "vendor" / "platform-icons" / f"{key}.svg"
     import os
-    return os.getenv('LE_ROOT_PATH','') + "/file=" + quote(path.as_posix(), safe="/:")
+    from urllib.parse import quote
+    root = os.getenv('LE_ROOT_PATH', '')
+    if root:
+        return root + "/file=" + quote(path.as_posix(), safe="/:")
+    return "data:image/svg+xml;base64," + base64.b64encode(path.read_bytes()).decode("ascii")
 
 
 def is_opencode_go(url):

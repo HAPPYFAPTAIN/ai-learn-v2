@@ -390,7 +390,7 @@ def generate_practice_lesson(
 5. 直接输出 Markdown。"""
     return chat(
         prompt,
-        system=LEARNING_CONTRACT + "你是工程实践导师，把当前课程转成可执行项目与验收标准。只描述必要的工具条件，不假设本机是否安装。准备步骤与练习步骤分开，开始前告知会依据只读检测跳过已满足的重复安装。",
+        system=LEARNING_CONTRACT + "你是工程实践导师，把当前课程转成可执行项目与验收标准。只描述必要的工具条件，不假设本机是否安装。准备步骤与练习步骤分开，开始前告知学习者在自己的电脑自检；网站不会检测环境或执行命令。",
         model_name=model_name,
         temperature=0.35,
         max_tokens=8000,

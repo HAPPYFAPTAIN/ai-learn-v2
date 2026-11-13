@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -29,6 +30,7 @@ from learning_ext.path_generator import (
     save_roadmap,
 )
 from learning_ext.progress.study import course_code_sort_key, sort_nodes_by_code
+from learning_ext.ui_feedback import waiting_panel
 
 logger = logging.getLogger(__name__)
 
@@ -80,6 +82,7 @@ class PathGeneratorPage(BasePage):
                 self.import_roadmap_btn = gr.Button("导入学习路线", variant="primary")
             with gr.Accordion("项目管理", open=False, elem_id="le-route-management") as self.management:
                 self.batch_selection = gr.CheckboxGroup(label="选择要删除的路线", choices=[], interactive=True, elem_id="le-route-batch-list")
+                gr.HTML('<div class="le-route-picker-empty" role="status">暂无学习路线</div>', elem_id="le-route-batch-empty")
                 self.batch_review = gr.Button("删除选中路线", variant="stop", size="sm")
                 self.batch_summary = gr.Markdown("", elem_id="le-route-batch-summary")
                 self.batch_confirmed = gr.State([])
@@ -184,7 +187,7 @@ class PathGeneratorPage(BasePage):
                 self.hours_input,
             ],
             outputs=[self.roadmap_output, self.roadmap_json, self.status, self.generating, self.generate_btn, self.regenerate_btn],
-            show_progress="full",
+            show_progress="hidden",
         ).then(
             fn=self._refresh_picker,
             inputs=[self.current_project_id],
@@ -205,7 +208,7 @@ class PathGeneratorPage(BasePage):
                 self.hours_input,
             ],
             outputs=[self.roadmap_output, self.roadmap_json, self.status, self.generating, self.generate_btn, self.regenerate_btn],
-            show_progress="full",
+            show_progress="hidden",
         )
 
         # 保存：生成器流式输出进度 (自动搜集资料 + 生成环境清单)
@@ -379,17 +382,19 @@ class PathGeneratorPage(BasePage):
 
     @staticmethod
     def _begin_generation():
-        waiting = '<div class="le-route-wait" role="status" aria-live="polite"><h3>正在把你的目标拆成小步骤</h3><p>AI 正在拟定路线，并检查知识点的先后顺序。<br>这可能需要一点时间，完成后会自动显示在这里。</p><div class="le-route-wait-note">你会先看到预览，确认之后才会保存。</div></div>'
+        waiting = waiting_panel(uuid.uuid4().hex, 1, "准备生成学习路线", "完成后会自动显示预览，确认之后才会保存。")
         return None, "", "", "{}", "", gr.update(value=waiting, visible=True), gr.update(interactive=False), gr.update(interactive=False)
 
     def _generate_preview(self, topic, background, goal, hours):
-        result = self._handle_generate(topic, background, goal, hours)
-        return *result, gr.update(visible=False), gr.update(interactive=True), gr.update(interactive=True)
-
-    def _handle_generate(self, topic, background, goal, hours):
-        """生成路线"""
         if not topic or not topic.strip():
-            return "", "{}", "⚠️ 请输入选题"
+            yield "", "{}", "⚠️ 请输入选题", gr.update(visible=False), gr.update(interactive=True), gr.update(interactive=True)
+            return
+        request_id = uuid.uuid4().hex
+        steps = ("生成草案", "检查调整", "整理预览")
+        def waiting(stage, title):
+            panel = waiting_panel(request_id, stage, title, "模型正在处理请求。你会先看到预览，确认后才保存。", steps)
+            return gr.update(), gr.update(), "", gr.update(value=panel, visible=True), gr.update(interactive=False), gr.update(interactive=False)
+        yield waiting(1, "正在生成路线草案")
         try:
             roadmap = generate_roadmap(
                 topic=topic.strip(),
@@ -397,6 +402,7 @@ class PathGeneratorPage(BasePage):
                 goal=goal or "",
                 weekly_hours=float(hours) if hours else 10.0,
             )
+            yield waiting(2, "草案已生成，正在检查课程顺序与完整性")
             audited = audit_and_rewrite_roadmap(
                 roadmap=roadmap,
                 topic=topic.strip(),
@@ -405,16 +411,30 @@ class PathGeneratorPage(BasePage):
                 weekly_hours=float(hours) if hours else 10.0,
             )
             audit = audited.pop("_audit", {})
+            yield waiting(3, "检查完成，正在整理路线预览")
             audited_md = self._roadmap_to_markdown(audited)
             audit_md = self._audit_to_markdown(audit)
-            return (
-                f"{audited_md}\n\n<details><summary>查看路线检查结果</summary>\n\n{audit_md}\n\n</details>",
+            from learning_ext.rich_text import render_rich_text
+            audit_details = '<details class="le-route-audit"><summary>查看路线检查结果</summary>' + render_rich_text(audit_md) + '</details>'
+            if audited_md.endswith('</div>'):
+                audited_md = audited_md[:-6] + audit_details + '</div>'
+            else:
+                audited_md += audit_details
+            result = (
+                audited_md,
                 json.dumps(audited, ensure_ascii=False, indent=2),
                 "✅ 路线已准备好。确认适合你后，点「就按这个学」保存。",
             )
         except Exception as e:
+            from learning_ext.llm.client import friendly_error
             logger.exception("生成路线失败")
-            return "", "{}", f"❌ 生成失败: {e}"
+            result = "", "{}", f"❌ 生成未完成：{friendly_error(e)}。可返回学习首页，保留目标后重新生成。"
+        yield *result, gr.update(visible=False), gr.update(interactive=True), gr.update(interactive=True)
+
+    def _handle_generate(self, topic, background, goal, hours):
+        for result in self._generate_preview(topic, background, goal, hours):
+            pass
+        return result[:3]
 
     def _handle_refine(self, current_json, instruction):
         """按意见调整路线"""
@@ -601,7 +621,8 @@ class PathGeneratorPage(BasePage):
                 roadmap = load_roadmap(session, int(project_id))
                 md = self._roadmap_to_markdown({**roadmap, "topic": proj.topic if proj else ""})
                 if brief:
-                    md = f'{md}\n\n<details class="le-goal-disclosure"><summary>我的学习初衷</summary>{brief}</details>'
+                    details = f'<details class="le-goal-disclosure"><summary>我的学习初衷</summary>{brief}</details>'
+                    md = md[:-6] + details + '</div>' if md.endswith('</div>') else md + details
                 return (
                     md,
                     json.dumps(roadmap, ensure_ascii=False, indent=2),

@@ -124,7 +124,7 @@
 #le-app-tabs #quick-setup-tab #le-platform-filter input[type=search]:focus {
   border-color: var(--le-line-strong) !important;
   outline: 0 !important;
-  box-shadow: 0 0 0 3px var(--le-focus) !important;
+  box-shadow: none !important;
 }
 
 #le-app-tabs #quick-setup-tab #le-platform-filter .le-platform-categories {
@@ -224,8 +224,10 @@
   box-shadow: var(--le-shadow-1) !important;
 }
 
+#le-app-tabs #quick-setup-tab #le-platform-picker label:focus-within { outline: 0 !important; }
+
 #le-app-tabs #quick-setup-tab #le-platform-picker label:has(input:focus-visible) {
-  outline: 2px solid var(--le-focus) !important;
+  outline: 2px solid var(--le-ink-3) !important;
   outline-offset: 1px !important;
 }
 
@@ -308,7 +310,7 @@
   color: var(--le-ink-3) !important;
 }
 
-#le-app-tabs #quick-setup-tab #le-settings-form :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, select) {
+#le-app-tabs #quick-setup-tab #le-settings-form :is(input:not([role=listbox]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea, select) {
   min-height: 38px !important;
   padding: 9px 12px !important;
   border: 1px solid var(--le-line) !important;
@@ -324,10 +326,10 @@
   color: var(--le-ink-3) !important;
 }
 
-#le-app-tabs #quick-setup-tab #le-settings-form :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea):focus {
-  border-color: var(--le-line-strong) !important;
+#le-app-tabs #quick-setup-tab #le-settings-form :is(input:not([role=listbox]):not([type=checkbox]):not([type=radio]):not([type=range]), textarea):focus {
+  border-color: var(--le-ink-3) !important;
   outline: 0 !important;
-  box-shadow: 0 0 0 3px var(--le-focus) !important;
+  box-shadow: none !important;
 }
 
 #le-app-tabs #quick-setup-tab #le-settings-form .wrap {
@@ -340,14 +342,16 @@
 }
 
 #le-app-tabs #quick-setup-tab #le-settings-form .wrap:focus-within {
-  border-color: var(--le-line-strong) !important;
-  box-shadow: 0 0 0 3px var(--le-focus) !important;
+  border-color: var(--le-ink-3) !important;
+  outline: 0 !important;
+  box-shadow: none !important;
 }
 
 #le-app-tabs #quick-setup-tab #le-settings-form .wrap-inner {
   min-height: 36px !important;
-  padding: 0 32px 0 10px !important;
+  padding: 0 12px !important;
   border: 0 !important;
+  outline: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
 }
@@ -369,6 +373,71 @@
   outline: 0 !important;
   box-shadow: none !important;
 }
+
+#le-app-tabs #quick-setup-tab :is(input:not([type=checkbox]):not([type=radio]):not([type=range]), textarea, select):focus-visible {
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+#le-app-tabs #quick-setup-tab :is(button, a, summary, dialog):focus-visible {
+  outline: 2px solid var(--le-ink-3) !important;
+  outline-offset: 2px !important;
+}
+
+#le-app-tabs #quick-setup-tab .wrap:has(> .wrap-inner input[role=listbox]) {
+  border: 1px solid var(--le-line) !important;
+  border-radius: var(--le-radius-s) !important;
+  padding: 0 !important;
+  background: var(--le-surface) !important;
+  box-shadow: none !important;
+}
+
+#le-app-tabs #quick-setup-tab .wrap:has(> .wrap-inner input[role=listbox]):focus-within {
+  border-color: var(--le-ink-3) !important;
+  outline: 0 !important;
+  box-shadow: none !important;
+}
+
+#le-app-tabs #quick-setup-tab .wrap-inner:has(input[role=listbox]) {
+  min-height: 38px !important;
+  padding: 0 12px !important;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+#le-app-tabs #quick-setup-tab .wrap-inner:has(input[role=listbox]) .secondary-wrap {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  min-width: 0 !important;
+  width: 100% !important;
+}
+
+#le-app-tabs #quick-setup-tab .wrap-inner input[role=listbox] {
+  flex: 1 1 0 !important;
+  width: 0 !important;
+  min-width: 0 !important;
+}
+
+#le-app-tabs #quick-setup-tab ul.options[role=listbox][data-le-placement=below] {
+  position: fixed !important;
+  inset: var(--le-select-top) auto auto var(--le-select-left) !important;
+  box-sizing: border-box !important;
+  width: var(--le-select-width) !important;
+  min-width: 0 !important;
+  max-width: var(--le-select-width) !important;
+  max-height: var(--le-select-height) !important;
+  margin: 0 !important;
+  transform: none !important;
+  animation: none !important;
+  overflow-y: auto !important;
+  scroll-padding-top: 6px;
+  z-index: 1000 !important;
+}
+
+#le-app-tabs #quick-setup-tab ul.options[role=listbox][data-le-placement=below]::before { display: none !important; }
 
 /* ---------- 平台标题、说明链接与模型行 ---------- */
 

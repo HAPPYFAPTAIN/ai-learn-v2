@@ -70,6 +70,9 @@ def _loop() -> None:
 
 def _run(job: tuple) -> None:
     pid, nid, topic, opts = job
+    with _LOCK:
+        if int(pid) in _STATE:
+            _STATE[int(pid)][int(nid)] = "running"
     from learning_ext.progress.study import generate_node_summary_to_db
     from learning_ext.llm.request_gate import background_requests
     from learning_ext.llm.client import OutputTruncatedError
@@ -166,9 +169,9 @@ def snapshot(project_id: int | None) -> dict:
             return {}
         return {
             "total": len(state),
-            "done": sum(value != "pending" for value in state.values()),
+            "done": sum(value in {"done", "failed"} for value in state.values()),
             "failed": [nid for nid, value in state.items() if value == "failed"],
-            "running": any(value == "pending" for value in state.values()),
+            "running": any(value in {"pending", "running"} for value in state.values()),
         }
 
 

@@ -184,7 +184,7 @@ class GuidedHomePage:
             outputs=[page.current_project_id, page.save_progress, page.status, page.roadmap_json, page.roadmap_output, page.generating, self.begin_btn, page.regenerate_btn], show_progress="hidden",
         ).then(
             lambda topic, background, hours: page._generate_preview(topic, background, topic, hours) if connection_configured() else tuple(gr.update() for _ in range(6)),
-            inputs=[self.topic, self.background, self.hours], outputs=[page.roadmap_output, page.roadmap_json, page.status, page.generating, self.begin_btn, page.regenerate_btn], show_progress="full",
+            inputs=[self.topic, self.background, self.hours], outputs=[page.roadmap_output, page.roadmap_json, page.status, page.generating, self.begin_btn, page.regenerate_btn], show_progress="hidden",
         )
         def refresh_home():
             ready = connection_configured()

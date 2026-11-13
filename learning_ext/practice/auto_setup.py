@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import json
 import os
+import sys
 import subprocess
 from typing import Iterator
 
@@ -50,6 +51,8 @@ def run_command_streaming(cmd: str) -> Iterator[str]:
         "-Command",
         "$ErrorActionPreference = 'Stop'; " + cmd + "; if ($LASTEXITCODE) { exit $LASTEXITCODE }",
     ]
+    if os.name != "nt":
+        full_cmd = ["/bin/zsh" if sys.platform == "darwin" else "/bin/sh", "-c", "set -e\n" + cmd]
     try:
         proc = subprocess.Popen(
             full_cmd,
@@ -74,7 +77,7 @@ def run_command_streaming(cmd: str) -> Iterator[str]:
         else:
             yield f"[退出码 {rc} ⚠️ 可能失败]\n"
     except FileNotFoundError:
-        yield "[错误] 找不到 powershell\n"
+        yield f"[错误] 找不到终端程序：{full_cmd[0]}\n"
     except Exception as e:
         yield f"[错误] {e}\n"
 

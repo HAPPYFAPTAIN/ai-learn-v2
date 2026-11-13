@@ -40,6 +40,25 @@ def test_library_adapter_accepts_unstyled_native_components():
     assert page.filter.lines == page.filter.max_lines == 1
 
 
+def test_library_adapter_keeps_long_filenames_and_native_dataframe_config():
+    import gradio as gr
+    from types import SimpleNamespace
+    from learning_ext.library_ui import polish_library_ui
+
+    filename = 'a-long-filename-' * 12 + '.pdf'
+    rows = [['file-1', filename, '2 MB', 120, 'PDF', '2026-11-13']]
+    with gr.Blocks(analytics_enabled=False) as blocks:
+        table = gr.Dataframe(headers=['id', 'name', 'size', 'tokens', 'loader', 'date_created'], value=rows,
+                             interactive=False, wrap=False, column_widths=['32px'] * 6)
+        page = SimpleNamespace(file_list=table)
+        app = SimpleNamespace(app=blocks, index_manager=SimpleNamespace(indices=[SimpleNamespace(id=1)]), _index_1=page)
+        polish_library_ui(app)
+    props = next(item['props'] for item in blocks.get_config_file()['components'] if item['id'] == table._id)
+    assert props['wrap'] is True
+    assert props['column_widths'] == []
+    assert props['value']['data'] == rows
+
+
 def test_chat_model_names_preserve_backend_ids_without_exposing_connection_details():
     from learning_ext.presentation import chat_model_choices
 

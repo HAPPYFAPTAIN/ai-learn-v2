@@ -8,6 +8,7 @@ from datetime import datetime
 import logging
 import re
 from learning_ext.environment_view import environment_state
+from learning_ext.rich_text import render_rich_text
 from learning_ext.presentation import (
     project_display_name,
     project_choices,
@@ -126,7 +127,14 @@ class StudyWorkbenchPage(BasePage):
         gr.HTML(
             '<div class="le-page-heading"><div><h1>学习工作台</h1><p>一次专注一个知识点。阅读、实践，再用自己的话理解它。</p></div></div>'
         )
-        with gr.Row(elem_id="le-workbench-row"):
+        self.empty_plan = gr.HTML(
+            '<section class="le-workbench-empty-state" aria-labelledby="le-workbench-empty-title">'
+            '<h2 id="le-workbench-empty-title">暂无学习计划</h2>'
+            '<button type="button" data-le-nav="learning-guide-tab" data-le-home-action="explore">'
+            '<span aria-hidden="true">＋</span> 添加学习计划</button></section>',
+            visible=False, elem_id="le-workbench-empty",
+        )
+        with gr.Row(elem_id="le-workbench-row") as self.workbench:
             with gr.Column(scale=1, min_width=200, elem_id="le-left-col"):
                 self.project_id = gr.Dropdown(
                     label="学习项目", choices=[], value=None, interactive=True, elem_id="le-project-picker"
@@ -147,18 +155,9 @@ class StudyWorkbenchPage(BasePage):
                         "课程适配度调整", size="sm", elem_id="le-adapt-open"
                     )
                     self.view_btn = gr.Button("重新载入当前课程", size="sm", elem_id="le-course-reload")
-                    with gr.Accordion("环境配置", open=False, elem_id="le-env-setup"):
-                        self.env_status = gr.HTML(environment_state(), elem_id="le-env-status")
-                        self.auto_setup_plan = gr.State(value=None)
-                        self.execute_setup_btn = gr.Button("确认并执行方案", size="sm", variant="primary", visible=False, elem_id="le-env-execute")
-                        with gr.Row(elem_id="le-env-actions"):
-                            self.auto_setup_btn = gr.Button("生成方案", size="sm", variant="primary", elem_id="le-env-generate")
-                            self.apply_env_btn = gr.Button("我已配置好", size="sm", elem_id="le-env-confirm")
-                        with gr.Accordion("查看命令与执行记录", open=False, elem_id="le-env-log"):
-                            self.auto_setup_output = gr.Code(
-                                label="命令与执行记录", show_label=False,
-                                language="shell", visible=False, interactive=False,
-                            )
+                    with gr.Accordion("学习准备", open=False, elem_id="le-env-setup"):
+                        self.env_status = gr.HTML(environment_state("idle", "在自己的电脑准备工具", "按课程说明自行检查与安装，网站不会检测或操作你的电脑。"), elem_id="le-env-status")
+                        self.apply_env_btn = gr.Button("我已自行准备好", size="sm", elem_id="le-env-confirm")
                     with gr.Accordion("内容维护", open=False, elem_id="le-course-maintenance"):
                         self.regen_all_btn = gr.Button("补全缺失内容", size="sm")
                         self.regen_all_force_btn = gr.Button(
@@ -302,10 +301,15 @@ class StudyWorkbenchPage(BasePage):
                             self.gate_quiz_md = gr.Markdown(
                                 "", elem_id="le-gate-quiz-md"
                             )
-                            with gr.Row(elem_id="le-gate-answers"):
-                                self.gate_ans1 = gr.Textbox(label="第 1 题", lines=1)
-                                self.gate_ans2 = gr.Textbox(label="第 2 题", lines=1)
-                                self.gate_ans3 = gr.Textbox(label="第 3 题", lines=1)
+                            self.gate_questions = []
+                            with gr.Column(elem_id="le-gate-answers"):
+                                for index in range(3):
+                                    with gr.Column(visible=False, elem_classes=["le-gate-question"]) as card:
+                                        stem = gr.Markdown("")
+                                        choice = gr.Radio(choices=[], label=f"第 {index + 1} 题选项", visible=False)
+                                        answer = gr.Textbox(label="你的答案", lines=3, placeholder="写下关键词或你的理解…")
+                                    self.gate_questions.append((card, stem, choice, answer))
+                            self.gate_ans1, self.gate_ans2, self.gate_ans3 = [question[3] for question in self.gate_questions]
                             with gr.Row(elem_id="le-gate-quiz-actions"):
                                 self.gate_submit = gr.Button(
                                     "提交速测", size="sm", variant="primary"
@@ -325,9 +329,10 @@ class StudyWorkbenchPage(BasePage):
                                 placeholder="比如：这一节主要在说……，因为……，所以……",
                                 elem_id="le-gate-recite-input",
                             )
-                            self.recite_btn = gr.Button(
-                                "让助教看看讲清楚没有", size="sm", variant="primary"
-                            )
+                            with gr.Row(elem_id="le-gate-recite-actions"):
+                                self.recite_btn = gr.Button(
+                                    "让助教看看讲清楚没有", size="sm", variant="primary"
+                                )
                             self.recite_feedback = gr.Markdown(
                                 "", elem_id="le-gate-recite-fb"
                             )
@@ -377,6 +382,26 @@ class StudyWorkbenchPage(BasePage):
 
     def on_register_events(self):
         self.action_learning.register()
+        self._app.app.load(
+            self._workbench_visibility,
+            outputs=[self.empty_plan, self.workbench], show_progress="hidden",
+        )
+        self.project_id.change(
+            self._workbench_visibility,
+            outputs=[self.empty_plan, self.workbench], show_progress="hidden",
+        )
+        self.gate_quiz_state.change(
+            self._gate_render_questions, self.gate_quiz_state,
+            [component for question in self.gate_questions for component in question],
+            show_progress="hidden",
+        )
+        for _, _, choice, answer in self.gate_questions:
+            choice.input(lambda value: value or "", choice, answer, show_progress="hidden")
+        self.current_node_id.change(
+            lambda: ([], "", "", "", "", gr.update(visible=False)),
+            outputs=[self.gate_quiz_state, self.gate_quiz_md, self.gate_quiz_result, self.recite_input, self.recite_feedback, self.gate_panel],
+            show_progress="hidden",
+        )
         # 项目变化: 刷新进度 + 课程下拉框 + 环境状态
         project_outputs = [
             self.progress_display,
@@ -474,22 +499,9 @@ class StudyWorkbenchPage(BasePage):
             outputs=[self.annotation_md, self.rewrite_note],
         )
 
-        # 环境配置
-        self.auto_setup_btn.click(
-            fn=self._prepare_setup,
-            inputs=[self.current_project_id],
-            outputs=[self.auto_setup_output, self.env_status, self.auto_setup_plan, self.execute_setup_btn],
-            show_progress="hidden",
-        )
-        self.execute_setup_btn.click(
-            fn=self._execute_setup,
-            inputs=[self.current_project_id, self.auto_setup_plan],
-            outputs=[self.auto_setup_output, self.env_status, self.auto_setup_plan, self.execute_setup_btn],
-            show_progress="hidden",
-        )
         self.apply_env_btn.click(
             fn=self._apply_env,
-            inputs=[self.current_project_id],
+            inputs=[self.current_project_id, self._app.user_id],
             outputs=[self.env_status],
             show_progress="hidden",
         )
@@ -789,15 +801,19 @@ class StudyWorkbenchPage(BasePage):
                 choices.append((label, str(n.get("id", 0))))
         return choices
 
+    @staticmethod
+    def _manual_env_view(task):
+        if not task or not task.description:
+            return environment_state("empty", "暂无额外准备清单", "可先阅读课程；遇到工具要求时，在自己的电脑按步骤准备。")
+        status = environment_state("done", "已自行确认准备完成", "这是你的自检记录，仍需完成课程练习与过关检查。") if task.status == "done" else environment_state(
+            "idle", "在自己的电脑准备工具", "按下方清单自行检查与安装；网站不会检测电脑或执行命令。")
+        return status + render_rich_text(task.description, legacy_commands=True)
+
     def _load_env(self, session, pid):
         env_task = session.exec(
             select(Task).where(Task.project_id == pid).where(Task.task_type == "env")
         ).first()
-        if env_task:
-            return env_task.description or "", (
-                environment_state("done", "环境已配置", "可以回到课程，继续这一节。") if env_task.status == "done" else environment_state()
-            )
-        return "", environment_state("empty", "暂时无需准备", "当前项目还没有环境配置清单，可先阅读课程。")
+        return (env_task.description or "" if env_task else ""), self._manual_env_view(env_task)
 
     def _render_resources_md(self, resources):
         lines = []
@@ -941,6 +957,15 @@ class StudyWorkbenchPage(BasePage):
             ]
 
     # ---- 项目相关 ----
+    def _workbench_visibility(self):
+        try:
+            with Session(engine) as session:
+                has_plan = session.exec(select(LearningProject.id).limit(1)).first() is not None
+        except Exception:
+            logger.exception("读取工作台学习计划状态失败")
+            return gr.update(visible=False), gr.update(visible=True)
+        return gr.update(visible=not has_plan), gr.update(visible=has_plan)
+
     def _delete_current_project(self, project_id, confirm):
         confirmation = (confirm or "").strip()
 
@@ -1217,7 +1242,7 @@ class StudyWorkbenchPage(BasePage):
         except (TypeError, ValueError):
             return self._writing_placeholder()
         self._queue_single(nid)
-        return self._writing_placeholder()
+        return self._pending_nodes.get(nid, self._writing_placeholder())
 
     @staticmethod
     def _adapt_course_environment(node_id, topic, content):
@@ -1226,12 +1251,15 @@ class StudyWorkbenchPage(BasePage):
             node = session.get(KnowledgeNode, int(node_id))
             return adapt_reading(node, topic, content) if node else content
 
-    def _writing_placeholder(self) -> str:
-        return (
-            "⏳ **正在写这一节…**\n\n"
-            "通常 30–60 秒。写完会自动出现在这里，你可以先去读别的章节，不用点任何按钮。\n\n"
-            "> 等不及的话，点右下角「助教」，它现在就能按这个知识点回答你。"
-        )
+    def _writing_placeholder(self, node_id=None, status="pending") -> str:
+        from learning_ext.ui_feedback import WaitingMessage, waiting_panel
+        return WaitingMessage(waiting_panel(
+            f"lesson-{node_id or 'waiting'}", 2 if status == "running" else 1,
+            "正在准备这一节" if status == "running" else "这一节已排队",
+            "已开始处理，正在等待模型或生成课程内容。完成后会自动显示，可先阅读已准备好的章节。"
+            if status == "running" else "等待空闲的备课任务。你可以先阅读其他章节，准备完成后会自动显示。",
+            ("排队等待", "准备课程", "显示正文"),
+        ))
 
     def _queue_single(self, node_id: int) -> None:
         """把某一节排进后台备课，并记下它正在等。"""
@@ -1248,9 +1276,9 @@ class StudyWorkbenchPage(BasePage):
             proj = session.get(LearningProject, node.project_id)
             pid = node.project_id
             topic = proj.topic if proj else ""
-        self._pending_nodes[nid] = self._writing_placeholder()
         self._pending_node = nid
         prep.start(pid, [nid], topic, priority=True)
+        self._pending_nodes[nid] = self._writing_placeholder(nid, prep.node_status(pid, nid))
 
     def _kick_project_prep(self, pid, topic: str) -> None:
         """打开某个项目时，把还没备课的章节全部丢后台，不用用户操心。"""
@@ -1309,7 +1337,8 @@ class StudyWorkbenchPage(BasePage):
                     self._pending_nodes.pop(int(nid), None)
                     return "这节课程已移除，请选择其他章节。", "", gr.update(active=False)
                 if not is_content_valid(node.description):
-                    if prep.node_status(node.project_id, int(nid)) in {"failed", "done"}:
+                    status = prep.node_status(node.project_id, int(nid))
+                    if status in {"failed", "done"}:
                         self._pending_node = None
                         self._pending_nodes.pop(int(nid), None)
                         return (
@@ -1317,6 +1346,10 @@ class StudyWorkbenchPage(BasePage):
                             gr.update(),
                             gr.update(active=False),
                         )
+                    placeholder = self._writing_placeholder(nid, status)
+                    if self._pending_nodes.get(int(nid)) != placeholder:
+                        self._pending_nodes[int(nid)] = placeholder
+                        return placeholder, gr.update(), gr.update()
                     return gr.update(), gr.update(), gr.update()
                 practice_md = self._render_practice_md(get_practice_task(session, int(nid)))
                 body = node.description or ""
@@ -1476,6 +1509,9 @@ class StudyWorkbenchPage(BasePage):
 
     def _truncate_guide(self, guide: str, max_chars: int = 15000) -> str:
         """截断超长教学内容, 在章节边界截断并提示剩余可看。"""
+        from learning_ext.ui_feedback import WaitingMessage
+        if isinstance(guide, WaitingMessage):
+            return guide
         guide = self._normalize_blanks(clean_heading_icons(guide))
         if len(guide) <= max_chars:
             return guide
@@ -1655,84 +1691,23 @@ class StudyWorkbenchPage(BasePage):
         lines.extend(["", assistant_reply.strip()])
         return "\n".join(lines)
 
-    # ---- 环境配置 (generator: 流式显示命令输出) ----
-    def _prepare_setup(self, project_id):
-        from learning_ext.practice.auto_setup import generate_install_commands
-        import hashlib
-
-        hidden = gr.update(visible=False)
-        try:
-            pid = int(project_id)
-            with Session(engine) as session:
-                project = session.get(LearningProject, pid)
-                task = session.exec(select(Task).where(Task.project_id == pid, Task.task_type == "env")).first()
-                if not project or not task or not task.description:
-                    yield hidden, environment_state("empty", "暂时无需准备", "当前项目还没有环境配置清单，可先阅读课程。"), None, hidden
-                    return
-                description, background = task.description, project.background or ""
-            yield hidden, environment_state("loading", "正在整理配置方案", "根据当前课程准备步骤，尚未执行任何命令。"), None, hidden
-            commands = generate_install_commands(description, background)
-            if not commands:
-                yield hidden, environment_state("done", "无需额外配置", "可按课程说明直接开始学习。"), None, hidden
-                return
-            if not isinstance(commands, list) or any(not isinstance(c, dict) or not str(c.get("cmd") or "").strip() for c in commands):
-                raise ValueError("生成的配置命令不完整，请重新生成。")
-            preview = "\n\n".join(f"# {i}. {c.get('desc', '配置步骤')}\n{c['cmd']}" for i, c in enumerate(commands, 1))
-            plan = {"project_id": pid, "fingerprint": hashlib.sha256(description.encode()).hexdigest(), "commands": commands}
-            yield gr.update(visible=True, value=preview), environment_state("ready", f"已准备 {len(commands)} 个步骤", "展开下方命令检查。确认执行后，才会在本机安装软件或修改配置。", commands), plan, gr.update(visible=True)
-        except (TypeError, ValueError) as exc:
-            yield hidden, environment_state("error", "还不能生成方案", str(exc) if project_id else "请先选择学习项目。"), None, hidden
-        except Exception:
-            logger.exception("Failed to prepare environment setup")
-            yield hidden, environment_state("error", "方案暂未生成", "配置方案生成失败，请检查模型连接后重试。"), None, hidden
-
-    def _execute_setup(self, project_id, plan):
-        import hashlib
-        from learning_ext.practice.auto_setup import run_all_commands
-
-        hidden = gr.update(visible=False)
-        try:
-            pid = int(project_id)
-            if not isinstance(plan, dict) or plan.get("project_id") != pid or not plan.get("commands"):
-                yield gr.update(), environment_state("error", "请重新准备方案", "请先为当前项目生成配置方案。"), None, hidden
-                return
-            with Session(engine) as session:
-                task = session.exec(select(Task).where(Task.project_id == pid, Task.task_type == "env")).first()
-                fingerprint = hashlib.sha256((task.description or "").encode()).hexdigest() if task else None
-            if fingerprint != plan.get("fingerprint"):
-                yield gr.update(), environment_state("error", "配置清单有变化", "环境清单已更新，请重新生成方案。"), None, hidden
-                return
-        except (TypeError, ValueError):
-            yield gr.update(), environment_state("error", "尚未选择课程", "请先选择学习项目。"), None, hidden
-            return
-        yield gr.update(visible=True, value="开始执行已确认的配置方案…"), environment_state("running", "正在配置学习环境", "正在执行你确认的方案，详细输出保留在执行记录中。"), None, hidden
-        lines, outcome = [], {}
-        for chunk in run_all_commands(plan["commands"], outcome=outcome):
-            lines.append(chunk.rstrip("\n"))
-            yield gr.update(visible=True, value="\n".join(lines)), environment_state("running", "正在配置学习环境", "正在执行你确认的方案，详细输出保留在执行记录中。"), None, hidden
-        status = environment_state("error", "有步骤未完成", "部分配置失败，请查看执行记录。") if outcome.get("failed") else environment_state("review", "配置步骤已完成", "命令执行成功，请验证环境后点击「我已配置好」。")
-        yield gr.update(visible=True, value="\n".join(lines)), status, None, hidden
-
-    def _apply_env(self, project_id):
+    def _apply_env(self, project_id, owner):
         if not project_id:
             return environment_state("error", "尚未选择课程", "请先选择项目")
         try:
-            with Session(engine) as s:
-                t = s.exec(
-                    select(Task)
-                    .where(Task.project_id == int(project_id))
-                    .where(Task.task_type == "env")
-                ).first()
-                if not t:
-                    return environment_state("empty", "暂时无需准备", "当前项目还没有环境配置清单。")
-                if t:
-                    t.status = "done"
-                    s.add(t)
-                    s.commit()
-            return environment_state("done", "环境已配置", "可以回到课程，继续这一节。")
-        except Exception as e:
-            logger.exception("Failed to confirm environment setup")
-            return environment_state("error", "暂时未能保存", "请稍后重试，配置状态尚未更新。")
+            with Session(engine) as session:
+                project = session.get(LearningProject, int(project_id))
+                if not project or project.user_id != str(owner or "default"):
+                    return environment_state("error", "无法确认项目", "请先打开自己的学习项目。")
+                task = session.exec(select(Task).where(Task.project_id == project.id, Task.task_type == "env")).first()
+                if task:
+                    task.status = "done"
+                    session.add(task)
+                    session.commit()
+                return self._manual_env_view(task)
+        except Exception:
+            logger.exception("Failed to confirm manual preparation")
+            return environment_state("error", "暂时未能保存", "请稍后重试，自检状态尚未更新。")
 
     # ---- 重新生成 ----
     def _regen_current_node(self, node_id, project_id):
@@ -2040,7 +2015,7 @@ class StudyWorkbenchPage(BasePage):
         if not node_id:
             return gr.update(), items, gr.update()
         try:
-            if items:
+            if items and all(item.get("node_id", int(node_id)) == int(node_id) for item in items):
                 return gr.update(), items, gr.update()
             with Session(engine) as s:
                 node = s.get(KnowledgeNode, int(node_id))
@@ -2097,6 +2072,34 @@ class StudyWorkbenchPage(BasePage):
                 gr.update(),
             )
 
+    @staticmethod
+    def _gate_render_questions(items):
+        updates = []
+        for index in range(3):
+            if index >= len(items or []):
+                updates.extend([gr.update(visible=False), "", gr.update(choices=[], value=None, visible=False), gr.update(value="", visible=False)])
+                continue
+            item = items[index]
+            try:
+                raw = item.get("options") or []
+                options = json.loads(raw) if isinstance(raw, str) else raw
+                options = options if isinstance(options, list) else []
+            except (ValueError, TypeError):
+                options = []
+            choices = []
+            for offset, option in enumerate(options):
+                letter = chr(65 + offset)
+                label = str(option)
+                if not re.match(r"^[A-Z][.、:：)\s]", label):
+                    label = f"{letter}. {label}"
+                choices.append((label, letter))
+            updates.extend([
+                gr.update(visible=True), f"**第 {index + 1} 题**\n\n{md_safe(item.get('stem', ''))}",
+                gr.update(choices=choices, value=None, visible=bool(choices)),
+                gr.update(value="", visible=not bool(choices)),
+            ])
+        return updates
+
     def _gate_make_quiz(self, node_id):
         """给这一节出 3 道速测。"""
         if not node_id:
@@ -2127,6 +2130,7 @@ class StudyWorkbenchPage(BasePage):
                         "stem": q.stem,
                         "options": q.options or "",
                         "answer": q.answer,
+                        "node_id": int(node_id),
                     }
                     for q in rows
                 ]
@@ -2138,24 +2142,14 @@ class StudyWorkbenchPage(BasePage):
         if not items:
             return "❌ 这次没出出题来，再试一次。", [], ""
 
-        blocks = [f"围绕「{title}」的 {len(items)} 道速测："]
-        for i, it in enumerate(items, 1):
-            blocks.append(f"**{i}. {md_safe(it['stem'])}**")
-            opts = []
-            try:
-                raw = json.loads(it["options"]) if it["options"] else []
-                opts = raw if isinstance(raw, list) else []
-            except Exception:
-                opts = []
-            if opts:
-                blocks.extend(f"　　{x}" for x in opts)
-        blocks.append("> 选择题填字母（如 B），填空和简答直接写关键词。")
-        return "\n\n".join(blocks), items, ""
+        return f"围绕「{title}」的 {len(items)} 道速测。选择题直接选选项，其余题目在题下作答。", items, ""
 
     def _gate_submit(self, node_id, a1, a2, a3, items):
         """判速测，记最好成绩。"""
         if not node_id or not items:
             return "还没出题，稍等一下。", gr.update(), gr.update()
+        if any(item.get("node_id", int(node_id)) != int(node_id) for item in items):
+            return "课程已切换，请为当前课程重新出题。", gr.update(), gr.update()
         try:
             result = gate.grade_quick(list(items), [a1, a2, a3])
             with Session(engine) as s:

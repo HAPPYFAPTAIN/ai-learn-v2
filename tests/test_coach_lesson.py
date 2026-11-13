@@ -10,16 +10,17 @@ ROOT = Path(__file__).resolve().parents[1]
 NODE = shutil.which("node")
 
 
-def test_coach_page_uses_real_agent_and_keeps_local_lesson_assets():
+def test_archived_coach_and_lesson_assets_are_not_loaded():
     app = (ROOT / "learning_ext" / "app.py").read_text(encoding="utf-8")
     custom = (ROOT / "custom_app.py").read_text(encoding="utf-8")
     presentation = (ROOT / "learning_ext" / "presentation.py").read_text(encoding="utf-8")
     html = (ROOT / "learning_ext" / "coach.py").read_text(encoding="utf-8")
 
-    assert "CoachPage(self)" in app
+    assert "CoachPage(self)" not in app
     assert "CoachLessonPage(self)" not in app
-    assert custom.count("assets/coach_lesson.js") == 1
-    assert 'ASSETS / "coach_lesson.css"' in presentation
+    assert "assets/coach_lesson.js" not in custom
+    assert "assets/coach.js" not in custom
+    assert 'ASSETS / "coach_lesson.css"' not in presentation
     assert 'id="coach-summary"' in html
     assert "练习进度保存在本机" in html
     assert "文字润色使用你配置的模型" in html

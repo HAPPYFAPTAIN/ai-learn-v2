@@ -67,11 +67,11 @@ def question_model(monkeypatch, page):
     return question, requests, records
 
 
-def test_real_agent_is_active_and_suggestions_only_fill_input(page, monkeypatch):
+def test_archived_coach_is_unregistered_and_suggestions_only_fill_input(page, monkeypatch):
     monkeypatch.setattr(coach.runtime, "run", lambda *args: pytest.fail("A suggestion must not run the agent"))
     root = Path(__file__).resolve().parents[1]
     source = (root / "learning_ext/app.py").read_text(encoding="utf-8")
-    assert "self.coach_page = CoachPage(self)" in source
+    assert "self.coach_page = CoachPage(self)" not in source
     assert "self.coach_page = CoachLessonPage(self)" not in source
     for name in ("env", "files", "window"):
         assert page._fill_suggestion(name)["value"] == coach._SUGGESTIONS[name]

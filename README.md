@@ -2,6 +2,8 @@
 
 Learn Everything 的独立官网适配仓库。上游来自 [HAPPYFAPTAIN/learn-everything](https://github.com/HAPPYFAPTAIN/learn-everything)，完整保留上游 Git 历史；Kotaemon 以固定子模块管理。上游提交、子模块与官网适配来源见 [INTEGRATION.json](INTEGRATION.json)。
 
+学习业务本身：给任意选题，AI 制定学习路线 + 辅助搭建系统环境 + 给出实操；带知识库、文献管理、学习进度跟踪、艾宾浩斯记忆曲线复习、查漏补缺测验。官网以 Linux 服务方式运行，同时支持 macOS 本地浏览器模式。
+
 本仓库负责学习页面、学习业务和 Linux 官网运行适配；官网账号服务继续负责登录/资格/短票，统一模型网关继续负责模型权限和积分。当前适配面向 Ubuntu 24.04、Python 3.11、Gradio 4.44.1。创建仓库和通过 CI 不等于已切换生产服务。
 
 ## 获取与开发
@@ -14,6 +16,19 @@ python3.11 -m venv .venv
 .venv/bin/python -m pip install -r runtime/requirements-test.txt
 .venv/bin/python -m pytest -q tests/test_learn_platform.py tests/test_learn_startup.py tests/test_official_release.py
 ```
+
+### macOS（本地浏览器模式）
+
+1. 首次使用双击 `setup_macos.command`，联网安装 Python 3.11、固定版本依赖和分词数据。需要本机已有 `uv` 或 `python3`。
+2. 双击 `run_macos.command`，启动后自动在 Microsoft Edge 打开；未安装 Edge 时使用默认浏览器。
+3. 在「模型配置」填写连接，依次保存、测试、启用。Mac 连接列表使用登录钥匙串中的密钥加密保存。
+4. 使用期间保持终端窗口打开，按 `Control+C` 停止本次服务。端口冲突时会自动选择其他端口，以终端显示的地址为准。
+
+当前电脑已有运行环境，可以直接运行第 2 步。安装器可重复运行，不删除现有学习数据。
+
+支持浏览器中的课程、学习路线、复习、测验、模型配置，以及 Mac 文件打开、剪贴板和终端命令。Windows 桌面控件读取和自动点击尚未移植，Mac 上由用户手动操作。首次安装需要联网；云模型调用需要网络和对应平台的有效 API Key。
+
+安装依赖已在 Apple Silicon / macOS / Python 3.11 环境验证；Intel Mac 尚未实机验证。详见 [Mac 使用说明](learning_ext/MACOS.md)。本仓库不分发 Windows 桌面应用，Windows 启动与打包入口在上游固定版本维护。
 
 私有仓库需本人已有 GitHub 访问权限；不要在 remote URL 中嵌入 token。服务器无 GitHub 凭据时可用 `git bundle` 传递经过审阅的分支，服务器的 origin 仍指向本仓库。使用 `git clone --branch <审阅分支> <bundle> <目录>` 后设置 origin；不向服务器复制个人 GitHub token。
 

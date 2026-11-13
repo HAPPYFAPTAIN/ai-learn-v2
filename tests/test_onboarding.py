@@ -108,13 +108,38 @@ def test_generation_clears_stale_save_and_disables_duplicate_requests():
 
 @pytest.mark.parametrize('success', [True, False])
 def test_preview_finishes_waiting_on_success_or_error(monkeypatch, success):
-    from learning_ext.pages.path_generator import PathGeneratorPage
+    from learning_ext.pages import path_generator as module
+    from bs4 import BeautifulSoup
 
-    page = object.__new__(PathGeneratorPage)
-    expected = ('Preview', '{"nodes":[{}]}', 'Ready') if success else ('', '{}', 'Failed')
-    monkeypatch.setattr(page, '_handle_generate', lambda *args: expected)
-    result = page._generate_preview('Python', '', '', 3)
-    assert result[:3] == expected
+    page = object.__new__(module.PathGeneratorPage)
+    calls = []
+    def generate(**kwargs):
+        calls.append('generate')
+        if not success:
+            raise RuntimeError('network unavailable')
+        return {'nodes': [{'code': '1.1', 'title': 'Python'}]}
+    def audit(**kwargs):
+        calls.append('audit')
+        return {**kwargs['roadmap'], '_audit': {}}
+    monkeypatch.setattr(module, 'generate_roadmap', generate)
+    monkeypatch.setattr(module, 'audit_and_rewrite_roadmap', audit)
+    stream = page._generate_preview('Python', '', '', 3)
+    first = next(stream)
+    assert calls == []
+    assert 'data-le-stage="1"' in first[3]['value']
+    assert first[4]['interactive'] is False
+    remaining = list(stream)
+    result = remaining[-1]
+    if success:
+        assert calls == ['generate', 'audit']
+        assert 'data-le-stage="2"' in remaining[0][3]['value']
+        assert 'data-le-stage="3"' in remaining[1][3]['value']
+        assert 'Python' in result[0] and '确认' in result[2]
+        soup = BeautifulSoup(result[0], 'html.parser')
+        assert soup.select_one('.le-route-browser .le-route-audit')
+    else:
+        assert calls == ['generate']
+        assert result[1] == '{}' and '未完成' in result[2]
     assert result[3]['visible'] is False
     assert result[4]['interactive'] is True
     assert result[5]['interactive'] is True

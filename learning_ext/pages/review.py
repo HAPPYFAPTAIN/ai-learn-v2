@@ -27,7 +27,7 @@ from learning_ext.fsrs_review.service import (
     get_review_stats,
     review_card,
 )
-from learning_ext.page_design import page_intro, section_heading, practice_empty
+from learning_ext.page_design import page_intro, section_heading, practice_empty, learning_goal_empty
 from learning_ext.presentation import project_choices
 from learning_ext.progress.study import course_code_sort_key
 
@@ -64,7 +64,9 @@ class ReviewPage(BasePage):
 
     def on_building_ui(self):
         gr.HTML(page_intro("review"))
-        with gr.Row(elem_id="le-review-flow"):
+        self.empty_goal = gr.HTML(learning_goal_empty(), visible=False, elem_classes=["le-goal-page-empty"])
+        self.refresh = gr.Button("刷新学习目标", elem_id="le-review-refresh")
+        with gr.Row(elem_id="le-review-flow") as self.flow:
             with gr.Column(elem_id="le-review-scope", scale=1, min_width=270):
                 gr.HTML(section_heading("01", "复习范围"))
                 self.project = gr.Dropdown(label="学习项目", choices=[], interactive=True)
@@ -100,6 +102,11 @@ class ReviewPage(BasePage):
 
     def on_register_events(self):
         self._app.app.load(self._bootstrap, outputs=[self.project, self.node])
+        self._app.app.load(self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden")
+        self.project.change(self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden")
+        self.refresh.click(self._bootstrap, inputs=[self.project], outputs=[self.project, self.node], show_progress="hidden").then(
+            self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden",
+        )
         self.project.change(
             self._on_project_change,
             [self.project],
@@ -152,7 +159,17 @@ class ReviewPage(BasePage):
 
     # ==================== 数据 ====================
 
-    def _bootstrap(self):
+    def _goal_visibility(self):
+        try:
+            with Session(engine) as session:
+                query = select(LearningProject.id).where(LearningProject.user_id == "default").limit(1)
+                has_goal = session.exec(query).first() is not None
+        except Exception:
+            logger.exception("读取复习页学习目标状态失败")
+            return gr.update(visible=False), gr.update(visible=True)
+        return gr.update(visible=not has_goal), gr.update(visible=has_goal)
+
+    def _bootstrap(self, project_id=None):
         """页面加载：填项目，并按第一个项目填好章节列表。"""
         with Session(engine) as session:
             ps = session.exec(
@@ -165,10 +182,10 @@ class ReviewPage(BasePage):
                 gr.update(choices=[], value=None),
                 gr.update(choices=[], value=None),
             )
-        pid = ps[0].id
+        pid = next((p.id for p in ps if str(p.id) == str(project_id)), ps[0].id)
         return (
             gr.update(choices=project_choices(ps), value=str(pid)),
-            self._node_choices(pid),
+            gr.update() if str(pid) == str(project_id) else self._node_choices(pid),
         )
 
     def _node_choices(self, pid):
