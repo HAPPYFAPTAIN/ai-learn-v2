@@ -30,11 +30,13 @@ def presentation_css():
     css += "\n" + (ASSETS / "workbench.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "nav.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "outline.css").read_text(encoding="utf-8")
+    css += "\n" + (ASSETS / "coach.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "onboarding.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "selects.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "home.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "pages.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "route.css").read_text(encoding="utf-8")
+    css += "\n" + (ASSETS / "coach_lesson.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "vendor/fonts/fonts.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "knowledge.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "notebook.css").read_text(encoding="utf-8")
@@ -57,7 +59,6 @@ def presentation_css():
     for workspace_layer in ("fullscreen_shell", "fullscreen_content", "chat_follow_latest", "route_browser", "chat_surface", "chat_references", "chat_thinking"):
         css += "\n" + (ASSETS / f"{workspace_layer}.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "reasoning_settings.css").read_text(encoding="utf-8")
-    css += "\n" + (ASSETS / "ui_repairs.css").read_text(encoding="utf-8")
     css += "\n" + (ASSETS / "typography.css").read_text(encoding="utf-8")
     return css.replace("__ASSETS__", os.getenv('LE_ROOT_PATH','') + "/file=" + ASSETS.as_posix())
 

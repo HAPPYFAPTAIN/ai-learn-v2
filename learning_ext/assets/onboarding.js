@@ -5,22 +5,8 @@
   let exploreRequested = false;
   let lastFeedback = '';
   const scrollBehavior = () => matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth';
-  function focusGoal() {
-    const input = document.querySelector('#le-onboarding-topic textarea');
-    if (!input?.getClientRects().length) return false;
-    document.querySelector('#le-onboarding-card')?.scrollIntoView({block:'center',behavior:scrollBehavior()});
-    input.focus({preventScroll:true});
-    let hint = document.getElementById('le-explore-hint');
-    if (!hint) {
-      hint = document.createElement('p');
-      hint.id = 'le-explore-hint'; hint.setAttribute('role', 'status');
-      hint.textContent = '写下你想解决的问题，或选一个上方的方向，再为你安排第一步。';
-      document.getElementById('le-onboarding-topic').after(hint);
-    }
-    return true;
-  }
-  const primary = ['learning-guide-tab-button','learning-workbench-tab-button','learning-review-tab-button','learning-quiz-tab-button'];
-  const secondary = ['learning-path-tab-button','learning-dashboard-tab-button','learning-coach-tab-button','chat-tab-button','indices-tab-button'];
+  const primary = ['learning-guide-tab-button','learning-path-tab-button','learning-workbench-tab-button','learning-review-tab-button','learning-quiz-tab-button'];
+  const secondary = ['learning-dashboard-tab-button','learning-coach-tab-button','chat-tab-button','indices-tab-button'];
   let more = false;
   try { more = localStorage.getItem('le.nav.more') === 'true'; } catch (_) {}
   function syncNav() {
@@ -79,7 +65,8 @@
     if (confirmationVisible && !confirmationShown) confirmation.scrollIntoView({block:'center',behavior:scrollBehavior()});
     confirmationShown = confirmationVisible;
     if (exploreRequested && document.querySelector('#le-home-goal-panel')?.getClientRects().length) {
-      exploreRequested = !focusGoal();
+      exploreRequested = false;
+      document.querySelector('#le-discovery-heading')?.scrollIntoView({block:'center',behavior:scrollBehavior()});
     }
     const preparation = document.querySelector('#le-route-save-progress .le-prep-panel');
     if (preparation && !preparationShown && preparation.dataset.prepPhase === 'saving') preparation.scrollIntoView({block:'center',behavior:scrollBehavior()});
@@ -109,13 +96,9 @@
       const direction = event.target.closest('.le-direction-button');
       if (action || direction) {
         const key = action?.dataset.leHomeAction;
-        if (key === 'explore') {
+        if (key === 'explore' && !document.querySelector('#le-home-goal-panel')?.getClientRects().length) {
           exploreRequested = true;
-          if (!document.querySelector('#le-home-goal-panel')?.getClientRects().length) {
-            document.querySelector('#le-home-back')?.click();
-          }
-          requestAnimationFrame(processMarkers);
-          return;
+          document.querySelector('#le-home-back')?.click();
         }
         const destination = direction ? document.querySelector('#le-onboarding-card')
           : key === 'sample' ? document.querySelector('#le-guided-home .le-sample')

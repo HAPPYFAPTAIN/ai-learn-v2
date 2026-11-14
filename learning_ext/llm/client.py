@@ -23,17 +23,9 @@ _ENV_FILE = Path(__file__).resolve().parent.parent.parent / "kotaemon" / ".env"
 # 配置缓存 (5 秒内复用，配置页保存后最多 5 秒生效)
 _cache: dict = {"ts": 0.0, "data": {}}
 _CACHE_TTL = 5.0
-from learning_ext.llm.request_gate import RequestSlots
+from learning_ext.llm.request_gate import RequestGate
 
-_REQUEST_SLOT = RequestSlots()
-
-
-class OutputTruncatedError(RuntimeError):
-    """模型输出撞到 max_tokens 上限，内容被截断。
-
-    单独一个类型，是为了让上层的重试逻辑认出来：同样的提示词再跑一遍，
-    大概率还是在同一个地方截断，重试只是白等一次生成的时间。
-    """
+_REQUEST_SLOT = RequestGate()
 
 
 def invalidate_cache() -> None:
@@ -226,7 +218,7 @@ def chat(
             with _REQUEST_SLOT:
                 resp = client.chat.completions.create(**kwargs)
             if resp.choices[0].finish_reason == "length":
-                raise OutputTruncatedError(
+                raise RuntimeError(
                     "模型输出达到长度上限，内容尚未完整生成。请减少本次任务范围或提高输出额度后重试。"
                 )
             content = resp.choices[0].message.content or ""

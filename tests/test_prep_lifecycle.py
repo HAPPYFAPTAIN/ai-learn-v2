@@ -13,7 +13,6 @@ def prep_queue(monkeypatch):
     monkeypatch.setattr(prep, "_STATE", {})
     monkeypatch.setattr(prep, "_INFLIGHT", set())
     monkeypatch.setattr(prep, "_Q", queue.Queue())
-    monkeypatch.setattr(prep, "_PRIORITY_Q", queue.Queue())
     monkeypatch.setattr(prep, "_ensure_workers", lambda: None)
     monkeypatch.setattr(prep.time, "sleep", lambda _: None)
     return prep
@@ -34,20 +33,6 @@ def test_retry_replaces_failed_result_without_counting_course_twice(prep_queue, 
     prep_queue._run(prep_queue._Q.get_nowait())
     assert prep_queue.snapshot(7) == {"total": 2, "done": 2, "failed": [], "running": False}
     assert prep_queue.node_status(7, 41) == "done"
-
-
-def test_running_course_is_not_reported_as_completed(prep_queue, monkeypatch):
-    from learning_ext.progress import study
-
-    def generate(*args, **kwargs):
-        assert prep_queue.node_status(7, 41) == "running"
-        assert prep_queue.snapshot(7) == {"total": 1, "done": 0, "failed": [], "running": True}
-        return True
-
-    monkeypatch.setattr(study, "generate_node_summary_to_db", generate)
-    prep_queue.start(7, [41], "test")
-    prep_queue._run(prep_queue._Q.get_nowait())
-    assert prep_queue.snapshot(7) == {"total": 1, "done": 1, "failed": [], "running": False}
 
 
 @pytest.fixture
@@ -80,7 +65,7 @@ def test_returning_to_queued_course_retargets_without_duplicate_job(workbench, p
     page._queue_single(nodes[1].id)
     page._queue_single(nodes[0].id)
     assert page._pending_node == nodes[0].id
-    assert prep_queue._PRIORITY_Q.qsize() == 2
+    assert prep_queue._Q.qsize() == 2
 
 
 def test_failed_preparation_stops_polling_and_course_can_retry(workbench, prep_queue, monkeypatch):
@@ -90,7 +75,7 @@ def test_failed_preparation_stops_polling_and_course_can_retry(workbench, prep_q
     nid = nodes[0].id
     page._queue_single(nid)
     monkeypatch.setattr(study, "generate_node_summary_to_db", lambda *a, **k: False)
-    prep_queue._run(prep_queue._PRIORITY_Q.get_nowait())
+    prep_queue._run(prep_queue._Q.get_nowait())
     output = page._poll_writing()
     assert "重试" in output[0]
     assert output[2]["active"] is False
@@ -98,7 +83,7 @@ def test_failed_preparation_stops_polling_and_course_can_retry(workbench, prep_q
     assert nid not in page._pending_nodes
     page._queue_single(nid)
     assert prep_queue.node_status(nodes[0].project_id, nid) == "pending"
-    assert prep_queue._PRIORITY_Q.qsize() == 1
+    assert prep_queue._Q.qsize() == 1
 
 
 def test_deleted_course_stops_polling(workbench, session):

@@ -98,7 +98,7 @@ def test_raw_template_only_contains_body_shell_and_floating_control_styles():
     ]
 
 
-def test_presentation_assets_are_unique_and_final_layout_precedes_typography():
+def test_presentation_assets_are_unique_and_theme_layout_is_last():
     source = (ROOT / "learning_ext" / "presentation.py").read_text(encoding="utf-8")
     function = source.split("def presentation_css():", 1)[1].split("BRAND =", 1)[0]
     assets = re.findall(r'ASSETS / "([a-z_-]+\.css)"', function)
@@ -106,7 +106,7 @@ def test_presentation_assets_are_unique_and_final_layout_precedes_typography():
     layers = re.findall(r'"([a-z_]+)"', page_layers)
 
     assert len(assets) == len(set(assets))
-    assert assets[-2:] == ["ui_repairs.css", "typography.css"]
+    assert assets[-4:] == ["compact.css", "theme_layout.css", "refine.css", "refine_home.css"]
     assert "refine.css" in assets
     assert assets.index("refine.css") > assets.index("theme_layout.css")
     assert "dark_theme.css" not in assets

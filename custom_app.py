@@ -180,6 +180,8 @@ def _patch_gradio_template_for_learning_assets():
         theme_mode_js = Path(_HERE, "learning_ext/assets/theme_mode.js").read_text(encoding="utf-8")
         workspace_js = theme_mode_js.replace("__LE_ASSETS__", assets_base)
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/workspace.js").read_text(encoding="utf-8")
+        workspace_js += "\n" + Path(_HERE, "learning_ext/assets/coach.js").read_text(encoding="utf-8")
+        workspace_js += "\n" + Path(_HERE, "learning_ext/assets/coach_lesson.js").read_text(encoding="utf-8")
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/workbench.js").read_text(encoding="utf-8")
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/modal.js").read_text(encoding="utf-8")
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/outline.js").read_text(encoding="utf-8")
@@ -203,7 +205,6 @@ def _patch_gradio_template_for_learning_assets():
         workspace_js += "\n" + Path(_HERE, "learning_ext/assets/route_browser.js").read_text(encoding="utf-8")
         if os.getenv('LE_ISOLATED_WORKER') == '1':
             workspace_js += "\n" + Path(_HERE, "learning_ext/assets/server_session.js").read_text(encoding="utf-8")
-        workspace_js += "\n" + Path(_HERE, "learning_ext/assets/ui_repairs.js").read_text(encoding="utf-8")
         import json
         script_tag = f"<script>window.__LE_ROOT_PATH__={json.dumps(os.getenv('LE_ROOT_PATH', ''))};\n{word_lookup_js}\n</script>"
         account_id = os.getenv('LE_OFFICIAL_USER', '') if os.getenv('LE_ISOLATED_WORKER') == '1' else ''

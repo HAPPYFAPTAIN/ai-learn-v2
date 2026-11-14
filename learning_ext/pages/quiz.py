@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from learning_ext.presentation import project_display_name, project_choices
-from learning_ext.page_design import page_intro, section_heading, practice_empty, learning_goal_empty
+from learning_ext.page_design import page_intro, section_heading, practice_empty
 import gradio as gr
 from ktem.app import BasePage
 from ktem.db.engine import engine
@@ -57,9 +57,7 @@ class QuizPage(BasePage):
 
     def on_building_ui(self):
         gr.HTML(page_intro("quiz"))
-        self.empty_goal = gr.HTML(learning_goal_empty(), visible=False, elem_classes=["le-goal-page-empty"])
-        self.goal_refresh = gr.Button("刷新学习目标", elem_id="le-quiz-goal-refresh")
-        with gr.Row(elem_id="le-quiz-flow") as self.flow:
+        with gr.Row(elem_id="le-quiz-flow"):
             with gr.Column(elem_id="le-quiz-settings", scale=1, min_width=280):
                 gr.HTML(section_heading("01", "测验设置"))
                 self.project_id = gr.Dropdown(label="学习项目", choices=[], interactive=True)
@@ -114,17 +112,10 @@ class QuizPage(BasePage):
                     self.history = gr.Markdown("")
 
     def on_register_events(self):
-        self._app.app.load(self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden")
-        self.project_id.change(self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden")
-        self.goal_refresh.click(self._projects, inputs=[self.project_id], outputs=self.project_id, show_progress="hidden").then(
-            self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden",
-        )
-        self.refresh.click(self._projects, inputs=[self.project_id], outputs=self.project_id, show_progress="hidden").then(
+        self.refresh.click(self._projects, outputs=self.project_id).then(
             self._on_project,
             [self.project_id],
             [self.node_pick, self.chapter_pick],
-        ).then(
-            self._goal_visibility, outputs=[self.empty_goal, self.flow], show_progress="hidden",
         )
         self._app.app.load(self._projects, outputs=self.project_id).then(
             self._on_project,
@@ -184,27 +175,16 @@ class QuizPage(BasePage):
             self.next,
         ]
 
-    def _goal_visibility(self):
-        try:
-            with Session(engine) as session:
-                query = select(LearningProject.id).where(LearningProject.user_id == "default").limit(1)
-                has_goal = session.exec(query).first() is not None
-        except Exception:
-            logger.exception("读取测验页学习目标状态失败")
-            return gr.update(visible=False), gr.update(visible=True)
-        return gr.update(visible=not has_goal), gr.update(visible=has_goal)
-
-    def _projects(self, project_id=None):
+    def _projects(self):
         with Session(engine) as session:
             projects = session.exec(
                 select(LearningProject)
                 .where(LearningProject.user_id == "default")
                 .order_by(LearningProject.updated_at.desc())
             ).all()
-            selected = next((p.id for p in projects if str(p.id) == str(project_id)), projects[0].id) if projects else None
             return gr.update(
                 choices=project_choices(projects),
-                value=str(selected) if selected is not None else None,
+                value=str(projects[0].id) if projects else None,
             )
 
     def _on_project(self, pid):

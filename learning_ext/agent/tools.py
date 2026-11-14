@@ -219,8 +219,6 @@ def _open_path(path: str) -> str:
     try:
         if sys.platform == "win32":
             os.startfile(str(target))  # type: ignore[attr-defined]
-        elif sys.platform == "darwin":
-            subprocess.run(["/usr/bin/open", str(target)], check=True, timeout=30)
         else:
             subprocess.Popen(["xdg-open", str(target)])  # noqa: S603
     except Exception as exc:  # noqa: BLE001
@@ -308,11 +306,6 @@ def _list_windows() -> str:
 
 
 def _clipboard_get() -> str:
-    if sys.platform == "darwin":
-        result = subprocess.run(["/usr/bin/pbpaste"], capture_output=True, text=True, timeout=15)
-        if result.returncode:
-            return "读取剪贴板失败。"
-        return f"剪贴板内容（{len(result.stdout)} 字符）：\n{_cut(result.stdout, 4000)}"
     code, out = _ps("Get-Clipboard -Raw", timeout=15)
     if code != 0:
         return f"读取剪贴板失败（退出码 {code}）{out}"
@@ -320,9 +313,6 @@ def _clipboard_get() -> str:
 
 
 def _clipboard_set(text: str) -> str:
-    if sys.platform == "darwin":
-        result = subprocess.run(["/usr/bin/pbcopy"], input=text or "", text=True, timeout=15)
-        return f"已写入剪贴板（{len(text or '')} 字符）" if result.returncode == 0 else "写入剪贴板失败。"
     blob = base64.b64encode((text or "").encode("utf-8")).decode("ascii")
     code, out = _ps(
         "$t=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('"
@@ -747,9 +737,6 @@ def _type_text(text: str, window: str = "", observation: str = "") -> str:
 def _launch_app(target: str) -> str:
     if not (target or "").strip():
         return "要启动什么？给个程序名或路径。"
-    if sys.platform == "darwin":
-        result = subprocess.run(["/usr/bin/open", "-a", target], capture_output=True, text=True, timeout=30)
-        return f"已请求启动 {target}。" if result.returncode == 0 else f"启动失败：{_cut(result.stderr, 300)}"
     safe = target.replace("'", "''")
     # 裸名字（notepad、calc）要先走 PATH 解析；直接 Start-Process 会被交给浏览器搜索
     cmd = (
@@ -1081,17 +1068,12 @@ TOOLS: dict[str, ToolSpec] = {
 }
 
 
-WINDOWS_DESKTOP_TOOLS = {"list_windows", "observe_screen", "read_ui", "click_ui", "click_at", "press_keys", "type_text"}
-
-
 def build_tool_specs() -> list[dict]:
     """给模型的工具清单（含 MCP 工具，若配置了服务器）。"""
-    base = list(TOOLS.values())
     if os.getenv('LE_ISOLATED_WORKER') == '1':
         from le_platform.worker import tool_allowed
-        base = [t for t in base if tool_allowed(t.name)]
-    specs = [t.to_openai() for t in base
-             if sys.platform == "win32" or t.name not in WINDOWS_DESKTOP_TOOLS]
+        return [t.to_openai() for t in TOOLS.values() if tool_allowed(t.name)]
+    specs = [t.to_openai() for t in TOOLS.values()]
     try:
         from learning_ext.agent.mcp_bridge import mcp_tool_specs
 
@@ -1116,15 +1098,10 @@ def execute_tool(name: str, args: dict) -> str:
     args = args or {}
     if os.getenv('LE_ISOLATED_WORKER') == '1':
         from le_platform.worker import execute_tool as execute_owned
-        spec = TOOLS.get(name)
-        if spec is None:
-            return '网页版不支持这项桌面工具。'
-        try:
-            return execute_owned(name, args, spec.handler)
-        except Exception as exc:
-            return f'学习空间操作失败：{type(exc).__name__}'
-    if sys.platform != "win32" and name in WINDOWS_DESKTOP_TOOLS:
-        return "此桌面控件操作目前仅支持 Windows；请按课程说明手动操作，完成后继续学习。"
+        spec=TOOLS.get(name)
+        if spec is None:return '网页版不支持这项桌面工具。'
+        try:return execute_owned(name,args,spec.handler)
+        except Exception as exc:return f'学习空间操作失败：{type(exc).__name__}'
     if name.startswith("mcp__"):
         try:
             from learning_ext.agent.mcp_bridge import mcp_call

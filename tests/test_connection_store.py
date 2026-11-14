@@ -6,15 +6,12 @@ import pytest
 from learning_ext import connection_store as store
 from learning_ext.pages import quick_setup as page_module
 
+pytestmark = pytest.mark.skipif(os.name != "nt", reason="Windows DPAPI storage")
+
+
 @pytest.fixture(autouse=True)
 def isolated_store(monkeypatch, tmp_path):
     monkeypatch.setattr(store, "STORE_FILE", tmp_path / "connections.dpapi")
-    if os.name != "nt":
-        from cryptography.fernet import Fernet
-        from learning_ext import macos_keychain
-        monkeypatch.setattr(store.sys, "platform", "darwin")
-        key = Fernet.generate_key()
-        monkeypatch.setattr(macos_keychain, "encryption_key", lambda **kwargs: key)
 
 
 def config(url="https://api.deepseek.com/v1", key="test-secret-alpha", model="deepseek-chat"):
@@ -52,48 +49,6 @@ def test_corrupt_storage_is_not_overwritten():
     with pytest.raises(Exception):
         store.remember("deepseek", config())
     assert store.STORE_FILE.read_bytes() == b"corrupt"
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
-def test_encrypted_store_is_private_and_rejects_tampering():
-    store.remember("deepseek", config())
-    assert store.STORE_FILE.stat().st_mode & 0o777 == 0o600
-    raw = bytearray(store.STORE_FILE.read_bytes())
-    raw[len(raw) // 2] ^= 1
-    store.STORE_FILE.write_bytes(raw)
-    with pytest.raises(Exception):
-        store.list_connections()
-
-
-def test_keychain_failure_is_explained_without_activating(monkeypatch):
-    from learning_ext.macos_keychain import KeychainError
-    saved = config()
-    monkeypatch.setattr(page_module, "_read_env", lambda: saved.copy())
-    monkeypatch.setattr(page_module, "_test_llm", lambda *args: ("连接成功", "你好"))
-    monkeypatch.setattr(store, "remember", Mock(side_effect=KeychainError("请解锁登录钥匙串")))
-    write = Mock()
-    monkeypatch.setattr(page_module, "_write_env", write)
-    page = object.__new__(page_module.QuickSetupPage)
-    monkeypatch.setattr(page, "_build_status", lambda _: "status")
-    result = page._save(saved["api_key"], saved["base_url"], saved["chat_model"], "", "deepseek")
-    assert "请解锁登录钥匙串" in result[0]
-    write.assert_not_called()
-    assert "请解锁登录钥匙串" in page._remember(
-        "deepseek", saved["api_key"], saved["base_url"], saved["chat_model"], ""
-    )[1]
-
-
-@pytest.mark.skipif(os.name == "nt", reason="POSIX permissions")
-def test_runtime_env_is_private_and_preserves_other_settings(monkeypatch, tmp_path):
-    env = tmp_path / ".env"
-    env.write_text("OTHER=retained\nOPENAI_API_KEY=old\n")
-    env.chmod(0o644)
-    monkeypatch.setattr(page_module, "ENV_FILE", env)
-    page_module._write_env(config())
-    assert env.stat().st_mode & 0o777 == 0o600
-    assert "OTHER=retained" in env.read_text()
-    assert env.read_text().count("OPENAI_API_KEY=") == 1
-    assert page_module._read_env() == config()
 
 
 def test_provider_switch_remembers_draft_and_restores_each_platform(monkeypatch):

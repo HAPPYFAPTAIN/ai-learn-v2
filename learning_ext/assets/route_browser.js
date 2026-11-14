@@ -4,8 +4,6 @@
 
   function select(root, tab, focus = false) {
     const index = tab.dataset.stageIndex;
-    const scroller = root.querySelector('.le-route-stage-panels');
-    if (scroller) scroller.scrollTop = 0;
     root.querySelectorAll('.le-route-stage-tab').forEach(item => {
       const active = item === tab;
       item.setAttribute('aria-selected', String(active));

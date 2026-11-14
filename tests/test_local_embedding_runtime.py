@@ -48,7 +48,7 @@ def test_concurrent_requests_start_only_one_hidden_service(monkeypatch):
     def spawn(*args, **kwargs):
         state['ready'] = True
         assert args[0] == [str(Path('C:/installed/Ollama/ollama.exe')), 'serve']
-        assert kwargs['creationflags'] == (getattr(local.subprocess, 'CREATE_NO_WINDOW', 0) if local.os.name == 'nt' else 0)
+        assert kwargs['creationflags'] == local.subprocess.CREATE_NO_WINDOW
         assert kwargs['env']['OLLAMA_HOST'] == '127.0.0.1:11434'
         return SimpleNamespace(pid=42, poll=lambda: None)
     monkeypatch.setattr(local, '_local_models', probe)

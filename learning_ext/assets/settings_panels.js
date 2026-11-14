@@ -142,7 +142,7 @@
   }
   const definitions = [
     ['#le-course-admin','课程管理','tune'],
-    ['#le-env-setup','学习准备','tune'],
+    ['#le-env-setup','学习环境','tune'],
     ['#le-course-add','添加课程','book'],
     ['#le-course-add-options','编号与难度','tune'],
     ['#le-course-maintenance','内容维护','tune'],

@@ -43,15 +43,6 @@ def section_heading(number, title):
 
 
 
-def learning_goal_empty():
-    return (
-        '<section class="le-goal-empty-state" aria-label="暂无学习目标">'
-        '<h2>暂无学习目标</h2>'
-        '<button type="button" data-le-nav="learning-guide-tab" data-le-home-action="explore">'
-        '<span aria-hidden="true">＋</span> 添加学习目标</button></section>'
-    )
-
-
 def practice_empty(kind, message):
     title = "准备好，开始回忆" if kind == "review" else "从第一题开始"
     return (

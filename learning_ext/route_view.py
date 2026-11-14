@@ -58,12 +58,7 @@ def route_action_label(roadmap):
 def render_route(roadmap):
     nodes = roadmap.get("nodes", []) if roadmap else []
     if not nodes:
-        return (
-            '<div class="le-route-empty" role="status"><strong>暂无学习路线</strong>'
-            '<p>从学习首页创建一个目标。</p>'
-            '<button type="button" data-le-nav="learning-guide-tab" data-le-home-action="explore">'
-            '<span aria-hidden="true">＋</span> 添加学习计划</button></div>'
-        )
+        return '<div class="le-route-empty" role="status"><strong>暂无学习路线</strong><p>从学习首页创建一个目标。</p></div>'
     hours = sum(float(n.get("est_hours") or 0) for n in nodes)
     groups = [("base", "打好基础", ""), ("strengthen", "动手练习", ""), ("sprint", "综合运用", "")]
     known = {key for key, _, _ in groups}

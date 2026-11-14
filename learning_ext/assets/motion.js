@@ -6,7 +6,7 @@
   const overlays = '.le-settings-deck,#le-chat-tool-menu,#le-chat-flyout,.le-library-dialog,.le-polish-popover';
   const mounts = '#le-app-tabs,.tab-nav,[role="tablist"],[role="tabpanel"],#le-action-learning,#le-coach,' + overlays;
   const streamContent = '#main-chat-bot,#chatbot,.chatbot,#le-coach-transcript,#le-action-help,#le-assistant-messages,#le-center-content,#le-guide-md,#le-term-output';
-  const panelIds = ['learning-guide-tab','quick-setup-tab','learning-path-tab','learning-workbench-tab','learning-review-tab','learning-quiz-tab','learning-dashboard-tab','chat-tab','indices-tab','help-tab','resources-tab'];
+  const panelIds = ['learning-guide-tab','quick-setup-tab','learning-path-tab','learning-workbench-tab','learning-review-tab','learning-quiz-tab','learning-dashboard-tab','learning-coach-tab','chat-tab','indices-tab','help-tab','resources-tab'];
   let frame = 0, activePanel = null, actionDirection = 1;
 
   function cancel(element) {

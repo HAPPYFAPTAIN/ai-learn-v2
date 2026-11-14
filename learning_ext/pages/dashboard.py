@@ -108,15 +108,8 @@ class DashboardPage(BasePage):
     def _dashboard_outputs(self, session: Session, project_id: int | None, status: str, days=3):
         data = build_dashboard_data(session, project_id=project_id)
         value = str(data["project_id"]) if data["project_id"] is not None else None
-        choices = project_choices(session.exec(select(LearningProject).where(LearningProject.user_id == "default").order_by(LearningProject.id.desc())).all())
-        project_update = gr.update(
-            choices=choices or [("暂无学习记录，快去新建学习计划吧", "")],
-            value=value if choices else "",
-            interactive=bool(choices),
-            elem_classes=[] if choices else ["le-dashboard-no-projects"],
-        )
         return (
-            project_update,
+            gr.update(choices=project_choices(session.exec(select(LearningProject).where(LearningProject.user_id == "default").order_by(LearningProject.id.desc())).all()), value=value),
             self._next_steps(data) + self._render_metrics(data["metrics"]),
             self._render_status(data["status_counts"]),
             self._render_week(session, data["project_id"]),

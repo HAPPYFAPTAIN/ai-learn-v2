@@ -14,7 +14,7 @@ PURPOSES = {
     "lesson": "课程与实操内容",
     "summary": "总结与复习卡",
     "planning": "学习路线与调整",
-    "coach": "步骤拆解与答疑",
+    "coach": "动手学指导",
     "assessment": "测验与评估",
     "polish": "文字润色",
     "default": "其他任务",

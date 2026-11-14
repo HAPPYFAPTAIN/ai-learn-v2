@@ -38,7 +38,6 @@ def test_general_application_search_verifies_without_running(tmp_path, monkeypat
     import learning_ext.environment_agent.discovery as discovery
     executable = tmp_path / "blender.exe"
     executable.write_bytes(b"fixture")
-    executable.chmod(0o700)
     monkeypatch.setattr(discovery, "_registry_apps", lambda: iter([{"name": "Blender", "path": executable, "version": "4.2", "source": "installed_apps"}]))
     monkeypatch.setattr(discovery, "_shortcuts", lambda: iter([]))
     monkeypatch.setattr(discovery, "_file_version", lambda path: "4.2.0")
@@ -119,6 +118,31 @@ def test_arbitrary_application_install_can_skip_but_run_check_cannot():
     report = {"items": [item]}
     assert environment.skip_reason({"title": "安装 Blender", "action": "下载安装包并安装 Blender"}, report)
     assert not environment.skip_reason({"title": "检查 Blender 是否可用", "action": "打开软件"}, report)
+
+
+def test_first_card_navigation_and_resume_do_not_complete_learning(tmp_path, monkeypatch):
+    from learning_ext.action_learning.service import ActionLearning, Journal
+    from learning_ext.pages.action_learning import action_card, ActionLearningPanel
+    state = dict(id="test", owner="test", node=1, fingerprint="f", context={"course": "课程"}, index=0, done=[],
+                 steps=[{"title": "安装 Python", "action": "下载 Python 安装包", "check": "安装完成", "hint": "", "source": ""},
+                        {"title": "创建项目", "action": "mkdir project", "check": "看到目录", "hint": "", "source": ""}], active=True)
+    runner = ActionLearning(Journal(tmp_path/"journal.sqlite"))
+    report = {"items": [ready_python()], "complete": True}
+    runner.apply_environment(state, report)
+    assert state["index"] == -1 and state["skipped"] and state["done"] == []
+    assert "从你已有的工具开始" in action_card(state)
+    rendered = ActionLearningPanel.render(state, "")
+    assert rendered[17]["visible"] is False and rendered[18]["visible"] is True
+    runner.move(state, 1)
+    assert state["index"] == 1 and state["done"] == []
+    runner.move(state, -1)
+    assert state["index"] == -1
+    runner.complete(state)
+    assert not state["done"]
+    stored = runner.journal.resume("test", 1, "f")
+    assert stored["environment"] == report
+    with pytest.raises(ValueError):
+        runner.prepare_operation(state, {})
 
 
 def test_known_version_probe_checks_exit_status(monkeypatch):

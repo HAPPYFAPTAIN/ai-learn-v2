@@ -191,6 +191,13 @@ class LearningApp(KotaemonApp):
             self.learning_dashboard_page = DashboardPage(self)
             self.learning_dashboard_page.on_building_ui()
 
+        with gr.Tab("动手学", elem_id="learning-coach-tab", id="learning-coach-tab", visible=visible,
+                    elem_classes=["fill-main-area-height", "scrollable"]) as self._tabs["learning-coach-tab"]:
+            from learning_ext.pages import CoachPage
+
+            self.coach_page = CoachPage(self)
+            self.coach_page.on_building_ui()
+
     def _build_guide_tab(self, visible: bool):
         from learning_ext.onboarding import GuidedHomePage
 
@@ -207,6 +214,7 @@ class LearningApp(KotaemonApp):
             "learning_review_page",
             "learning_quiz_page",
             "learning_dashboard_page",
+            "coach_page",
         ):
             page = getattr(self, page_attr, None)
             if page is not None and hasattr(page, "on_register_events"):

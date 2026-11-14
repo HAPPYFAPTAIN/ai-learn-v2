@@ -2,6 +2,7 @@
 
 | 文档 | 用途 |
 |---|---|
+| [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) | 官网定位、旧系统冻结、React 重写与 Mac 本地测试边界 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 官网运行层、账户隔离、源码与发布边界 |
 | [OFFICIAL_API.md](OFFICIAL_API.md) | 官网入口、授权、网关及空间接口契约 |
 | [OFFICIAL_DEPLOYMENT.md](OFFICIAL_DEPLOYMENT.md) | 固定运行时、候选构建、发布门禁与回退 |

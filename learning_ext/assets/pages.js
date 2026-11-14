@@ -1,28 +1,5 @@
 (() => {
   const headers = {id:'内部编号',name:'资料名称',size:'大小',tokens:'文本量',loader:'解析方式',date_created:'添加时间'};
-  function listEmptyState(table, kind) {
-    const isGroup = kind === 'groups';
-    const rows = table.querySelectorAll('svelte-virtual-table-viewport tbody tr');
-    let hasItems = false;
-    rows.forEach(row => {
-      const id = row.querySelector('td')?.textContent.trim();
-      const empty = !id || id === '-' || id === '—';
-      row.classList.toggle('le-library-empty-row', empty);
-      if (!empty) hasItems = true;
-    });
-    const selector = isGroup ? 'le-library-empty-groups' : 'le-library-empty-list';
-    let message = table.parentElement.querySelector(`:scope > .${selector}`);
-    if (!message) {
-      message = document.createElement('div');
-      message.className = `${selector} le-library-list-empty`;
-      message.setAttribute('role', 'status');
-      message.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M8 12h8m-8 4h5"/></svg>' +
-        (isGroup ? '<strong>暂无资料集</strong><span>将相关资料归在一起，方便阅读与提问。</span>' : '<strong>暂无资料</strong><span>点击上方「添加资料」<br>导入文件或网页，开始积累知识。</span>');
-      table.after(message);
-    }
-    message.hidden = hasItems;
-    table.classList.toggle(isGroup ? 'le-library-no-groups' : 'le-library-no-files', !hasItems);
-  }
   function notebookLayout(layout) {
     const collection = layout?.querySelector('.le-library-collection');
     if (!collection) return;
@@ -208,15 +185,10 @@
       });
       table.querySelectorAll('tbody td:nth-child(2)').forEach(cell => {
         const title = cell.textContent.trim();
-        const empty = !title || title === '-' || title === '—';
-        cell.closest('tr')?.classList.toggle('le-library-empty-row', empty);
-        if (empty) { delete cell.dataset.leType; return; }
         if (cell.getAttribute('title') !== title) cell.setAttribute('title', title);
         const extension = title.includes('.') ? title.split('.').pop().toUpperCase() : '文档';
         cell.dataset.leType = /^[A-Z0-9]{1,5}$/.test(extension) ? extension : '文档';
       });
-      listEmptyState(table, 'files');
-      layout?.querySelectorAll('.le-source-groups').forEach(groups => listEmptyState(groups, 'groups'));
       if (layout?.classList.contains('le-library-layout')) {
         notebookLayout(layout);
         const nav = library.querySelector('.le-library-nav');

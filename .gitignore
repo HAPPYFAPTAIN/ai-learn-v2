@@ -2,7 +2,6 @@ ktem_app_data/
 kotaemon/ktem_app_data/
 **/__pycache__/
 **/*.pyc
-.DS_Store
 **/.pytest_cache/
 **/.venv/
 kotaemon/.venv/
@@ -19,8 +18,6 @@ build/
 dist/
 nul
 .theflow/
-.tools/
-.python-runtimes/
 
 # 测试截图：本地留档，不进仓库（体积大且每次都能重拍）
 output/_shots/
@@ -44,6 +41,3 @@ output/official/
 /playwright-report/
 /test-results/
 *.egg-info/
-
-# 本机专用启动器（绕开被系统策略拦掉的 venv 解释器），不进仓库
-start_local.bat

@@ -4,7 +4,6 @@ import ctypes
 import hashlib
 import json
 import os
-import sys
 import tempfile
 import threading
 from pathlib import Path
@@ -12,22 +11,14 @@ from pathlib import Path
 from learning_ext.model_platforms import PLATFORMS, connection_error, profile_for
 
 
-STORE_FILE = Path(__file__).resolve().parent.parent / "ktem_app_data" / (
-    "model_connections.macos.enc" if sys.platform == "darwin" else "model_connections.dpapi"
-)
+STORE_FILE = Path(__file__).resolve().parent.parent / "ktem_app_data" / "model_connections.dpapi"
 _LOCK = threading.RLock()
 FIELDS = ("base_url", "api_key", "chat_model", "embed_model")
 
 
 def _crypt(data: bytes, decrypt=False) -> bytes:
-    if sys.platform == "darwin":
-        from cryptography.fernet import Fernet
-        from learning_ext.macos_keychain import encryption_key
-
-        cipher = Fernet(encryption_key(create=not decrypt))
-        return cipher.decrypt(data) if decrypt else cipher.encrypt(data)
     if os.name != "nt":
-        raise RuntimeError("本机加密连接存储支持 Windows 和 macOS。")
+        raise RuntimeError("本机加密存储目前需要 Windows。")
     from ctypes import wintypes
 
     class Blob(ctypes.Structure):

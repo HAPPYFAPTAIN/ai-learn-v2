@@ -1,6 +1,6 @@
 (() => {
   const configs = [
-    { overlay: 'le-gate-overlay', modal: 'le-gate-modal', close: 'le-gate-close', title: 'le-gate-title', fallback: 'le-master-btn', region: true },
+    { overlay: 'le-gate-overlay', modal: 'le-gate-modal', close: 'le-gate-close', title: 'le-gate-title', fallback: 'le-master-btn' },
     { overlay: 'le-adapt-overlay', modal: 'le-adapt-modal', close: 'le-adapt-close', title: 'le-adapt-intro', fallback: 'le-adapt-open' },
   ];
   let active = null;
@@ -21,7 +21,8 @@
       inerted = [];
       const elements = [
         ...overlay.parentElement.children,
-        ...(!active?.config.region ? [document.querySelector('#le-brand-bar'), document.querySelector('#le-app-tabs > .tab-nav')] : []),
+        document.querySelector('#le-brand-bar'),
+        document.querySelector('#le-app-tabs > .tab-nav'),
       ];
       elements.forEach((element) => {
         if (!element || element === overlay || element.inert) return;
@@ -38,8 +39,8 @@
     const modal = document.getElementById(config.modal) || overlay;
     previousFocus = document.activeElement;
     active = { overlay, config, modal };
-    modal.setAttribute('role', config.region ? 'region' : 'dialog');
-    if (!config.region) modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
     modal.setAttribute('aria-labelledby', config.title);
     setBackground(overlay, true);
     requestAnimationFrame(() => {
@@ -83,7 +84,6 @@
       return;
     }
     if (event.key !== 'Tab') return;
-    if (active.config.region) return;
     const items = focusable(active.overlay);
     event.preventDefault();
     event.stopPropagation();

@@ -19,8 +19,7 @@ def test_modal_script_is_loaded_once_after_workbench():
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for frontend behavior tests")
-@pytest.mark.parametrize('region', [False, True])
-def test_modal_focus_trap_escape_and_background_lifecycle(region):
+def test_modal_focus_trap_escape_and_background_lifecycle():
     source = (ROOT / "learning_ext" / "assets" / "modal.js").read_text(encoding="utf-8")
     source = source.replace("\n})();", "\n  globalThis.__modalTest = { sync };\n})();", 1)
     prelude = r"""
@@ -115,12 +114,6 @@ results.closed = {
 };
 console.log(JSON.stringify(results));
 """
-    if region:
-        for old, new in [('le-adapt-overlay', 'le-gate-overlay'), ('le-adapt-modal', 'le-gate-modal'),
-                         ('le-adapt-close', 'le-gate-close'), ('le-adapt-intro', 'le-gate-title'),
-                         ('le-adapt-open', 'le-master-btn')]:
-            prelude = prelude.replace(old, new)
-            scenario = scenario.replace(old, new)
     completed = subprocess.run(
         [NODE, "-"],
         input=prelude + source + scenario,
@@ -135,18 +128,18 @@ console.log(JSON.stringify(results));
     assert completed.returncode == 0, completed.stderr
     result = json.loads(completed.stdout)
     assert result["open"] == {
-        "role": "region" if region else "dialog",
-        **({} if region else {"modal": "true"}),
-        "labelledby": "le-gate-title" if region else "le-adapt-intro",
-        "focus": "le-gate-close" if region else "le-adapt-close",
+        "role": "dialog",
+        "modal": "true",
+        "labelledby": "le-adapt-intro",
+        "focus": "le-adapt-close",
         "backgroundInert": True,
-        "brandInert": not region,
+        "brandInert": True,
     }
-    assert result["tabForward"] == ("second" if region else "le-adapt-close")
-    assert result["tabBackward"] == ("le-gate-close" if region else "second")
+    assert result["tabForward"] == "le-adapt-close"
+    assert result["tabBackward"] == "second"
     assert result["closed"] == {
         "closeClicks": 1,
         "backgroundInert": False,
         "brandInert": False,
-        "focus": "le-master-btn" if region else "le-adapt-open",
+        "focus": "le-adapt-open",
     }

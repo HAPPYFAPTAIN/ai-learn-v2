@@ -8,15 +8,13 @@ import re
 import sqlite3
 import time
 import uuid
+from datetime import datetime
 from contextlib import contextmanager
 
 from learning_ext.llm import chat, chat_json
-from .prompts import DECOMPOSE, HELP
-
-PLATFORMS = {"windows": "Windows", "macos": "macOS", "linux": "Linux"}
-HELP_COOLDOWN = 10
-HELP_HOURLY_LIMIT = 20
-QUESTION_LIMIT = 1000
+from .prompts import DECOMPOSE, HELP, LOCATE
+from learning_ext.practice.environment import adapt_steps
+from learning_ext.environment_agent import explore_environment
 
 LOG_PATH = Path(os.getenv('LE_APP_DATA_DIR',str(Path(__file__).resolve().parents[2] / 'output/runtime'))) / 'action-learning.sqlite3'
 
@@ -47,8 +45,6 @@ class Journal:
         db = sqlite3.connect(self.path, timeout=15)
         db.execute("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, owner TEXT, node INTEGER, fingerprint TEXT, data TEXT, updated REAL)")
         db.execute("CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, time REAL, session TEXT, node INTEGER, step INTEGER, event TEXT, details TEXT)")
-        db.execute("CREATE INDEX IF NOT EXISTS sessions_owner_node ON sessions(owner,node,fingerprint,updated DESC)")
-        db.execute("CREATE INDEX IF NOT EXISTS events_session_usage ON events(session,event,time)")
         try:
             with db:
                 yield db
@@ -65,6 +61,7 @@ class Journal:
 
     def save(self, state):
         data = {key: state[key] for key in ("id", "owner", "node", "fingerprint", "steps", "index", "done")}
+        data.update({key: state[key] for key in ("environment", "skipped", "resume_index") if key in state})
         with self.connect() as db:
             db.execute("INSERT OR REPLACE INTO sessions VALUES(?,?,?,?,?,?)", (
                 state["id"], state["owner"], state["node"], state["fingerprint"],
@@ -76,24 +73,6 @@ class Journal:
             row = db.execute("SELECT data FROM sessions WHERE owner=? AND node=? AND fingerprint=? ORDER BY updated DESC LIMIT 1", (owner, node, fingerprint)).fetchone()
         return json.loads(row[0]) if row else None
 
-    def reserve_help(self, state, question):
-        now = time.time()
-        with self.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
-            count, latest = db.execute(
-                "SELECT count(*), max(events.time) FROM events JOIN sessions ON events.session=sessions.id "
-                "WHERE sessions.owner=? AND events.event='ai_help_requested' AND events.time>?",
-                (state["owner"], now - 3600),
-            ).fetchone()
-            if latest is not None and now - latest < HELP_COOLDOWN:
-                raise ValueError(f"提问太快了，请等待 {HELP_COOLDOWN} 秒后再试。")
-            if count >= HELP_HOURLY_LIMIT:
-                raise ValueError(f"本小时已发起 {HELP_HOURLY_LIMIT} 次步骤答疑，请稍后再试；预设提示仍可查看。")
-            db.execute("INSERT INTO events(time,session,node,step,event,details) VALUES(?,?,?,?,?,?)", (
-                now, state["id"], state["node"], state["index"], "ai_help_requested",
-                json.dumps(scrub({"question": question}), ensure_ascii=False),
-            ))
-
 
 def source_excerpts(context):
     source = context["lesson"] + "\n\n" + context.get("practice", "")
@@ -102,7 +81,7 @@ def source_excerpts(context):
 
 def validate_steps(result, source, sources=None):
     steps = result.get("steps") if isinstance(result, dict) else None
-    if not isinstance(steps, list) or not 4 <= len(steps) <= 20:
+    if not isinstance(steps, list) or not 4 <= len(steps) <= 40:
         raise ValueError("拆解结果不完整，请重试。")
     clean = []
     for step in steps:
@@ -125,48 +104,78 @@ def validate_steps(result, source, sources=None):
     return clean
 
 
-def model_context(context, *, help_request=False):
-    limits = {"course": 200, "topic": 200, "goal": 1000, "background": 1000,
-              "lesson": 8000 if help_request else 18000, "practice": 2000 if help_request else 4000}
-    return {**{key: str(context.get(key, ""))[:limit] for key, limit in limits.items()},
-            "learner_os": PLATFORMS[context["learner_os"]]}
-
-
 class ActionLearning:
     def __init__(self, journal=None):
         self.journal = journal or Journal()
 
     def start(self, owner, node, context):
-        if context.get("learner_os") not in PLATFORMS:
-            raise ValueError("请先选择你做练习使用的系统。")
-        fingerprint = hashlib.sha256(json.dumps(
-            {"version": "web-steps-v1", "context": context}, sort_keys=True, ensure_ascii=False,
-        ).encode()).hexdigest()
+        fingerprint = hashlib.sha256(json.dumps(context, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         state = self.journal.resume(owner, node, fingerprint)
         if state:
-            state.update(context=context)
+            state.update(context=context, pending=None, observation=None)
             self.journal.record(state, "resume")
+            report = state.get("environment", {})
+            try:
+                age = time.time() - datetime.fromisoformat(report.get("checked_at", "")).timestamp()
+            except (ValueError, TypeError):
+                age = 301
+            if not 0 <= age < 300 or report.get("engine") != "zcode-core-python":
+                report = self.inspect_environment(state)
+            else:
+                self.journal.record(state, "environment_reused", age_seconds=round(age))
+            self.apply_environment(state, report)
             return state
         state = dict(id=uuid.uuid4().hex, owner=owner, node=node, fingerprint=fingerprint,
-                     context=context, index=0, done=[])
+                     context=context, index=0, done=[], pending=None, observation=None)
         self.journal.record(state, "decompose_started")
         try:
-            bounded = model_context(context)
-            sources = source_excerpts(bounded)
-            result = chat_json(json.dumps(dict(context=bounded,
-                sources=[dict(index=i, text=excerpt) for i, excerpt in enumerate(sources)]),
-                ensure_ascii=False), system=DECOMPOSE, purpose="coach")
+            report = self.inspect_environment(state)
+            sources = source_excerpts(context)
+            result = chat_json(json.dumps(dict(context=context, environment=report, sources=[dict(index=i,text=excerpt) for i,excerpt in enumerate(sources)]), ensure_ascii=False), system=DECOMPOSE, purpose="coach")
             state["steps"] = validate_steps(result, context["lesson"] + "\n" + context.get("practice", ""), sources)
         except Exception as exc:
             self.journal.record(state, "decompose_failed", error=type(exc).__name__)
             raise
         self.journal.save(state)
         self.journal.record(state, "decompose_completed", count=len(state["steps"]))
+        self.apply_environment(state, report)
         return state
+
+    def inspect_environment(self, state):
+        return explore_environment(state["context"], planner=chat_json, session_id=state["id"],
+                                   emit=lambda event, **details: self.journal.record(state, event, **details))
+
+    def recheck_environment(self, state):
+        self.revoke(state, "environment_recheck")
+        self.apply_environment(state, self.inspect_environment(state))
+        return state
+
+    def apply_environment(self, state, report):
+        state["resume_index"] = max(0, state["index"]) if state["index"] >= 0 else state.get("resume_index", 0)
+        state["environment"] = report
+        state["skipped"] = adapt_steps(state["steps"], report)
+        if report["items"]:
+            state["index"] = -1
+        self.journal.record(state, "environment_checked", report=report)
+        self.journal.record(state, "environment_steps_adapted", skipped=state["skipped"])
+        self.journal.save(state)
 
     @staticmethod
     def next_index(state, delta):
-        return max(0, min(state["index"] + delta, len(state["steps"]) - 1))
+        index = state["index"]
+        skipped = state.get("skipped", {})
+        if index == -1 and delta > 0:
+            start = state.get("resume_index", 0)
+            remaining = [i for i in range(start, len(state["steps"])) if str(i) not in skipped]
+            if not remaining:
+                remaining = [i for i in range(len(state["steps"])) if str(i) not in skipped]
+            return remaining[0] if remaining else -1
+        target = index + delta
+        while 0 <= target < len(state["steps"]) and str(target) in skipped:
+            target += 1 if delta > 0 else -1
+        if target < 0 and state.get("environment", {}).get("items"):
+            return -1
+        return max(0, min(target, len(state["steps"])-1)) if not skipped else (target if 0 <= target < len(state["steps"]) else index)
 
     @staticmethod
     def require(state, node, owner):
@@ -174,12 +183,16 @@ class ActionLearning:
             raise ValueError("课程已变化，请重新进入逐步行动。")
 
     def move(self, state, delta):
+        state["pending"] = None
+        state["observation"] = None
         state["index"] = self.next_index(state, delta)
         self.journal.save(state)
         self.journal.record(state, "navigate", direction=delta)
         return state
 
     def complete(self, state):
+        if state["index"] < 0 or str(state["index"]) in state.get("skipped", {}):
+            return state
         if state["index"] not in state["done"]:
             state["done"].append(state["index"])
         self.journal.save(state)
@@ -188,15 +201,71 @@ class ActionLearning:
 
     def hint(self, state):
         self.journal.record(state, "hint")
+        if state["index"] < 0:
+            return "已满足的安装与版本检查会自动跳过。项目目录、虚拟环境和动手练习仍需完成；安装后可点「重新检查环境」。"
         return state["steps"][state["index"]]["hint"]
 
     def help(self, state, question):
-        question = str(question or "").strip() or "我该怎么开始这一步？"
-        if len(question) > QUESTION_LIMIT:
-            raise ValueError(f"请将问题控制在 {QUESTION_LIMIT} 字以内。")
-        self.journal.reserve_help(state, question)
-        answer = chat(json.dumps(dict(context=model_context(state["context"], help_request=True),
-            current=state["steps"][state["index"]], question=question), ensure_ascii=False),
-            system=HELP, purpose="coach", max_tokens=800)
+        if not str(question or "").strip():
+            question = "我该怎么开始这一步？"
+        self.journal.record(state, "ai_help_requested", question=question)
+        current = state["steps"][state["index"]] if state["index"] >= 0 else dict(title="学习前的环境检查", action="确认已找到与尚未验证的工具", check="了解哪些重复准备会跳过")
+        answer = chat(json.dumps(dict(context=state["context"], environment=state.get("environment"), current=current, question=question), ensure_ascii=False), system=HELP, purpose="coach")
         self.journal.record(state, "ai_help_result", answer=answer)
         return answer
+
+    def locate(self, state):
+        if state["index"] < 0:
+            raise ValueError("进入具体行动后再使用屏幕引导。")
+        observation = state.get("observation")
+        if not observation or time.time() - observation["observed"] > 180:
+            raise ValueError("先选择窗口并读取控件。")
+        self.journal.record(state, "ai_locate_requested", window=observation["window"]["title"])
+        result = chat_json(json.dumps(dict(context=state["context"], current=state["steps"][state["index"]], controls=observation["items"]), ensure_ascii=False), system=LOCATE, purpose="coach")
+        key = result.get("key") if isinstance(result, dict) else None
+        item = next((item for item in observation["items"] if item["key"] == key), None)
+        self.journal.record(state, "ai_locate_result", key=key, found=bool(item))
+        if not item:
+            raise ValueError("还不能准确定位。可以手动选择控件，或让 AI 解释这一步。")
+        return item
+
+    def prepare_operation(self, state, item):
+        if state["index"] < 0:
+            raise ValueError("进入具体行动后再使用屏幕引导。")
+        from learning_ext.agent import guided_desktop as desktop
+        state["pending"] = None
+        observation = state.get("observation")
+        if not observation or item not in observation["items"] or time.time() - observation["observed"] > 180:
+            raise ValueError("控件列表已过期，请重新读取。")
+        window = observation["window"]
+        self.journal.record(state, "highlight_requested", window=window["title"], control=item["name"])
+        desktop.highlight(state["id"], window, item)
+        self.journal.record(state, "highlight_started", control=item["name"], duration=6)
+        if desktop.can_operate(window, item):
+            state["pending"] = dict(window=window, item=item, index=state["index"], node=state["node"],
+                                    expires=time.time()+90, nonce=uuid.uuid4().hex)
+        return state
+
+    def execute(self, state, approved):
+        from learning_ext.agent import guided_desktop as desktop
+        pending = state.get("pending")
+        state["pending"] = None
+        if not approved or not pending or pending["index"] != state["index"] or pending["node"] != state["node"] or pending["expires"] < time.time():
+            self.journal.record(state, "operation_denied", approved=bool(approved))
+            raise ValueError("本次授权无效或已过期。请先圈出目标，再授权这一次操作。")
+        self.journal.record(state, "operation_approved", nonce=pending["nonce"], window=pending["window"]["title"], control=pending["item"]["name"], action=pending["item"]["action"])
+        desktop.stop_highlight(state["id"])
+        try:
+            result = desktop.operate(pending["window"], pending["item"])
+        except Exception as exc:
+            self.journal.record(state, "operation_failed", error=type(exc).__name__)
+            raise
+        self.journal.record(state, "operation_result", result=result, lesson_verified=False)
+        return result["message"]
+
+    def revoke(self, state, event="authorization_revoked"):
+        from learning_ext.agent import guided_desktop as desktop
+        state["pending"] = None
+        state["observation"] = None
+        desktop.stop_highlight(state["id"])
+        self.journal.record(state, event)

@@ -19,10 +19,6 @@ logger = logging.getLogger(__name__)
 
 _WORKERS = 2
 _Q: "queue.Queue[tuple]" = queue.Queue()
-# 用户正开着的那一节走这条道，插到所有排队任务前面。
-# 不这么做的话：打开一个 30 多节的新项目，整批会被丢进 _Q，
-# 用户点开 1.3 就得等前面二十多节跑完（每节 20 秒 = 十几分钟）。
-_PRIORITY_Q: "queue.Queue[tuple]" = queue.Queue()
 _LOCK = threading.RLock()
 _STATE: dict[int, dict] = {}
 _INFLIGHT: set[tuple[int, int]] = set()
@@ -47,35 +43,19 @@ def _ensure_workers() -> None:
 
 def _loop() -> None:
     while True:
-        # 先看优先通道（用户正在看的那一节），空了再取普通队列
-        job = None
-        src = None
-        try:
-            job = _PRIORITY_Q.get_nowait()
-            src = _PRIORITY_Q
-        except queue.Empty:
-            try:
-                job = _Q.get(timeout=0.5)
-                src = _Q
-            except queue.Empty:
-                continue
+        job = _Q.get()
         try:
             _run(job)
         except Exception:  # noqa: BLE001
             logger.exception("备课任务异常")
         finally:
-            if src is not None:
-                src.task_done()
+            _Q.task_done()
 
 
 def _run(job: tuple) -> None:
     pid, nid, topic, opts = job
-    with _LOCK:
-        if int(pid) in _STATE:
-            _STATE[int(pid)][int(nid)] = "running"
     from learning_ext.progress.study import generate_node_summary_to_db
     from learning_ext.llm.request_gate import background_requests
-    from learning_ext.llm.client import OutputTruncatedError
 
     ok = False
     for attempt in range(2):
@@ -88,11 +68,6 @@ def _run(job: tuple) -> None:
                     learning_goal=opts.get("goal", ""),
                     environment_context=opts.get("env", ""),
                 )
-        except OutputTruncatedError as exc:
-            # 截断是"写超了"，同样的提示词重排一遍大概率还是超，别把时间再烧一次
-            logger.warning("备课 node#%s 输出被截断，不重试: %s", nid, exc)
-            ok = False
-            break
         except Exception as exc:  # noqa: BLE001
             logger.warning("备课 node#%s 第 %d 次失败: %s", nid, attempt + 1, exc)
             ok = False
@@ -119,12 +94,8 @@ def start(
     goal: str = "",
     env: str = "",
     force: bool = False,
-    priority: bool = False,
 ) -> dict:
-    """把若干节丢进后台备课。重复调用安全（同一节只会排一次队）。
-
-    priority=True 时插到队首——用户正打开某一节时用，别让他等整批预生成。
-    """
+    """把若干节丢进后台备课。重复调用安全（同一节只会排一次队）。"""
     if not project_id or not node_ids:
         return {}
     pid = int(project_id)
@@ -147,16 +118,9 @@ def start(
             fresh.append(nid)
         if not fresh:
             return snapshot(pid)
-    target = _PRIORITY_Q if priority else _Q
     for nid in fresh:
-        target.put((pid, nid, topic, {"goal": goal, "env": env, "force": force}))
-    logger.info(
-        "[备课] 项目#%s 新排 %d 节%s（共 %d）",
-        pid,
-        len(fresh),
-        "（优先）" if priority else "",
-        snapshot(pid).get("total"),
-    )
+        _Q.put((pid, nid, topic, {"goal": goal, "env": env, "force": force}))
+    logger.info("[备课] 项目#%s 新排 %d 节（共 %d）", pid, len(fresh), snapshot(pid).get("total"))
     return snapshot(pid)
 
 
@@ -169,9 +133,9 @@ def snapshot(project_id: int | None) -> dict:
             return {}
         return {
             "total": len(state),
-            "done": sum(value in {"done", "failed"} for value in state.values()),
+            "done": sum(value != "pending" for value in state.values()),
             "failed": [nid for nid, value in state.items() if value == "failed"],
-            "running": any(value in {"pending", "running"} for value in state.values()),
+            "running": any(value == "pending" for value in state.values()),
         }
 
 

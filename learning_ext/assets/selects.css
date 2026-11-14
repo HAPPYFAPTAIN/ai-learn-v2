@@ -24,12 +24,8 @@
   background:var(--le-surface-2)!important;
 }
 :is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]):focus-within {
-  border-color:var(--le-line-strong)!important;
-  box-shadow:none!important;
-}
-:is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]:focus-visible) {
-  outline:2px solid var(--le-accent)!important;
-  outline-offset:2px;
+  border-color:var(--le-accent-line)!important;
+  box-shadow:0 0 0 3px var(--le-focus)!important;
 }
 :is(.gradio-container,#le-chat-flyout) input[role="listbox"] {
   min-width:0!important;
@@ -47,13 +43,15 @@
 :is(.gradio-container,#le-chat-flyout) input[role="listbox"]::placeholder {color:var(--le-ink-3)!important;font-weight:400}
 :is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]) .secondary-wrap {gap:10px!important;min-width:0}
 :is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]) .icon-wrap {
-  display:flex!important;align-items:center!important;justify-content:center!important;
-  position:static!important;inset:auto!important;transform:none!important;
-  flex:0 0 20px!important;width:20px!important;height:24px!important;
-  align-self:center!important;margin:0!important;padding:0!important;color:var(--le-ink-3);
+  width:20px!important;height:24px!important;align-self:center;flex-shrink:0;color:var(--le-ink-3);position:relative;
 }
-:is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]) .dropdown-arrow {display:block!important;opacity:1;position:static!important;inset:auto!important;transform:none!important;margin:0!important;width:16px!important;height:16px!important}
-:is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]) .icon-wrap:has(.dropdown-arrow)::after {content:none!important}
+:is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]) .dropdown-arrow {opacity:0}
+:is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]) .icon-wrap:has(.dropdown-arrow)::after {
+  content:"";position:absolute;left:6px;top:7px;width:7px;height:7px;
+  border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;
+  transform:rotate(45deg);transition:transform .16s,top .16s;
+}
+:is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[aria-expanded="true"]) .icon-wrap:has(.dropdown-arrow)::after {transform:rotate(225deg);top:10px;color:var(--le-accent)}
 :is(.gradio-container,#le-chat-flyout) .wrap-inner:has(input[role="listbox"]:disabled) {background:var(--le-surface-3)!important;box-shadow:none!important;border-color:var(--le-line)!important;opacity:.7}
 :is(.gradio-container,#le-chat-flyout) ul.options[role="listbox"] {
   box-sizing:border-box!important;

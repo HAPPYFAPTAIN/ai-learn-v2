@@ -10,24 +10,6 @@ from learning_ext.model_platforms import connection_error, detect_platform, mode
 def isolated_connections(monkeypatch, tmp_path):
     from learning_ext import connection_store
     monkeypatch.setattr(connection_store, "STORE_FILE", tmp_path / "connections.dpapi")
-    if connection_store.sys.platform == "darwin":
-        from cryptography.fernet import Fernet
-        from learning_ext import macos_keychain
-        key = Fernet.generate_key()
-        monkeypatch.setattr(macos_keychain, "encryption_key", lambda **kwargs: key)
-
-
-def test_platform_icons_are_embedded_valid_svg_for_every_provider():
-    import base64
-    from xml.etree import ElementTree
-    from learning_ext.model_platforms import PLATFORMS, platform_icon_url
-
-    for provider in [*PLATFORMS, "unknown"]:
-        url = platform_icon_url(provider)
-        prefix, payload = url.split(",", 1)
-        assert prefix == "data:image/svg+xml;base64"
-        svg = ElementTree.fromstring(base64.b64decode(payload, validate=True))
-        assert svg.tag == "{http://www.w3.org/2000/svg}svg"
 
 
 def test_platform_detection_preserves_existing_special_endpoints():
