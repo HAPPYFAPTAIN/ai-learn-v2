@@ -31,6 +31,8 @@ python3.11 -m venv .venv
 | `scripts/preview_home_rail.py` | 真实 Gradio 首页组件复现；无账号、模型或资料访问 |
 | `tests/browser/` | 首页列表、链接、响应式的真实浏览器回归 |
 
+本地 macOS 开发的检查范围、React 重写分支与旧版测试隔离见 [本地开发与变更边界](docs/LOCAL_DEVELOPMENT.md)。
+
 ## 接入与发布
 
 - [接口契约](docs/OFFICIAL_API.md)：接口所有方、请求响应、资格/身份、模型与存储边界。
