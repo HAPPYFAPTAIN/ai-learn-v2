@@ -1,14 +1,24 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
 
-// 官网线上挂在 /official/learn-everything/app/ 下，dev 用根路径，build 用同一 base。
 export default defineConfig(({ mode }) => ({
-  plugins: [react()],
-  base: mode === "production" ? "/official/learn-everything/app/" : "/",
+  plugins: [react(), tailwindcss()],
+  base:
+    mode === "production"
+      ? process.env.LEARN_WEB_BASE || "/official/learn-everything/app/"
+      : "/",
+  define: { __DEMO__: JSON.stringify(mode === "demo") },
   server: {
+    host: "127.0.0.1",
     port: 5173,
+    strictPort: true,
     proxy: {
-      "/api/v2": { target: "http://127.0.0.1:8000", changeOrigin: true },
+      "/api/v2": { target: "http://127.0.0.1:8000", changeOrigin: false },
+      "/official-api": {
+        target: "http://127.0.0.1:18030",
+        changeOrigin: false,
+      },
     },
   },
 }));

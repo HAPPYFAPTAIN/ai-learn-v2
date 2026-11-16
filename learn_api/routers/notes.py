@@ -13,6 +13,8 @@ from learn_api.errors import ApiError
 from learn_core.learning import notes as service
 from learn_core.learning import projects as project_service
 
+from learn_api.schemas import Items, NoteOut, TaskOut
+
 router = APIRouter(tags=["notes"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -75,7 +77,7 @@ def _task(task) -> dict:
     }
 
 
-@router.post("/projects/{project_id}/notes", status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/notes", status_code=status.HTTP_201_CREATED, response_model=NoteOut)
 def create_note(project_id: int, payload: NoteCreate, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -89,14 +91,14 @@ def create_note(project_id: int, payload: NoteCreate, session: SessionDep) -> di
     return _note(note)
 
 
-@router.get("/projects/{project_id}/notes")
+@router.get("/projects/{project_id}/notes", response_model=Items[NoteOut])
 def list_notes(project_id: int, session: SessionDep, nodeId: int | None = None) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
     return {"items": [_note(n) for n in service.list_notes(session, project_id=project_id, node_id=nodeId)]}
 
 
-@router.patch("/notes/{note_id}")
+@router.patch("/notes/{note_id}", response_model=NoteOut)
 def update_note(note_id: int, payload: NoteUpdate, session: SessionDep) -> dict:
     fields = payload.model_dump(exclude_none=True)
     note = service.update_note(session, note_id, **fields)
@@ -112,7 +114,7 @@ def delete_note(note_id: int, session: SessionDep) -> Response:
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/projects/{project_id}/tasks", status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/tasks", status_code=status.HTTP_201_CREATED, response_model=TaskOut)
 def create_task(project_id: int, payload: TaskCreate, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -130,7 +132,7 @@ def create_task(project_id: int, payload: TaskCreate, session: SessionDep) -> di
     return _task(task)
 
 
-@router.get("/projects/{project_id}/tasks")
+@router.get("/projects/{project_id}/tasks", response_model=Items[TaskOut])
 def list_tasks(
     project_id: int,
     session: SessionDep,
@@ -142,7 +144,7 @@ def list_tasks(
     return {"items": [_task(t) for t in tasks]}
 
 
-@router.patch("/tasks/{task_id}")
+@router.patch("/tasks/{task_id}", response_model=TaskOut)
 def update_task(task_id: int, payload: TaskUpdate, session: SessionDep) -> dict:
     fields = payload.model_dump(exclude_none=True)
     try:

@@ -22,6 +22,8 @@ from learn_core.db.engine import session_scope
 from learn_core.db.models import JobProgress
 from learn_core.tenancy.context import tenant_context
 
+from learn_api.schemas import JobOut
+
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 TERMINAL_STATES = {"done", "failed", "cancelled"}
@@ -43,7 +45,7 @@ def _serialize(row: JobProgress) -> dict:
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-@router.get("/{job_id}")
+@router.get("/{job_id}", response_model=JobOut)
 def get_job(job_id: str, session: SessionDep) -> dict:
     row = session.scalars(
         select(JobProgress).where(JobProgress.job_id == job_id)

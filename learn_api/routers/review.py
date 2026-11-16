@@ -15,6 +15,8 @@ from learn_core.db.models import Card
 from learn_core.learning import projects as project_service
 from learn_core.review import scheduler
 
+from learn_api.schemas import CardOut, Items
+
 router = APIRouter(tags=["review"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -31,9 +33,10 @@ class CardCreate(BaseModel):
 
 
 class ReviewRequest(BaseModel):
-    model_config = {"extra": "forbid"}
+    model_config = {"extra": "forbid", "populate_by_name": True}
 
     rating: int = Field(ge=1, le=4)
+    expected_reps: int | None = Field(default=None, ge=0, alias="expectedReps")
 
 
 def _serialize(card: Card) -> dict:
@@ -53,7 +56,7 @@ def _serialize(card: Card) -> dict:
     }
 
 
-@router.post("/cards", status_code=status.HTTP_201_CREATED)
+@router.post("/cards", status_code=status.HTTP_201_CREATED, response_model=CardOut)
 def create_card(payload: CardCreate, session: SessionDep) -> dict:
     if payload.project_id is not None and project_service.get_project(session, payload.project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -70,7 +73,7 @@ def create_card(payload: CardCreate, session: SessionDep) -> dict:
     return _serialize(card)
 
 
-@router.get("/projects/{project_id}/cards")
+@router.get("/projects/{project_id}/cards", response_model=Items[CardOut])
 def list_cards(project_id: int, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -78,15 +81,17 @@ def list_cards(project_id: int, session: SessionDep) -> dict:
     return {"items": [_serialize(c) for c in cards]}
 
 
-@router.get("/review/due")
+@router.get("/review/due", response_model=Items[CardOut])
 def due(session: SessionDep, limit: int = Query(default=50, ge=1, le=200)) -> dict:
     return {"items": [_serialize(c) for c in scheduler.due_cards(session, limit=limit)]}
 
 
-@router.post("/review/{card_id}")
+@router.post("/review/{card_id}", response_model=CardOut)
 def review(card_id: int, payload: ReviewRequest, session: SessionDep) -> dict:
     try:
-        card = scheduler.review_card(session, card_id=card_id, rating=payload.rating)
+        card = scheduler.review_card(session, card_id=card_id, rating=payload.rating, expected_reps=payload.expected_reps)
+    except scheduler.ReviewConflict as exc:
+        raise ApiError("CONFLICT", str(exc)) from exc
     except ValueError as exc:
         raise ApiError("INVALID_ARGUMENT", str(exc)) from exc
     if card is None:

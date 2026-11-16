@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from learn_api.app import create_app
 from learn_api.auth import Principal, set_verifier
-from learn_core.db.engine import reset_engine, session_scope
+from learn_core.db.engine import reset_engine, session_scope, get_engine
 from learn_core.llm.gateway import GatewayClient
 
 _USER = ""
@@ -26,6 +26,9 @@ pytestmark = pytest.mark.skipif(
 
 
 def _ok_handler(request: httpx.Request) -> httpx.Response:
+    assert get_engine().pool.checkedout() == 0
+    assert request.headers['X-End-User'] == _USER
+    assert json.loads(request.content)['model'] == 'm1'
     return httpx.Response(
         200,
         json={"model": "m1", "choices": [{"message": {"content": "答复"}}], "usage": {"total_tokens": 3}},
@@ -56,6 +59,12 @@ def client(monkeypatch):
 def _project(client: TestClient) -> int:
     r = client.post("/api/v2/projects", json={"title": "对话"}, headers={"X-Learn-Ticket": "t"})
     assert r.status_code == 201, r.text
+    from learn_core.db.models import TenantSetting
+    from learn_core.tenancy.context import tenant_context
+    with session_scope() as session:
+        tid = session.execute(text('SELECT id FROM tenant WHERE official_user_id=:u'), {'u':_USER}).scalar_one()
+    with tenant_context(tid), session_scope() as session:
+        session.add(TenantSetting(tenant_id=tid, chat_model='m1'))
     return r.json()["id"]
 
 
@@ -67,7 +76,7 @@ def test_chat_returns_content_and_increments_event_id(client):
     assert first.status_code == 200, first.text
     assert first.json()["content"] == "答复"
     event_id = first.json()["eventId"]
-    assert re.fullmatch(r"ln-j\d{6}-1-1", event_id), event_id
+    assert re.fullmatch(r"ln-r\d{6}-1-1", event_id), event_id
 
     second = client.post(f"/api/v2/projects/{pid}/chat", json=body, headers={"X-Learn-Ticket": "t"})
     assert second.status_code == 200

@@ -20,6 +20,7 @@ CODES: dict[str, tuple[int, bool]] = {
     "CONFLICT": (409, False),
     "JOB_RUNNING": (409, False),
     "TENANT_BUSY": (429, True),
+    "GATEWAY_UNAVAILABLE": (503, True),
     "STORAGE_FULL": (507, False),
     "INVALID_ARGUMENT": (422, False),
     "INTERNAL": (500, True),

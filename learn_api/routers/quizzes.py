@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,10 @@ from learn_api.deps import get_session
 from learn_api.errors import ApiError
 from learn_core.learning import projects as project_service
 from learn_core.learning import quizzes as service
+from learn_core.learning import grading
+from learn_api.routers.generation import _submit
+
+from learn_api.schemas import GenerationOut, GradeOut, Items, QuizBrief, QuizOut
 
 router = APIRouter(tags=["quizzes"])
 
@@ -39,11 +43,9 @@ class QuizCreate(BaseModel):
     questions: list[QuestionIn] = Field(min_length=1)
 
 
-class QuizSubmit(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
-
-    # {questionId: answer}
-    answers: dict[str, str]
+class GradeSubmit(BaseModel):
+    model_config = {"extra": "forbid"}
+    answers: dict[str, Annotated[str, Field(max_length=8000)]] = Field(max_length=100)
 
 
 def _question_payload(q, *, with_answer: bool) -> dict:
@@ -60,7 +62,7 @@ def _question_payload(q, *, with_answer: bool) -> dict:
     return data
 
 
-@router.post("/projects/{project_id}/quizzes", status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/quizzes", status_code=status.HTTP_201_CREATED, response_model=QuizOut)
 def create_quiz(project_id: int, payload: QuizCreate, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -81,7 +83,7 @@ def create_quiz(project_id: int, payload: QuizCreate, session: SessionDep) -> di
     }
 
 
-@router.get("/projects/{project_id}/quizzes")
+@router.get("/projects/{project_id}/quizzes", response_model=Items[QuizBrief])
 def list_quizzes(project_id: int, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -93,7 +95,7 @@ def list_quizzes(project_id: int, session: SessionDep) -> dict:
     }
 
 
-@router.get("/quizzes/{quiz_id}")
+@router.get("/quizzes/{quiz_id}", response_model=QuizOut)
 def get_quiz(quiz_id: int, session: SessionDep) -> dict:
     quiz = service.get_quiz(session, quiz_id)
     if quiz is None:
@@ -107,16 +109,26 @@ def get_quiz(quiz_id: int, session: SessionDep) -> dict:
     }
 
 
-@router.post("/quizzes/{quiz_id}/submit")
-def submit(quiz_id: int, payload: QuizSubmit, session: SessionDep) -> dict:
-    answers = {int(k): v for k, v in payload.answers.items() if str(k).isdigit()}
-    result = service.submit(session, quiz_id=quiz_id, answers=answers)
-    if result is None:
-        raise ApiError("NOT_FOUND", "quiz not found")
-    correct, total, items = result
-    return {
-        "correct": correct,
-        "total": total,
-        "score": round(correct / total, 4) if total else 0.0,
-        "results": items,
-    }
+@router.post("/quizzes/{quiz_id}/submit", status_code=202, response_model=GenerationOut, deprecated=True)
+@router.post("/quizzes/{quiz_id}/grade-jobs", status_code=202, response_model=GenerationOut)
+def grade_quiz(quiz_id: int, payload: GradeSubmit, response: Response, session: SessionDep) -> dict:
+    quiz = service.get_quiz(session, quiz_id)
+    if quiz is None or quiz.project_id is None:
+        raise ApiError("NOT_FOUND", "测验不存在")
+    return _submit(session, response, project_id=quiz.project_id, kind="grade",
+                   options={"quizId": quiz_id, "answers": payload.answers})
+
+
+@router.get("/quizzes/{quiz_id}/result", response_model=GradeOut | None)
+def quiz_result(quiz_id: int, session: SessionDep) -> dict | None:
+    if service.get_quiz(session, quiz_id) is None:
+        raise ApiError("NOT_FOUND", "测验不存在")
+    return grading.latest_result(session, quiz_id=quiz_id)
+
+
+@router.get("/quizzes/{quiz_id}/grade-job", response_model=GenerationOut | None)
+def quiz_grade_job(quiz_id: int, session: SessionDep) -> dict | None:
+    if service.get_quiz(session, quiz_id) is None:
+        raise ApiError("NOT_FOUND", "测验不存在")
+    row = grading.latest_job(session, quiz_id=quiz_id)
+    return {"jobId": row.job_id, "state": row.state} if row else None

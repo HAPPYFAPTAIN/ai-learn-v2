@@ -1,0 +1,616 @@
+[
+  {
+    "id": "custom",
+    "name": "自定义 / 中转站",
+    "mark": "+",
+    "subtitle": "任意兼容平台",
+    "group": "聚合中转",
+    "baseUrl": "",
+    "profiles": [
+      {
+        "label": "自定义地址",
+        "value": ""
+      }
+    ],
+    "models": [],
+    "note": "填写中转站的 API 根地址、密钥和模型 ID。支持 New API、One API 等兼容网关。",
+    "website": "",
+    "docs": ""
+  },
+  {
+    "id": "deepseek",
+    "name": "DeepSeek",
+    "mark": "D",
+    "subtitle": "官方 API",
+    "group": "国内平台",
+    "baseUrl": "https://api.deepseek.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.deepseek.com/v1"
+      }
+    ],
+    "models": ["deepseek-flash", "deepseek-v4-pro"],
+    "note": "使用 DeepSeek 开放平台的 API 密钥。",
+    "website": "https://platform.deepseek.com/api_keys",
+    "docs": "https://api-docs.deepseek.com/"
+  },
+  {
+    "id": "qwen",
+    "name": "阿里云百炼",
+    "mark": "Q",
+    "subtitle": "Qwen · 千问",
+    "group": "国内平台",
+    "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "profiles": [
+      {
+        "label": "中国内地 · 北京",
+        "value": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+      },
+      {
+        "label": "国际 · 新加坡",
+        "value": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      }
+    ],
+    "models": ["qwen-plus", "qwen-flash"],
+    "note": "密钥须与地区一致。业务空间专属域名可在连接地址中填写。",
+    "website": "https://bailian.console.aliyun.com/",
+    "docs": "https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope"
+  },
+  {
+    "id": "bigmodel",
+    "name": "智谱 BigModel",
+    "mark": "GLM",
+    "subtitle": "GLM · 开放平台",
+    "group": "国内平台",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "profiles": [
+      {
+        "label": "通用 API",
+        "value": "https://open.bigmodel.cn/api/paas/v4"
+      }
+    ],
+    "models": ["glm-5.3"],
+    "note": "默认使用通用 API。已有的 Coding 专属地址会保留，请按套餐适用范围使用。",
+    "website": "https://bigmodel.cn/console/usercenter/apikeys",
+    "docs": "https://docs.bigmodel.cn/cn/guide/develop/http/introduction"
+  },
+  {
+    "id": "minimax",
+    "name": "MiniMax",
+    "mark": "M",
+    "subtitle": "海螺 · 开放平台",
+    "group": "国内平台",
+    "baseUrl": "https://api.minimax.cn/v1",
+    "profiles": [
+      {
+        "label": "中国站",
+        "value": "https://api.minimax.cn/v1"
+      },
+      {
+        "label": "国际站",
+        "value": "https://api.minimax.io/v1"
+      }
+    ],
+    "models": ["MiniMax-M3.1-Flash", "MiniMax-M3"],
+    "note": "中国站和国际站使用对应账户的密钥。",
+    "website": "https://platform.minimax.cn/",
+    "docs": "https://platform.minimax.cn/docs/api-reference/text-openai-api"
+  },
+  {
+    "id": "kimi",
+    "name": "Kimi · 月之暗面",
+    "mark": "K",
+    "subtitle": "Moonshot AI",
+    "group": "国内平台",
+    "baseUrl": "https://api.moonshot.cn/v1",
+    "profiles": [
+      {
+        "label": "中国站",
+        "value": "https://api.moonshot.cn/v1"
+      },
+      {
+        "label": "国际站",
+        "value": "https://api.moonshot.ai/v1"
+      }
+    ],
+    "models": ["kimi-k3.1-pro", "kimi-k3", "kimi-k2.6"],
+    "note": "使用 Kimi API 开放平台密钥，选择与账户对应的站点。",
+    "website": "https://platform.kimi.com/",
+    "docs": "https://platform.kimi.com/docs/guide/migrating-from-openai-to-kimi"
+  },
+  {
+    "id": "volcengine",
+    "name": "火山方舟",
+    "mark": "火",
+    "subtitle": "豆包 · Volcengine",
+    "group": "国内平台",
+    "baseUrl": "https://ark.cn-beijing.volces.com/api/v3",
+    "profiles": [
+      {
+        "label": "北京 · 通用 API",
+        "value": "https://ark.cn-beijing.volces.com/api/v3"
+      }
+    ],
+    "models": [],
+    "note": "填写已开通的模型 ID 或推理接入点 ID。",
+    "website": "https://ark.volcengine.com/region:cn-beijing/apikey",
+    "docs": "https://www.volcengine.com/docs/82379/1330310"
+  },
+  {
+    "id": "siliconflow",
+    "name": "硅基流动",
+    "mark": "S",
+    "subtitle": "SiliconFlow",
+    "group": "国内平台",
+    "baseUrl": "https://api.siliconflow.cn/v1",
+    "profiles": [
+      {
+        "label": "中国站",
+        "value": "https://api.siliconflow.cn/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取模型列表后选择，也可以填写完整模型 ID。",
+    "website": "https://cloud.siliconflow.cn/",
+    "docs": "https://docs.siliconflow.cn/docs/api/chat-completions-post"
+  },
+  {
+    "id": "opencode",
+    "name": "OpenCode",
+    "mark": "OC",
+    "subtitle": "Zen · Go · Go Plus",
+    "group": "聚合中转",
+    "baseUrl": "https://opencode.ai/inference/go/openai/v1",
+    "profiles": [
+      {
+        "label": "Go / Go Plus · 订阅",
+        "value": "https://opencode.ai/inference/go/openai/v1"
+      },
+      {
+        "label": "Console / Zen · 按量",
+        "value": "https://opencode.ai/inference/openai/v1"
+      }
+    ],
+    "models": ["glm-5.3-flash", "kimi-k3.1-pro", "deepseek-v4.1-flash"],
+    "note": "Go 与 Go Plus 共用订阅接口，额度由账户决定。适用于编程学习；当前接入兼容对话模型。",
+    "website": "https://opencode.ai/console",
+    "docs": "https://opencode.ai/v2/docs/console/go/"
+  },
+  {
+    "id": "openrouter",
+    "name": "OpenRouter",
+    "mark": "↗",
+    "subtitle": "多模型平台",
+    "group": "聚合中转",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://openrouter.ai/api/v1"
+      }
+    ],
+    "models": [],
+    "note": "模型 ID 使用平台提供的完整名称。",
+    "website": "https://openrouter.ai/settings/keys",
+    "docs": "https://openrouter.ai/docs/quickstart"
+  },
+  {
+    "id": "openai",
+    "name": "OpenAI",
+    "mark": "O",
+    "subtitle": "官方 API",
+    "group": "海外平台",
+    "baseUrl": "https://api.openai.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.openai.com/v1"
+      }
+    ],
+    "models": [],
+    "note": "使用 API 平台密钥；ChatGPT 订阅与 API 额度分开。选择支持 Chat Completions 的模型。",
+    "website": "https://platform.openai.com/api-keys",
+    "docs": "https://developers.openai.com/api/reference/resources/models/methods/list"
+  },
+  {
+    "id": "gemini",
+    "name": "Google Gemini",
+    "mark": "✦",
+    "subtitle": "Google AI Studio",
+    "group": "海外平台",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "profiles": [
+      {
+        "label": "OpenAI 兼容接口",
+        "value": "https://generativelanguage.googleapis.com/v1beta/openai"
+      }
+    ],
+    "models": [],
+    "note": "使用 Google AI Studio 的 API 密钥。",
+    "website": "https://aistudio.google.com/apikey",
+    "docs": "https://ai.google.dev/gemini-api/docs/openai"
+  },
+  {
+    "id": "groq",
+    "name": "Groq",
+    "mark": "G",
+    "subtitle": "高速推理",
+    "group": "海外平台",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.groq.com/openai/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取当前账户可用的模型列表。",
+    "website": "https://console.groq.com/keys",
+    "docs": "https://console.groq.com/docs/openai"
+  },
+  {
+    "id": "together",
+    "name": "Together AI",
+    "mark": "T",
+    "subtitle": "开源模型推理",
+    "group": "海外平台",
+    "baseUrl": "https://api.together.ai/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.together.ai/v1"
+      }
+    ],
+    "models": [],
+    "note": "使用平台提供的完整模型 ID。",
+    "website": "https://api.together.ai/",
+    "docs": "https://docs.together.ai/docs/inference/openai-compatibility"
+  },
+  {
+    "id": "mistral",
+    "name": "Mistral AI",
+    "mark": "M",
+    "subtitle": "Mistral Studio",
+    "group": "海外平台",
+    "baseUrl": "https://api.mistral.ai/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.mistral.ai/v1"
+      }
+    ],
+    "models": [],
+    "note": "使用 Mistral Studio 的 API 密钥。",
+    "website": "https://console.mistral.ai/",
+    "docs": "https://docs.mistral.ai/api/endpoint/chat"
+  },
+  {
+    "id": "xai",
+    "name": "xAI · Grok",
+    "mark": "X",
+    "subtitle": "Grok API",
+    "group": "海外平台",
+    "baseUrl": "https://api.x.ai/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.x.ai/v1"
+      }
+    ],
+    "models": [],
+    "note": "选择支持 Chat Completions 的对话模型。",
+    "website": "https://console.x.ai/",
+    "docs": "https://docs.x.ai/developers/model-capabilities/text/generate-text"
+  },
+  {
+    "id": "stepfun",
+    "name": "阶跃星辰",
+    "mark": "Step",
+    "subtitle": "StepFun (China)",
+    "group": "国内平台",
+    "baseUrl": "https://api.stepfun.com/v1",
+    "profiles": [
+      {
+        "label": "中国站",
+        "value": "https://api.stepfun.com/v1"
+      },
+      {
+        "label": "国际站",
+        "value": "https://api.stepfun.ai/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://platform.stepfun.com/docs/zh/overview/concept",
+    "docs": "https://platform.stepfun.com/docs/zh/overview/concept"
+  },
+  {
+    "id": "modelscope",
+    "name": "魔搭 ModelScope",
+    "mark": "魔",
+    "subtitle": "ModelScope",
+    "group": "国内平台",
+    "baseUrl": "https://api-inference.modelscope.cn/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api-inference.modelscope.cn/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://modelscope.cn/docs/model-service/API-Inference/intro",
+    "docs": "https://modelscope.cn/docs/model-service/API-Inference/intro"
+  },
+  {
+    "id": "tencent-tokenhub",
+    "name": "腾讯 TokenHub",
+    "mark": "T",
+    "subtitle": "Tencent TokenHub",
+    "group": "国内平台",
+    "baseUrl": "https://tokenhub.tencentmaas.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://tokenhub.tencentmaas.com/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://cloud.tencent.com/document/product/1823/130050",
+    "docs": "https://cloud.tencent.com/document/product/1823/130050"
+  },
+  {
+    "id": "qiniu-ai",
+    "name": "七牛云",
+    "mark": "七",
+    "subtitle": "Qiniu",
+    "group": "国内平台",
+    "baseUrl": "https://api.qnaigc.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.qnaigc.com/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://developer.qiniu.com/aitokenapi",
+    "docs": "https://developer.qiniu.com/aitokenapi"
+  },
+  {
+    "id": "longcat",
+    "name": "美团 LongCat",
+    "mark": "LC",
+    "subtitle": "LongCat",
+    "group": "国内平台",
+    "baseUrl": "https://api.longcat.chat/openai",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.longcat.chat/openai"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://longcat.chat/platform/docs/",
+    "docs": "https://longcat.chat/platform/docs/"
+  },
+  {
+    "id": "xiaomi",
+    "name": "小米 MiMo",
+    "mark": "Mi",
+    "subtitle": "Xiaomi",
+    "group": "国内平台",
+    "baseUrl": "https://api.xiaomimimo.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.xiaomimimo.com/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://platform.xiaomimimo.com/#/docs",
+    "docs": "https://platform.xiaomimimo.com/#/docs"
+  },
+  {
+    "id": "nvidia",
+    "name": "NVIDIA NIM",
+    "mark": "N",
+    "subtitle": "Nvidia",
+    "group": "海外平台",
+    "baseUrl": "https://integrate.api.nvidia.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://integrate.api.nvidia.com/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://docs.api.nvidia.com/nim/",
+    "docs": "https://docs.api.nvidia.com/nim/"
+  },
+  {
+    "id": "novita-ai",
+    "name": "Novita AI",
+    "mark": "N",
+    "subtitle": "Novita AI",
+    "group": "海外平台",
+    "baseUrl": "https://api.novita.ai/openai",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.novita.ai/openai"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://novita.ai/docs/guides/introduction",
+    "docs": "https://novita.ai/docs/guides/introduction"
+  },
+  {
+    "id": "fireworks-ai",
+    "name": "Fireworks AI",
+    "mark": "F",
+    "subtitle": "Fireworks AI",
+    "group": "海外平台",
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.fireworks.ai/inference/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://fireworks.ai/docs/",
+    "docs": "https://fireworks.ai/docs/"
+  },
+  {
+    "id": "upstage",
+    "name": "Upstage",
+    "mark": "U",
+    "subtitle": "Upstage",
+    "group": "海外平台",
+    "baseUrl": "https://api.upstage.ai/v1/solar",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.upstage.ai/v1/solar"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://developers.upstage.ai/docs/apis/chat",
+    "docs": "https://developers.upstage.ai/docs/apis/chat"
+  },
+  {
+    "id": "friendli",
+    "name": "FriendliAI",
+    "mark": "F",
+    "subtitle": "Friendli",
+    "group": "海外平台",
+    "baseUrl": "https://api.friendli.ai/serverless/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.friendli.ai/serverless/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://friendli.ai/docs/guides/serverless_endpoints/introduction",
+    "docs": "https://friendli.ai/docs/guides/serverless_endpoints/introduction"
+  },
+  {
+    "id": "scaleway",
+    "name": "Scaleway",
+    "mark": "S",
+    "subtitle": "Scaleway",
+    "group": "海外平台",
+    "baseUrl": "https://api.scaleway.ai/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.scaleway.ai/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://www.scaleway.com/en/docs/generative-apis/",
+    "docs": "https://www.scaleway.com/en/docs/generative-apis/"
+  },
+  {
+    "id": "zenmux",
+    "name": "ZenMux",
+    "mark": "Z",
+    "subtitle": "ZenMux",
+    "group": "聚合中转",
+    "baseUrl": "https://zenmux.ai/api/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://zenmux.ai/api/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://docs.zenmux.ai",
+    "docs": "https://docs.zenmux.ai"
+  },
+  {
+    "id": "302ai",
+    "name": "302.AI",
+    "mark": "302",
+    "subtitle": "302.AI",
+    "group": "聚合中转",
+    "baseUrl": "https://api.302.ai/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.302.ai/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://doc.302.ai",
+    "docs": "https://doc.302.ai"
+  },
+  {
+    "id": "ollama-cloud",
+    "name": "Ollama Cloud",
+    "mark": "O",
+    "subtitle": "Ollama Cloud",
+    "group": "海外平台",
+    "baseUrl": "https://ollama.com/v1",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://ollama.com/v1"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://docs.ollama.com/cloud",
+    "docs": "https://docs.ollama.com/cloud"
+  },
+  {
+    "id": "zai",
+    "name": "Z.AI",
+    "mark": "Z",
+    "subtitle": "Z.AI",
+    "group": "海外平台",
+    "baseUrl": "https://api.z.ai/api/paas/v4",
+    "profiles": [
+      {
+        "label": "官方接口",
+        "value": "https://api.z.ai/api/paas/v4"
+      }
+    ],
+    "models": [],
+    "note": "读取可用模型，或填写平台提供的完整模型 ID。",
+    "website": "https://docs.z.ai/guides/overview/pricing",
+    "docs": "https://docs.z.ai/guides/overview/pricing"
+  },
+  {
+    "id": "ollama",
+    "name": "Ollama",
+    "mark": "L",
+    "subtitle": "本机模型",
+    "group": "本地服务",
+    "baseUrl": "http://localhost:11434/v1",
+    "profiles": [
+      {
+        "label": "本机服务",
+        "value": "http://localhost:11434/v1"
+      }
+    ],
+    "models": [],
+    "note": "先启动 Ollama，再读取本机已安装的模型。",
+    "website": "https://docs.ollama.com/api/openai-compatibility",
+    "docs": "https://docs.ollama.com/api/openai-compatibility"
+  }
+]

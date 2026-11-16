@@ -11,3 +11,6 @@ uvicorn>=0.32
 httpx>=0.28
 pytest>=8.3
 python-multipart>=0.0.20
+# Same pure-Python scheduler version as the existing Linux runtime.
+fsrs==6.3.1
+pypdf==7.1.0

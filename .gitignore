@@ -41,3 +41,6 @@ output/official/
 /playwright-report/
 /test-results/
 *.egg-info/
+.venv-core/
+learn_web/playwright-report/
+learn_web/test-results/

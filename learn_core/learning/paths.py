@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from learn_core.db.models import Kedge, Knode
+from learn_core.learning.generation import course_code_sort_key
 
 
 def _order(nodes: list[Knode], edges: list[Kedge]) -> list[Knode]:
@@ -21,12 +22,13 @@ def _order(nodes: list[Knode], edges: list[Kedge]) -> list[Knode]:
     children: dict[int, list[int]] = defaultdict(list)
     for edge in edges:
         if edge.source_id in by_id and edge.target_id in by_id:
-            children[edge.source_id].append(edge.target_id)
-            indegree[edge.target_id] += 1
+            # Same semantics as the legacy roadmap: source depends on target.
+            children[edge.target_id].append(edge.source_id)
+            indegree[edge.source_id] += 1
 
     def sort_key(nid: int) -> tuple:
         node = by_id[nid]
-        return (node.stage or "", node.code or "", node.id)
+        return (course_code_sort_key(node.code), node.id)
 
     ready = deque(sorted((nid for nid, d in indegree.items() if d == 0), key=sort_key))
     ordered: list[Knode] = []

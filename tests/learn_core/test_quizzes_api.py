@@ -11,7 +11,10 @@ from fastapi.testclient import TestClient
 from learn_api.app import create_app
 from learn_api.auth import Principal, set_verifier
 from learn_api.errors import ApiError
-from learn_core.db.engine import reset_engine
+from learn_core.db.engine import reset_engine, session_scope
+from learn_core.db.models import Tenant
+from learn_core.learning.generation import run_generation
+from sqlalchemy import select
 
 pytestmark = pytest.mark.skipif(
     os.getenv("LEARN_DATABASE_URL") is None,
@@ -57,8 +60,8 @@ def test_quiz_create_get_submit(client):
         json={
             "title": "第一章",
             "questions": [
-                {"stem": "1+1", "answer": "2"},
-                {"stem": "水的化学式", "answer": "H2O", "explanation": "两个氢一个氧"},
+                {"stem": "1+1", "qtype": "choice", "answer": "A", "options": ["A.2", "B.3", "C.4", "D.5"]},
+                {"stem": "水的化学式", "qtype": "choice", "answer": "B", "options": ["A.O2", "B.H2O", "C.CO2", "D.H2"], "explanation": "两个氢一个氧"},
             ],
         },
         headers=headers,
@@ -71,20 +74,26 @@ def test_quiz_create_get_submit(client):
     fetched = client.get(f"/api/v2/quizzes/{quiz['id']}", headers=headers).json()
     assert all("answer" not in q for q in fetched["questions"])
 
-    result = client.post(
+    submitted = client.post(
         f"/api/v2/quizzes/{quiz['id']}/submit",
-        json={"answers": {str(qids[0]): " 2 ", str(qids[1]): "h2o"}},
+        json={"answers": {str(qids[0]): " a ", str(qids[1]): "b"}},
         headers=headers,
-    ).json()
+    )
+    assert submitted.status_code == 202, submitted.text
+    official_id = client.verifier.by_ticket[headers["X-Learn-Ticket"]].official_user_id
+    with session_scope() as session:
+        tid = session.scalar(select(Tenant.id).where(Tenant.official_user_id == official_id))
+    run_generation(tenant=str(tid), job_id=submitted.json()["jobId"])
+    result = client.get(f"/api/v2/quizzes/{quiz['id']}/result", headers=headers).json()
     assert result["correct"] == 2 and result["score"] == 1.0
 
-    half = client.post(
+    duplicate = client.post(
         f"/api/v2/quizzes/{quiz['id']}/submit",
-        json={"answers": {str(qids[0]): "3"}},
+        json={"answers": {str(qids[0]): "B"}},
         headers=headers,
     ).json()
-    assert half["correct"] == 0 and half["score"] == 0.0
-    assert len(half["results"]) == 2
+    assert duplicate["jobId"] == submitted.json()["jobId"]
+    assert client.get(f"/api/v2/quizzes/{quiz['id']}/result", headers=headers).json() == result
 
 
 def test_quiz_isolated_between_tenants(client):

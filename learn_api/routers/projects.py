@@ -13,6 +13,9 @@ from learn_api.errors import ApiError
 from learn_core.db.models import Project
 from learn_core.learning import projects as service
 
+from learn_api.schemas import ProjectCreated, ProjectList, ProjectOut
+from learn_core.learning.generation import submit_generation, GenerationConflict
+
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
@@ -22,6 +25,7 @@ class ProjectCreate(BaseModel):
     background: str = ""
     goal: str = ""
     weekly_hours: float = Field(default=10.0, gt=0, le=168, alias="weeklyHours")
+    generate_roadmap: bool = Field(default=False, alias="generateRoadmap")
 
 
 class ProjectUpdate(BaseModel):
@@ -50,7 +54,7 @@ def _serialize(project: Project) -> dict:
 SessionDep = Annotated[Session, Depends(get_session)]
 
 
-@router.get("")
+@router.get("", response_model=ProjectList)
 def list_projects(
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=200),
@@ -60,7 +64,7 @@ def list_projects(
     return {"items": [_serialize(p) for p in items], "limit": limit, "offset": offset}
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=ProjectCreated)
 def create_project(payload: ProjectCreate, session: SessionDep) -> dict:
     project = service.create_project(
         session,
@@ -70,10 +74,17 @@ def create_project(payload: ProjectCreate, session: SessionDep) -> dict:
         goal=payload.goal,
         weekly_hours=payload.weekly_hours,
     )
-    return _serialize(project)
+    result = _serialize(project)
+    if payload.generate_roadmap:
+        try:
+            job = submit_generation(session, project_id=project.id, kind="roadmap")
+        except GenerationConflict as exc:
+            raise ApiError("CONFLICT", str(exc)) from exc
+        result["generation"] = {"jobId": job.job_id, "state": job.state}
+    return result
 
 
-@router.get("/{project_id}")
+@router.get("/{project_id}", response_model=ProjectOut)
 def get_project(project_id: int, session: SessionDep) -> dict:
     project = service.get_project(session, project_id)
     if project is None:
@@ -81,7 +92,7 @@ def get_project(project_id: int, session: SessionDep) -> dict:
     return _serialize(project)
 
 
-@router.patch("/{project_id}")
+@router.patch("/{project_id}", response_model=ProjectOut)
 def update_project(project_id: int, payload: ProjectUpdate, session: SessionDep) -> dict:
     fields = payload.model_dump(exclude_unset=True)
     try:

@@ -1,8 +1,4 @@
-"""阶段 0 的探针任务。
-
-只用于验证队列语义（去重、串行、心跳回收），不承载业务逻辑；
-业务任务在阶段 1 随各 service 一起落地。
-"""
+"""持久化学习、问答、润色与资料任务，以及独立的队列语义探针。"""
 
 from __future__ import annotations
 
@@ -119,3 +115,98 @@ def index_source_task(
 
 
 __all__ = ["probe", "tenant_probe", "index_source_task", "channel_lock"]
+
+
+@app.task(name='learn_core.jobs.tasks.index_material', queue='io', retry=0)
+def index_material_task(tenant: str, job_id: str, file_id: str):
+    from uuid import UUID
+    from sqlalchemy import select
+    from learn_core.db.models import StoredFile, JobProgress
+    from learn_core.storage import files as storage
+    from learn_core.storage.parsing import extract_text
+    from learn_core.rag.chunking import split_text
+    from learn_core.rag.embedding import EmbeddingClient
+    from learn_core.rag.store import delete_source, upsert_chunks
+    from learn_core.learning.materials import storage_lock
+    tid = UUID(tenant)
+    with tenant_context(tid):
+        try:
+            with session_scope() as session:
+                row = session.get(StoredFile, UUID(file_id))
+                job = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
+                if row is None or job is None or job.state in {'cancelled','done'}:
+                    return
+                storage_key, name = row.storage_key, row.original_name
+                job.state, job.error = 'running', None
+            with storage.open_file(storage_key) as source:
+                data = source.read(50 * 1024 * 1024 + 1)
+            if len(data) > 50 * 1024 * 1024:
+                raise ValueError('文件过大，请拆分后上传')
+            parts = split_text(extract_text(data, name))
+            vectors = []
+            # Neither parsing nor embedding keeps a business DB connection open.
+            with EmbeddingClient() as embedder:
+                for start in range(0, len(parts), 16):
+                    vectors.extend(embedder.embed(parts[start:start+16]))
+                    _set_job(tid, job_id, progress={'done':min(start+16,len(parts)), 'total':len(parts)})
+            with session_scope() as session:
+                storage_lock(session)
+                row = session.get(StoredFile, UUID(file_id))
+                job = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
+                if row is None or job is None or job.state == 'cancelled':
+                    return
+                delete_source(session, index_id='material', source_id=file_id)
+                count = upsert_chunks(session, index_id='material', source_id=file_id, chunks=parts, vectors=vectors, metadata={'name':name})
+                job.state, job.error = 'done', None
+                job.progress = {'done':count,'total':count}
+                job.updated_at = datetime.now(timezone.utc)
+        except Exception as exc:
+            with session_scope() as session:
+                job = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
+                if job and job.state not in {'cancelled','done'}:
+                    job.state = 'failed'
+                    job.error = str(exc) if isinstance(exc, ValueError) else '资料处理失败，请重试；若持续失败，请联系管理员检查解析和索引服务'
+                    job.updated_at = datetime.now(timezone.utc)
+
+
+@app.task(name='learn_core.jobs.tasks.purge_material', queue='io', retry=3)
+def purge_material_task(tenant: str, storage_key: str):
+    from uuid import UUID
+    from sqlalchemy import select
+    from learn_core.db.models import StoredFile
+    from learn_core.storage import files as storage
+    from learn_core.learning.materials import storage_lock
+    with tenant_context(UUID(tenant)), session_scope() as session:
+        storage_lock(session)
+        # A same-content reupload may reuse the key before cleanup runs.
+        if session.scalar(select(StoredFile.id).where(StoredFile.storage_key == storage_key)) is None:
+            storage.delete(storage_key)
+
+
+@app.task(name='learn_core.jobs.tasks.answer_question',queue='llm',retry=0)
+def answer_question_task(tenant:str,job_id:str):
+    from learn_core.learning.conversations import run_answer
+    run_answer(tenant=tenant,job_id=job_id)
+
+
+@app.task(name='learn_core.jobs.tasks.polish_text',queue='llm',retry=0)
+def polish_text_task(tenant:str,job_id:str):
+    from learn_core.learning.polish import run_polish
+    run_polish(tenant=tenant,job_id=job_id)
+
+
+from procrastinate.retry import BaseRetryStrategy, RetryDecision
+from learn_core.learning.generation import RetryableGenerationError, run_generation
+
+
+class LearningGenerationRetry(BaseRetryStrategy):
+    def get_retry_decision(self, *, exception, job):
+        if isinstance(exception, RetryableGenerationError) and job.attempts < 2:
+            return RetryDecision(retry_in={"seconds": exception.delay})
+        return None
+
+
+@app.task(name="learn_core.jobs.tasks.generate_learning", queue="llm",
+          pass_context=True, retry=LearningGenerationRetry())
+def generate_learning_task(context, tenant: str, job_id: str) -> None:
+    run_generation(tenant=tenant, job_id=job_id, attempt=context.job.attempts)

@@ -13,6 +13,8 @@ from learn_api.errors import ApiError
 from learn_core.learning import projects as project_service
 from learn_core.learning import reports as service
 
+from learn_api.schemas import Items, ReportOut
+
 router = APIRouter(prefix="/projects", tags=["reports"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -29,14 +31,14 @@ def _payload(report) -> dict:
     }
 
 
-@router.post("/{project_id}/reports")
+@router.post("/{project_id}/reports", response_model=ReportOut)
 def build_report(project_id: int, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
     return _payload(service.build_report(session, project_id=project_id))
 
 
-@router.get("/{project_id}/reports")
+@router.get("/{project_id}/reports", response_model=Items[ReportOut])
 def list_reports(project_id: int, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")

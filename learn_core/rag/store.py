@@ -131,6 +131,7 @@ def hybrid_search(
     query_vector: Sequence[float] | None = None,
     limit: int = 10,
     pool: int = 40,
+    source_ids: list[str] | None = None,
 ) -> list[SearchHit]:
     query = query.strip()
     if not query and query_vector is None:
@@ -144,6 +145,7 @@ def hybrid_search(
                    row_number() OVER (ORDER BY embedding <=> CAST(:qvec AS vector)) AS rnk
               FROM rag_embedding
              WHERE index_id = :index_id
+               AND (NOT :filter_sources OR source_id = ANY(CAST(:source_ids AS text[])))
                AND embedding IS NOT NULL
              ORDER BY embedding <=> CAST(:qvec AS vector)
              LIMIT :pool
@@ -154,6 +156,7 @@ def hybrid_search(
                    ) AS rnk
               FROM rag_chunk
              WHERE index_id = :index_id
+               AND (NOT :filter_sources OR source_id = ANY(CAST(:source_ids AS text[])))
                AND tsv @@ plainto_tsquery('simple', :qtok)
              ORDER BY ts_rank_cd(tsv, plainto_tsquery('simple', :qtok)) DESC
              LIMIT :pool
@@ -176,6 +179,8 @@ def hybrid_search(
             "qtok": tokenize_for_tsv(query),
             "pool": pool,
             "limit": limit,
+            "filter_sources": source_ids is not None,
+            "source_ids": source_ids or [],
         },
     ).mappings()
     return [

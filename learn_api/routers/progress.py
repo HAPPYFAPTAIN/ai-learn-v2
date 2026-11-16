@@ -13,6 +13,8 @@ from learn_api.errors import ApiError
 from learn_core.learning import progress as service
 from learn_core.learning import projects as project_service
 
+from learn_api.schemas import SummaryOut
+
 router = APIRouter(tags=["progress"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -73,7 +75,7 @@ def list_progress(
     }
 
 
-@router.get("/projects/{project_id}/summary")
+@router.get("/projects/{project_id}/summary", response_model=SummaryOut)
 def summary(project_id: int, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")

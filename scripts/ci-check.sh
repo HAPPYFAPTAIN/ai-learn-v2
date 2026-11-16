@@ -4,7 +4,8 @@
 # 用法（在仓库任意位置都可以，脚本会切到仓库根目录）：
 #   scripts/ci-check.sh            # 两部分都跑
 #   scripts/ci-check.sh platform   # 只跑平台部分（CI 的 platform job）
-#   scripts/ci-check.sh browser    # 只跑浏览器部分（CI 的 browser job）
+#   scripts/ci-check.sh browser    # 只跑旧页面浏览器部分
+#   scripts/ci-check.sh web        # React：需 cd learn_web && npm ci，并安装 Playwright Chromium
 #
 # 脚本不安装依赖。版本以 official-integration.yml 为准（Python 3.11、Node 24），先准备好：
 #   平台部分：git submodule update --init --recursive
@@ -32,6 +33,19 @@ check_platform() {
   python scripts/official_release.py pack
 }
 
+check_web() {
+  step 'React provider catalog parity'
+  python scripts/learn_web/sync_providers.py --check
+  step 'React API types, unit tests and build'
+  npm --prefix learn_web run api:check
+  npm --prefix learn_web test
+  npm --prefix learn_web run build
+  step 'React browser tests'
+  npm --prefix learn_web run test:browser
+  step 'React model settings demo tests'
+  LEARN_WEB_TEST_DEMO=1 npm --prefix learn_web run test:browser
+}
+
 check_browser() {
   step 'Browser tests'
   npm run test:browser
@@ -40,6 +54,7 @@ check_browser() {
 case "${1:-all}" in
   platform) check_platform ;;
   browser) check_browser ;;
-  all) check_platform; check_browser ;;
-  *) echo "用法：$0 [platform|browser|all]" >&2; exit 2 ;;
+  web) check_web ;;
+  all) check_platform; check_browser; check_web ;;
+  *) echo "用法：$0 [platform|browser|web|all]" >&2; exit 2 ;;
 esac
