@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: Prepare the candidate, or activate it after acceptance checks
+        description: Deliver to the deployment account, prepare the runtime release, or activate it
         type: choice
-        options: [prepare, activate]
+        options: [deliver, prepare, activate]
         required: true
       build_run_id:
         description: Successful main build run ID to deploy
@@ -129,6 +129,26 @@ jobs:
             BatchMode yes
           EOF
           [[ "$(ssh learn-production hostname)" == "$EXPECTED_HOSTNAME" ]]
+          if [[ "$OPERATION" == deliver ]]; then
+            incoming=$(ssh learn-production 'umask 077; mkdir -p "$HOME/data/ai-learn/incoming" && cd "$HOME/data/ai-learn/incoming" && mktemp -d .upload.XXXXXXXX')
+            [[ "$incoming" =~ ^\.upload\.[A-Za-z0-9]+$ ]]
+            remote="data/ai-learn/incoming/$incoming"
+            trap 'ssh learn-production "rm -f -- $remote/latest.json $remote/$RELEASE.tar.gz; rmdir --ignore-fail-on-non-empty -- $remote 2>/dev/null || true"' EXIT
+            scp "candidate/$RELEASE.tar.gz" candidate/latest.json "learn-production:$remote/"
+            ssh learn-production bash -se -- "$incoming" "$RELEASE" "$DIGEST" <<'DELIVER'
+          set -euo pipefail
+          cd "$HOME/data/ai-learn/incoming"
+          check() { (cd "$1" && printf '%s  %s.tar.gz\n' "$3" "$2" | sha256sum -c -); }
+          check "$1" "$2" "$3"
+          if [[ -d "$2" ]]; then
+            check "$2" "$2" "$3"
+          else
+            mv -T -- "$1" "$2"
+          fi
+          DELIVER
+            echo "Delivered verified artifact to ~/data/ai-learn/incoming/$RELEASE" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           ssh learn-production 'mountpoint -q /data'
           if [[ "$OPERATION" == activate ]]; then
             ssh learn-production "test -f /data/learn-everything/releases/$RELEASE/BUILD.json"
