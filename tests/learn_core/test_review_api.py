@@ -69,11 +69,11 @@ def test_card_lifecycle(client):
     assert good["step"] == 1
     assert good["state"] == scheduler.STATE_LEARNING
 
-    # 间隔 1 天后才再次到期
+    # FSRS 新卡 Good 进入第二学习步（10 分钟），此时尚未到期。
     assert client.get("/api/v2/review/due", headers=headers).json()["items"] == []
 
     easy = client.post(f"/api/v2/review/{card['id']}", json={"rating": 4}, headers=headers).json()
-    assert easy["step"] == 3 and easy["state"] == scheduler.STATE_REVIEW
+    assert easy["state"] == scheduler.STATE_REVIEW and easy["reps"] == 2
 
     again = client.post(f"/api/v2/review/{card['id']}", json={"rating": 1}, headers=headers).json()
     assert again["step"] == 0 and again["state"] == scheduler.STATE_RELEARNING

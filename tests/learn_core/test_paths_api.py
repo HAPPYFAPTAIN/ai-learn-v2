@@ -73,8 +73,8 @@ def test_path_respects_prerequisite_order(client):
     tid = _tenant_id()
     with tenant_context(tid):
         with session_scope() as session:
-            session.add(Kedge(project_id=pid, source_id=ids["A1"], target_id=ids["B2"], relation="prerequisite"))
-            session.add(Kedge(project_id=pid, source_id=ids["B2"], target_id=ids["C3"], relation="prerequisite"))
+            session.add(Kedge(project_id=pid, source_id=ids["B2"], target_id=ids["A1"], relation="prerequisite"))
+            session.add(Kedge(project_id=pid, source_id=ids["C3"], target_id=ids["B2"], relation="prerequisite"))
 
     plan = client.post(
         f"/api/v2/projects/{pid}/path", json={"weeks": 2, "hoursPerWeek": 5}, headers=headers

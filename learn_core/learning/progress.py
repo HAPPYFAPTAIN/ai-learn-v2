@@ -11,9 +11,32 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from learn_core.db.models import Knode, ProgressRecord
+from learn_core.db.models import Card, Knode, ProgressRecord, QuizAttempt, QuizQuestion
 
 METRICS = {"minutes", "cards_reviewed", "quiz_correct", "quiz_total", "mastery"}
+
+
+def refresh_mastery(session: Session, *, node_id: int, incorrect: bool = False) -> float | None:
+    """Legacy mastery weights; no hidden commit or duplicate answer recording."""
+    node = session.scalar(select(Knode).where(Knode.id == node_id).with_for_update())
+    if node is None:
+        return None
+    recent = list(session.scalars(select(QuizAttempt.is_correct).join(
+        QuizQuestion, QuizQuestion.id == QuizAttempt.question_id,
+    ).where(QuizQuestion.node_id == node_id, QuizAttempt.is_correct.is_not(None))
+      .order_by(QuizAttempt.attempted_at.desc(), QuizAttempt.id.desc()).limit(10)))
+    quiz_score = sum(bool(x) for x in recent) / len(recent) if recent else 0.0
+    stability = session.scalar(select(func.avg(Card.stability)).where(Card.node_id == node_id)) or 0.0
+    memory_score = min(1.0, max(0.0, stability) / 30)
+    progress_score = {"pending": 0, "new": 0, "learning": 0.3, "reviewing": 0.6,
+                      "weak": 0.4, "mastered": 1, "done": 1}.get(node.status, 0)
+    node.mastery = max(0.0, min(1.0, 0.4 * quiz_score + 0.3 * memory_score + 0.3 * progress_score))
+    if node.mastery >= 0.85 and node.status not in {"mastered", "done"}:
+        node.status = "mastered"
+    elif incorrect and node.mastery < 0.5 and node.status not in {"mastered", "done"}:
+        node.status = "weak"
+    session.flush()
+    return node.mastery
 
 
 def record_progress(

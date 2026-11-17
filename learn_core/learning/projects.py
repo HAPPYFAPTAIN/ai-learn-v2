@@ -64,5 +64,8 @@ def delete_project(session: Session, project_id: int) -> bool:
     project = session.get(Project, project_id)
     if project is None:
         return False
+    from sqlalchemy import delete
+    from learn_core.db.ktem import KtemConversation
+    session.execute(delete(KtemConversation).where(KtemConversation.id.in_([f'learn-project-{project_id}',f'learn-coach-{project_id}'])))
     session.delete(project)
     return True

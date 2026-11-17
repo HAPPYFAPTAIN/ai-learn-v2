@@ -14,6 +14,8 @@ from learn_core.db.models import Knode
 from learn_core.learning import nodes as service
 from learn_core.learning import projects as project_service
 
+from learn_api.schemas import Items, NodeOut
+
 router = APIRouter(tags=["nodes"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -60,14 +62,14 @@ def _serialize(node: Knode) -> dict:
     }
 
 
-@router.get("/projects/{project_id}/nodes")
+@router.get("/projects/{project_id}/nodes", response_model=Items[NodeOut])
 def list_nodes(project_id: int, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
     return {"items": [_serialize(n) for n in service.list_nodes(session, project_id=project_id)]}
 
 
-@router.post("/projects/{project_id}/nodes", status_code=status.HTTP_201_CREATED)
+@router.post("/projects/{project_id}/nodes", status_code=status.HTTP_201_CREATED, response_model=NodeOut)
 def create_node(project_id: int, payload: NodeCreate, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
@@ -84,7 +86,7 @@ def create_node(project_id: int, payload: NodeCreate, session: SessionDep) -> di
     return _serialize(node)
 
 
-@router.patch("/nodes/{node_id}")
+@router.patch("/nodes/{node_id}", response_model=NodeOut)
 def update_node(node_id: int, payload: NodeUpdate, session: SessionDep) -> dict:
     fields = payload.model_dump(exclude_unset=True)
     try:

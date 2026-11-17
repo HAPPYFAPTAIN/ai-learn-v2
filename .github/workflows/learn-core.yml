@@ -12,6 +12,9 @@ on:
       - "migrations/**"
       - "tests/learn_core/**"
       - "scripts/phase0/**"
+      - "scripts/learn_web/**"
+      - "scripts/dev/local_provider_*.py"
+      - "scripts/ci-check.sh"
       - "scripts/learn_migrate.py"
       - "requirements-learn-*.txt"
       - "requirements-learn-embed.txt"
@@ -41,6 +44,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
+      PYTHONPATH: ${{ github.workspace }}
       PGHOST: 127.0.0.1
       PGUSER: postgres
       PGPASSWORD: postgres
@@ -71,6 +75,7 @@ jobs:
           python scripts/phase0/apply_queue_schema.py
       - name: Tenant isolation, Kotaemon tables, queue and vector gates
         run: |
+          python scripts/learn_web/export_openapi.py --check
           python -m pytest tests/learn_core -q
           python scripts/phase0/validate_queue.py
           python scripts/phase0/validate_vector.py
@@ -88,5 +93,5 @@ jobs:
           cache: "npm"
           cache-dependency-path: learn_web/package-lock.json
       - run: npm ci
-      - run: npx tsc -b
-      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: bash ../scripts/ci-check.sh web

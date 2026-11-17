@@ -55,14 +55,7 @@ def _login(client) -> dict:
     return {"X-Learn-Ticket": ticket}
 
 
-def test_upload_writes_file_and_queues_index(client, monkeypatch):
-    calls: list[dict] = []
-    from learn_api.routers import materials
-
-    monkeypatch.setattr(
-        materials.enqueue, "enqueue_index", lambda **kw: calls.append(kw)
-    )
-
+def test_upload_writes_file_and_queues_index(client):
     headers = _login(client)
     project = client.post("/api/v2/projects", json={"title": "资料"}, headers=headers).json()
 
@@ -75,7 +68,9 @@ def test_upload_writes_file_and_queues_index(client, monkeypatch):
     assert response.status_code == 202, response.text
     body = response.json()
     assert body["jobId"] and body["sizeBytes"] == len(content.encode())
-    assert calls and calls[0]["text"] == content
+    with session_scope() as session:
+        args = session.execute(text("SELECT args FROM procrastinate_jobs WHERE args->>'job_id'=:j"), {'j':body['jobId']}).scalar_one()
+        assert args['file_id'] == body['fileId'] and 'text' not in args
 
     root = Path(get_settings().files_root)
     assert list(root.rglob(body["sha256"])), "文件应已落盘"
@@ -84,10 +79,7 @@ def test_upload_writes_file_and_queues_index(client, monkeypatch):
     assert listing["items"][0]["name"] == "intro.txt"
 
 
-def test_upload_rejects_empty_and_missing_project(client, monkeypatch):
-    from learn_api.routers import materials
-
-    monkeypatch.setattr(materials.enqueue, "enqueue_index", lambda **kw: None)
+def test_upload_rejects_empty_and_missing_project(client):
     headers = _login(client)
 
     project = client.post("/api/v2/projects", json={"title": "x"}, headers=headers).json()
@@ -107,10 +99,7 @@ def test_upload_rejects_empty_and_missing_project(client, monkeypatch):
     assert other.status_code == 404
 
 
-def test_upload_dedupes_content_but_keeps_one_row(client, monkeypatch):
-    from learn_api.routers import materials
-
-    monkeypatch.setattr(materials.enqueue, "enqueue_index", lambda **kw: None)
+def test_upload_dedupes_content_but_keeps_one_row(client):
     headers = _login(client)
     project = client.post("/api/v2/projects", json={"title": "d"}, headers=headers).json()
 

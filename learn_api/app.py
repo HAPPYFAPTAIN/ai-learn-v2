@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 
 from learn_api.errors import ApiError, api_error_handler, error_response, unhandled_handler
 from learn_api.routers import (
-    chat, jobs, materials, nodes, notes, paths, progress, projects, quizzes, reports, review, search, sources,
+    chat, conversations, generation, jobs, materials, me, models, nodes, notes, paths, progress, projects, quizzes, reports, review, search, sources, tools,
 )
 
 log = logging.getLogger("learn_api")
@@ -51,6 +51,11 @@ def create_app() -> FastAPI:
         request.state.request_id = rid
         response = await call_next(request)
         response.headers["X-Request-Id"] = rid
+        if request.url.path.startswith('/api/v2/'):
+            response.headers['Cache-Control'] = 'no-store'
+        renewed = getattr(request.state, 'authorized_entry_cookie', '')
+        if renewed:
+            response.headers.append('Set-Cookie', renewed)
         return response
 
     @app.exception_handler(ApiError)
@@ -73,8 +78,8 @@ def create_app() -> FastAPI:
         return {"ok": True}
 
     for module in (
-        projects, nodes, notes, progress, reports, review, quizzes,
-        materials, paths, search, jobs, sources, chat,
+        me, models, projects, nodes, notes, progress, reports, review, quizzes, conversations,
+        materials, paths, search, jobs, sources, chat, generation, tools,
     ):
         app.include_router(module.router, prefix="/api/v2")
 

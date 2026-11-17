@@ -17,10 +17,9 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "stored_file",
-        sa.Column("original_name", sa.Text(), nullable=False, server_default=""),
-    )
+    # 0001 builds from current metadata on a fresh database, which already
+    # includes this column. Existing installations still need the expansion.
+    op.execute("ALTER TABLE stored_file ADD COLUMN IF NOT EXISTS original_name TEXT NOT NULL DEFAULT ''")
 
 
 def downgrade() -> None:

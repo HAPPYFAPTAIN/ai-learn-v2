@@ -31,9 +31,11 @@ class Settings(BaseSettings):
     db_pool_recycle: int = 1800
 
     # 官网内部密钥：nginx 转发时注入，API 先校验它再复核短票。
-    internal_secret: str = "dev-internal-secret"
+    internal_secret: str = ""
+    # Exact public origin, e.g. https://example.com; never inferred from forwarded headers.
+    public_origin: str = ""
     # 官网鉴权子请求地址，用于 API 侧二次复核。
-    authorize_url: str = "http://127.0.0.1:18030/authorize"
+    authorize_url: str = "http://127.0.0.1:18030/api/v1/console/learn-everything/authorize"
 
     # 文件存储根目录：{files_root}/{tenant_id}/{kind}/{sha256}
     files_root: str = "/tmp/learn-everything/files"

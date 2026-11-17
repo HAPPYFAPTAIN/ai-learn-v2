@@ -8,7 +8,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hmac import compare_digest
+from http.cookies import SimpleCookie
+import re
 from typing import Protocol
+from urllib.parse import urlsplit
 
 import httpx
 from fastapi import Request
@@ -30,38 +34,64 @@ class TicketVerifier(Protocol):
 
 
 class HttpTicketVerifier:
-    """向官网鉴权接口复核短票。"""
+    """Reuse the existing official GET/204/header protocol, never client identity headers."""
 
-    def __init__(self, url: str | None = None, internal_secret: str | None = None) -> None:
+    def __init__(self, url: str | None = None, internal_secret: str | None = None,
+                 transport: httpx.BaseTransport | None = None) -> None:
         settings = get_settings()
         self._url = url or settings.authorize_url
-        self._secret = internal_secret or settings.internal_secret
+        self._secret = internal_secret if internal_secret is not None else settings.internal_secret
+        self._transport = transport
 
     def verify(self, ticket: str) -> Principal:
+        return self._authorize(ticket)[0]
+
+    def _authorize(self, ticket: str) -> tuple[Principal, str]:
+        cookie = SimpleCookie()
+        cookie['learn_entry'] = ticket
         try:
-            response = httpx.post(
-                self._url,
-                json={"ticket": ticket, "product": "learn-everything"},
-                headers={"X-Internal-Secret": self._secret},
-                timeout=5.0,
-            )
+            with httpx.Client(timeout=5.0, transport=self._transport, follow_redirects=False) as client:
+                response = client.get(self._url, headers={
+                    'Cookie':cookie.output(header='').strip(),
+                    'X-Original-URI':'/official/learn-everything/',
+                })
         except httpx.HTTPError as exc:
-            raise ApiError("INTERNAL", f"authorize unreachable: {exc.__class__.__name__}") from exc
+            raise ApiError('GATEWAY_UNAVAILABLE', '官网登录验证暂不可用，请稍后重试') from exc
 
-        if response.status_code in (401, 403):
-            raise ApiError("UNAUTHENTICATED", "ticket rejected")
-        if response.status_code >= 400:
-            raise ApiError("INTERNAL", f"authorize returned {response.status_code}")
+        if response.status_code == 401:
+            raise ApiError('UNAUTHENTICATED', '登录已过期，请从官网重新进入')
+        if response.status_code == 403:
+            raise ApiError('ENTITLEMENT_REQUIRED', '请从官网确认登录及学习产品使用资格')
+        if response.status_code != 204:
+            raise ApiError('GATEWAY_UNAVAILABLE', '官网登录验证暂不可用，请稍后重试')
 
-        data = response.json()
-        user_id = data.get("official_user_id") or data.get("userId")
-        if not user_id:
-            raise ApiError("UNAUTHENTICATED", "authorize returned no user")
-        return Principal(
-            official_user_id=str(user_id),
-            display_name=str(data.get("display_name") or ""),
-            ticket=ticket,
-        )
+        user_id = response.headers.get('X-Learn-User', '')
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', user_id):
+            raise ApiError('UNAUTHENTICATED', '官网未返回有效学习账号')
+        renewed = response.headers.get('X-Learn-Entry-Cookie', '')
+        # Forward only the expected cookie from the trusted authorize endpoint.
+        if renewed and (not renewed.startswith('learn_entry=') or '\r' in renewed or '\n' in renewed):
+            raise ApiError('GATEWAY_UNAVAILABLE', '官网登录续期响应无效')
+        return Principal(official_user_id=user_id, ticket=ticket), renewed
+
+    def verify_request(self, request: Request) -> tuple[Principal, str]:
+        if len(self._secret) < 32:
+            raise ApiError('INTERNAL', '学习服务尚未配置可信入口')
+        supplied = request.headers.get('X-Learn-Internal-Secret', '')
+        if not compare_digest(supplied.encode(), self._secret.encode()):
+            raise ApiError('UNAUTHENTICATED', '请从官网进入学习工作台')
+        if request.method not in {'GET','HEAD','OPTIONS'}:
+            settings = get_settings()
+            origin = settings.public_origin
+            parsed = urlsplit(origin)
+            if parsed.scheme not in {'http','https'} or not parsed.netloc or parsed.path not in {'','/'} or parsed.query or parsed.fragment or parsed.username:
+                raise ApiError('INTERNAL', '学习服务尚未配置公开站点地址')
+            if (request.headers.get('Origin') is not None and request.headers['Origin'] != origin.rstrip('/')) or request.headers.get('Sec-Fetch-Site') in {'cross-site','same-site'}:
+                raise ApiError('ENTITLEMENT_REQUIRED', '请从当前学习工作台操作')
+        ticket = request.cookies.get('learn_entry')
+        if not ticket:
+            raise ApiError('UNAUTHENTICATED', '登录已过期，请从官网重新进入')
+        return self._authorize(ticket)
 
 
 class DevTicketVerifier:
@@ -100,4 +130,12 @@ def extract_ticket(request: Request) -> str:
 
 
 def get_principal(request: Request) -> Principal:
-    return _verifier.verify(extract_ticket(request))
+    official = isinstance(_verifier, HttpTicketVerifier)
+    principal, renewed = _verifier.verify_request(request) if official else (_verifier.verify(extract_ticket(request)), '')
+    expected = request.headers.get("X-Learn-Expected-User") or request.query_params.get("__le_owner")
+    if (expected and expected != principal.official_user_id) or (official and request.url.path != '/api/v2/me' and not expected):
+        raise ApiError("ACCOUNT_CHANGED", "account changed; reopen from the official website")
+    if official and request.headers.get('X-Learn-User', principal.official_user_id) != principal.official_user_id:
+        raise ApiError('UNAUTHENTICATED', '工作空间身份不匹配')
+    request.state.authorized_entry_cookie = renewed
+    return principal

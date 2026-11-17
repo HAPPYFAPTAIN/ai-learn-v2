@@ -13,6 +13,8 @@ from learn_api.errors import ApiError
 from learn_core.learning import paths as service
 from learn_core.learning import projects as project_service
 
+from learn_api.schemas import PlanOut
+
 router = APIRouter(prefix="/projects", tags=["paths"])
 
 SessionDep = Annotated[Session, Depends(get_session)]
@@ -25,7 +27,7 @@ class PlanRequest(BaseModel):
     hours_per_week: float = Field(default=10.0, gt=0, le=80, alias="hoursPerWeek")
 
 
-@router.post("/{project_id}/path")
+@router.post("/{project_id}/path", response_model=PlanOut)
 def build_path(project_id: int, payload: PlanRequest, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")

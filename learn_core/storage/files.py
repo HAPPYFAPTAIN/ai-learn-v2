@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Iterator
@@ -34,6 +35,7 @@ class StoredFile:
     sha256: str
     size_bytes: int
     storage_key: str
+    created: bool = False
 
 
 def _root() -> Path:
@@ -77,22 +79,26 @@ def put(stream: BinaryIO, kind: str, tenant_id: UUID | None = None) -> StoredFil
     tid = tenant_id or current_tenant()
     digest = hashlib.sha256()
     target_dir = _kind_dir(kind, tid)
-    tmp_path = target_dir / f".tmp-{os.getpid()}"
     size = 0
-    with tmp_path.open("wb") as out:
-        while True:
-            chunk = stream.read(1024 * 1024)
-            if not chunk:
-                break
-            digest.update(chunk)
-            size += len(chunk)
-            out.write(chunk)
+    # Requests in the same API process must never share one temporary filename.
+    with tempfile.NamedTemporaryFile(dir=target_dir, prefix='.upload-', delete=False) as out:
+        tmp_path = Path(out.name)
+        try:
+            while chunk := stream.read(1024 * 1024):
+                digest.update(chunk)
+                size += len(chunk)
+                out.write(chunk)
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            raise
     sha = digest.hexdigest()
     final_path = target_dir / sha
-    if final_path.exists():
+    created = not final_path.exists()
+    try:
+        if created:
+            os.replace(tmp_path, final_path)
+    finally:
         tmp_path.unlink(missing_ok=True)
-    else:
-        os.replace(tmp_path, final_path)
     return StoredFile(
         id=None,
         tenant_id=tid,
@@ -100,6 +106,7 @@ def put(stream: BinaryIO, kind: str, tenant_id: UUID | None = None) -> StoredFil
         sha256=sha,
         size_bytes=size,
         storage_key=f"{tid}/{kind}/{sha}",
+        created=created,
     )
 
 
