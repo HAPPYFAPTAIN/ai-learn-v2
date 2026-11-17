@@ -1,5 +1,7 @@
 # PR #10：后端跟进与联调审查
 
+> 状态更新（2026-11-18）：下文保留原始审查证据。B1–B4、S1–S2 已在当前功能分支修复并完成回归，最新契约、迁移及实测结果见 [修复验收记录](pr10-fix-verification.md)。生产官网、收费模型和目标主机容量仍按该记录的边界另行验收。
+
 核对日期：2026-11-18。PR：[AetherMindHarness/ai-learn#10](https://github.com/AetherMindHarness/ai-learn/pull/10)。
 
 远端只读核验：PR head 仍是 `750ea0f3d517ab4bed68b820f196f1adbb79e7a8`，目标分支 `feat/learn-core-phase0` 已包含合并提交 `74046a5dacdd8992ffce2051fefa69174ad978ec`。固定审查差异为 `git diff 8d0500a...750ea0f`，其中只有一个功能提交。
