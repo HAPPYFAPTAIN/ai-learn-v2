@@ -11,6 +11,7 @@ parser.add_argument('--release',required=False)
 parser.add_argument('--host',required=True,help='Explicit SSH target')
 parser.add_argument('--expected-hostname',required=True,help='Verified production hostname')
 parser.add_argument('--rollback',help='Private backup directory returned by a previous activation')
+parser.add_argument('--sudo',action='store_true',help='Run the remote activator via non-interactive sudo')
 args=parser.parse_args()
 root=Path(__file__).resolve().parents[1]
 release=args.release or (None if args.rollback else None)
@@ -135,7 +136,8 @@ except BaseException:
 if not args.release and not args.rollback:parser.error('--release or --rollback is required')
 (root/'output/official').mkdir(parents=True,exist_ok=True)
 mode='rollback' if args.rollback else 'activate'
-run=subprocess.run(['ssh','-o','BatchMode=yes',args.host,'python3 -c '+shlex.quote(program)+' '+shlex.quote(mode)+' '+shlex.quote(args.rollback or release)+' '+shlex.quote(args.expected_hostname)],capture_output=True,text=True)
+remote_python='sudo -n python3' if args.sudo else 'python3'
+run=subprocess.run(['ssh','-o','BatchMode=yes',args.host,remote_python+' -c '+shlex.quote(program)+' '+shlex.quote(mode)+' '+shlex.quote(args.rollback or release)+' '+shlex.quote(args.expected_hostname)],capture_output=True,text=True)
 print(run.stdout)
 if run.returncode:print(run.stderr[-2200:])
 elif not args.rollback:(root/'output/official/deployment.json').write_text(run.stdout)

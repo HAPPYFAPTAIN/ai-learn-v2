@@ -1,0 +1,166 @@
+name: Main production release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Prepare the candidate, or activate it after acceptance checks
+        type: choice
+        options: [prepare, activate]
+        required: true
+      build_run_id:
+        description: Successful main build run ID to deploy
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install -r runtime/requirements-test.txt
+      - run: scripts/ci-check.sh platform
+      - uses: actions/upload-artifact@v4
+        with:
+          name: official-${{ github.sha }}
+          path: |
+            output/official/*.tar.gz
+            output/official/latest.json
+          if-no-files-found: error
+
+  browser:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: python -m pip install -r runtime/requirements-browser.txt
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: scripts/ci-check.sh browser
+
+  deploy:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: production
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm both checks passed for this main commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.build_run_id }}
+        run: |
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" |
+            jq -e --arg sha "$GITHUB_SHA" '
+              .path == ".github/workflows/release.yml" and
+              .event == "push" and .head_branch == "main" and .head_sha == $sha and
+              .status == "completed" and .conclusion == "success"'
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+          name: official-${{ github.sha }}
+          path: candidate
+      - name: Check package against build manifest
+        working-directory: candidate
+        run: |
+          release=$(jq -er --arg sha "$GITHUB_SHA" 'select(.commit == $sha) | .id' latest.json)
+          [[ "$release" =~ ^[0-9]{8}-learn-[a-f0-9]{12}$ ]]
+          digest=$(jq -er '.sha256' latest.json)
+          [[ "$digest" =~ ^[a-f0-9]{64}$ ]]
+          printf '%s  %s.tar.gz\n' "$digest" "$release" | sha256sum -c -
+          echo "RELEASE=$release" >> "$GITHUB_ENV"
+          echo "DIGEST=$digest" >> "$GITHUB_ENV"
+      - name: Install verified release and activate learning service
+        env:
+          OPERATION: ${{ inputs.operation }}
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          HOST_KEYS: ${{ secrets.PROD_KNOWN_HOSTS }}
+          PROD_HOST: ${{ vars.PROD_HOST }}
+          PROD_PORT: ${{ vars.PROD_PORT }}
+          PROD_USER: ${{ vars.PROD_USER }}
+          EXPECTED_HOSTNAME: ${{ vars.PROD_HOSTNAME }}
+        run: |
+          set -euo pipefail
+          [[ "$PROD_HOST" =~ ^[a-zA-Z0-9][a-zA-Z0-9.-]*$ ]]
+          [[ "$PROD_PORT" =~ ^[0-9]+$ && "$PROD_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          [[ -n "$EXPECTED_HOSTNAME" && -n "$SSH_KEY" && -n "$HOST_KEYS" ]]
+          umask 077
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/release_key
+          printf '%s\n' "$HOST_KEYS" > ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host learn-production
+            HostName $PROD_HOST
+            Port $PROD_PORT
+            User $PROD_USER
+            IdentityFile ~/.ssh/release_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            BatchMode yes
+          EOF
+          [[ "$(ssh learn-production hostname)" == "$EXPECTED_HOSTNAME" ]]
+          ssh learn-production 'mountpoint -q /data'
+          if [[ "$OPERATION" == activate ]]; then
+            ssh learn-production "test -f /data/learn-everything/releases/$RELEASE/BUILD.json"
+          fi
+          stage=$(ssh learn-production 'mktemp -d /tmp/learn-release.XXXXXXXX')
+          [[ "$stage" =~ ^/tmp/learn-release\.[A-Za-z0-9]+$ ]]
+          trap 'ssh learn-production "rm -f -- $stage/official_release.py $stage/$RELEASE.tar.gz $stage/scripts/verify_runtime.py $stage/runtime/{requirements-linux-py311.lock,model.json,nltk.json,nltk-files.json} && rmdir -- $stage/scripts $stage/runtime $stage"' EXIT
+          ssh learn-production "mkdir $stage/scripts $stage/runtime"
+          scp scripts/verify_runtime.py "learn-production:$stage/scripts/"
+          scp runtime/{requirements-linux-py311.lock,model.json,nltk.json,nltk-files.json} "learn-production:$stage/runtime/"
+          ssh learn-production "/data/learn-everything/runtime/python311/bin/python $stage/scripts/verify_runtime.py"
+          scp scripts/official_release.py "candidate/$RELEASE.tar.gz" "learn-production:$stage/"
+          ssh learn-production bash -se -- "$stage" "$RELEASE" "$DIGEST" "$GITHUB_SHA" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          printf '%s  %s.tar.gz\n' "$3" "$2" | sha256sum -c -
+          target="/data/learn-everything/releases/$2"
+          if [[ ! -d "$target" ]]; then sudo -n python3 official_release.py install "$2.tar.gz"; fi
+          python3 official_release.py verify "$target"
+          python3 - "$target" "$4" "$2.tar.gz" <<'PY'
+          import json, pathlib, sys, tarfile
+          target, commit, archive = sys.argv[1:]
+          installed = json.loads((pathlib.Path(target) / 'RELEASE.json').read_text())
+          with tarfile.open(archive) as package:
+              expected = json.load(package.extractfile('RELEASE.json'))
+          if installed != expected or installed['commit'] != commit:
+              raise SystemExit('Installed release differs from the approved artifact')
+          PY
+          REMOTE
+          if [[ "$OPERATION" == prepare ]]; then
+            echo "Prepared $RELEASE for candidate acceptance checks." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 scripts/activate_official.py --sudo --host learn-production --expected-hostname "$EXPECTED_HOSTNAME" --release "/data/learn-everything/releases/$RELEASE"
+          jq '{release, commit, backup}' output/official/deployment.json >> "$GITHUB_STEP_SUMMARY"
