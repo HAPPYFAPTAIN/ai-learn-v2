@@ -44,6 +44,7 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
+      PYTHONPATH: ${{ github.workspace }}
       PGHOST: 127.0.0.1
       PGUSER: postgres
       PGPASSWORD: postgres
