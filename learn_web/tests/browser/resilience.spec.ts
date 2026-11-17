@@ -292,8 +292,10 @@ test("existing identical cards do not falsely confirm a lost creation; a new sav
     body: JSON.stringify(body),
   });
   let writes = 0;
+  const requestIds: string[] = [];
   await page.route("**/api/v2/cards", async (route) => {
     writes++;
+    requestIds.push(route.request().postDataJSON().requestId);
     if (writes === 2)
       await demo.handle(route.request().url(), {
         method: "POST",
@@ -323,6 +325,8 @@ test("existing identical cards do not falsely confirm a lost creation; a new sav
     page.getByText("已核对，复习卡已保存，无需再次提交。", { exact: true }),
   ).toBeVisible();
   expect(writes).toBe(2);
+  expect(requestIds[0]).toMatch(/^[\da-f-]{36}$/);
+  expect(requestIds[1]).toBe(requestIds[0]);
   const fresh = await (await demo.handle("/api/v2/projects/1/cards")).json();
   expect(
     fresh.items.filter((card: { front: string }) => card.front === body.front),

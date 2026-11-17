@@ -165,7 +165,7 @@ export async function request<T>(
         0,
         "REQUEST_TIMEOUT",
         "等待服务器响应超时，请检查连接后核对结果。",
-        false,
+        !writing,
         undefined,
         writing,
       );
@@ -177,7 +177,7 @@ export async function request<T>(
         0,
         "NETWORK_ERROR",
         "连接中断，请检查网络后核对结果。",
-        false,
+        !writing,
         undefined,
         writing,
       );

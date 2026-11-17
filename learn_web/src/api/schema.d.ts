@@ -833,6 +833,8 @@ export interface components {
             nodeId?: number | null;
             /** Projectid */
             projectId?: number | null;
+            /** Requestid */
+            requestId?: string | null;
         };
         /** CardOut */
         CardOut: {
@@ -1176,6 +1178,8 @@ export interface components {
             content: string;
             /** Nodeid */
             nodeId: number;
+            /** Requestid */
+            requestId?: string | null;
             /**
              * Selection
              * @default
@@ -2891,7 +2895,12 @@ export interface operations {
     };
     list_reports_api_v2_projects__project_id__reports_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+                fromDate?: string | null;
+                toDate?: string | null;
+            };
             header?: never;
             path: {
                 project_id: number;

@@ -7,7 +7,15 @@ export function validDate(value: string) {
   );
 }
 export function dateLabel(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const value = (kind: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === kind)!.value;
+  return `${value("year")}-${value("month")}-${value("day")}`;
 }
 export function reportRange(
   reports: Model<"ReportOut">[],

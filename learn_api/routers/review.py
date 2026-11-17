@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
@@ -14,6 +15,7 @@ from learn_api.errors import ApiError
 from learn_core.db.models import Card
 from learn_core.learning import projects as project_service
 from learn_core.learning.ownership import require_project_node
+from learn_core.learning.creation import create_once
 from learn_core.review import scheduler
 
 from learn_api.schemas import CardOut, Items
@@ -31,6 +33,7 @@ class CardCreate(BaseModel):
     node_id: int | None = Field(default=None, alias="nodeId")
     project_id: int | None = Field(default=None, alias="projectId")
     card_type: str = Field(default="basic", alias="cardType")
+    request_id: UUID | None = Field(default=None, alias="requestId")
 
 
 class ReviewRequest(BaseModel):
@@ -62,17 +65,14 @@ def create_card(payload: CardCreate, session: SessionDep) -> dict:
     if payload.project_id is not None and project_service.get_project(session, payload.project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
     project_id = require_project_node(session, project_id=payload.project_id, node_id=payload.node_id)
-    card = Card(
-        project_id=project_id,
-        node_id=payload.node_id,
-        front=payload.front,
-        back=payload.back,
-        card_type=payload.card_type,
-        next_review=scheduler._now(),
-    )
-    session.add(card)
-    session.flush()
-    return _serialize(card)
+    def create():
+        card = Card(project_id=project_id, node_id=payload.node_id, front=payload.front,
+                    back=payload.back, card_type=payload.card_type, next_review=scheduler._now())
+        session.add(card)
+        session.flush()
+        return _serialize(card)
+    return create_once(session, operation="card", request_id=payload.request_id,
+        payload=payload.model_dump(mode="json", exclude={"request_id"}), create=create)
 
 
 @router.get("/projects/{project_id}/cards", response_model=Items[CardOut])

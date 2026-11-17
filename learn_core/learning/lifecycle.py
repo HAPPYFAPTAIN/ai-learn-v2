@@ -2,12 +2,12 @@
 
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.orm import Session
 
 from learn_core.db.ktem import KtemConversation
 from learn_core.db.models import (
-    ActionEvent, ActionSession, AdaptSnapshot, Annotation, Card, DailyReport,
+    ActionEvent, ActionSession, AdaptSnapshot, Annotation, Card, CreationRequest, DailyReport,
     JobProgress, Kedge, KnodeCollection, LessonGate, Note, ProgressRecord,
     Quiz, QuizAttempt, QuizQuestion, Resource, ReviewLog, Task,
 )
@@ -36,6 +36,9 @@ def cancel_learning_jobs(session: Session, *, project_id: int, node_id: int | No
 def clear_learning_records(session: Session, *, project_id: int, node_ids: list[int], whole_project: bool) -> None:
     card_condition = or_(Card.project_id == project_id, Card.node_id.in_(node_ids)) if whole_project else Card.node_id.in_(node_ids)
     card_ids = select(Card.id).where(card_condition)
+    session.execute(update(CreationRequest).where(
+        CreationRequest.operation == "card", CreationRequest.resource_id.in_(card_ids),
+    ).values(response={}))
     session.execute(delete(ReviewLog).where(ReviewLog.card_id.in_(card_ids)))
     session.execute(delete(Card).where(card_condition))
 
@@ -57,6 +60,11 @@ def clear_learning_records(session: Session, *, project_id: int, node_ids: list[
     session.execute(delete(ActionSession).where(action_condition))
     for model in (Note, Annotation, Resource, LessonGate, Task, ProgressRecord):
         condition = or_(model.project_id == project_id, model.node_id.in_(node_ids)) if whole_project else model.node_id.in_(node_ids)
+        if model is Note:
+            session.execute(update(CreationRequest).where(
+                CreationRequest.operation == "note",
+                CreationRequest.resource_id.in_(select(Note.id).where(condition)),
+            ).values(response={}))
         session.execute(delete(model).where(condition))
     session.execute(delete(KnodeCollection).where(KnodeCollection.node_id.in_(node_ids)))
     session.execute(delete(Kedge).where(or_(Kedge.source_id.in_(node_ids), Kedge.target_id.in_(node_ids))))

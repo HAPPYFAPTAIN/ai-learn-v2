@@ -1,4 +1,5 @@
 import type { components } from "../api/schema";
+import { dateLabel } from "../components/reportData";
 type Model<K extends keyof components["schemas"]> = components["schemas"][K];
 export function createDemo(empty = false) {
   const now = new Date().toISOString();
@@ -148,7 +149,7 @@ export function createDemo(empty = false) {
         {
           id: 51,
           projectId: 1,
-          date: now.slice(0, 10),
+          date: dateLabel(new Date(now)),
           content: "今天完成了第一个程序的学习，继续保持这份好奇心。",
           studyMinutes: 25,
           cardsReviewed: 2,
@@ -158,9 +159,7 @@ export function createDemo(empty = false) {
   if (!empty) {
     for (let day = 1; day < 14; day++) {
       // UI sample history only; this is removed from production builds.
-      const date = new Date(Date.now() - day * 86_400_000)
-        .toISOString()
-        .slice(0, 10);
+      const date = dateLabel(new Date(Date.now() - day * 86_400_000));
       reports.push({
         id: 1000 + day,
         projectId: 1,
@@ -586,13 +585,13 @@ export function createDemo(empty = false) {
         return json({ items: reports.filter((r) => r.projectId === id) });
       if (resource === "reports" && method === "POST") {
         let r = reports.find(
-          (r) => r.projectId === id && r.date === now.slice(0, 10),
+          (r) => r.projectId === id && r.date === dateLabel(new Date(now)),
         );
         if (!r) {
           r = {
             id: ++sequence,
             projectId: id,
-            date: now.slice(0, 10),
+            date: dateLabel(new Date(now)),
             content: "今天也迈出了学习的一步。",
             studyMinutes: 0,
             cardsReviewed: 0,

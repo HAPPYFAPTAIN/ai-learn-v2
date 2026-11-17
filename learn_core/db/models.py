@@ -97,6 +97,22 @@ class TenantSetting(SQLModel, table=True):
     updated_at: datetime = Field(sa_column=ts_column())
 
 
+class CreationRequest(SQLModel, table=True):
+    """Immutable creation receipt; retained until tenant deletion, including tombstones."""
+
+    __tablename__ = "creation_request"
+    __table_args__ = (UniqueConstraint("tenant_id", "operation", "request_id", name="uq_creation_request_intent"),)
+
+    id: Optional[int] = Field(default=None, sa_column=pk_column())
+    tenant_id: UUID = Field(sa_column=tenant_column())
+    operation: str = Field(sa_column=Column(String(32), nullable=False))
+    request_id: UUID = Field(sa_column=Column(PG_UUID(as_uuid=True), nullable=False))
+    payload_hash: str = Field(sa_column=Column(String(64), nullable=False))
+    resource_id: int = Field(sa_column=Column(BigInteger, nullable=False))
+    response: dict = Field(sa_column=Column(JSONB, nullable=False))
+    created_at: datetime = Field(sa_column=ts_column())
+
+
 class StoredFile(SQLModel, table=True):
     """文件存储的元数据；内容在 {files_root}/{tenant_id}/{kind}/{sha256}。"""
 

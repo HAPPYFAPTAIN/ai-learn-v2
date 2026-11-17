@@ -1,4 +1,5 @@
 import type { Model } from "../api/client";
+import { dateLabel } from "./reportData";
 export type DailyPoint = { date: string; report?: Model<"ReportOut"> };
 export function dailyReports(
   reports: Model<"ReportOut">[],
@@ -6,7 +7,7 @@ export function dailyReports(
   now = new Date(),
 ): DailyPoint[] {
   // Date-only report keys are calendar dates, not timestamps in the browser timezone.
-  const end = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = Date.parse(`${dateLabel(now)}T00:00:00Z`);
   const byDate = new Map<string, Model<"ReportOut">>();
   for (const report of reports) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(report.date)) continue;

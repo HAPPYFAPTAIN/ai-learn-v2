@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from learn_core.db.models import Note, Task
+from learn_core.db.models import CreationRequest, Note, Task
 from learn_core.learning.ownership import require_project_node
 
 
@@ -67,6 +67,9 @@ def delete_note(session: Session, note_id: int) -> bool:
     note = session.get(Note, note_id)
     if note is None:
         return False
+    session.execute(update(CreationRequest).where(
+        CreationRequest.operation == "note", CreationRequest.resource_id == note_id,
+    ).values(response={}))
     session.delete(note)
     session.flush()
     return True

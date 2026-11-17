@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 
 from learn_api.errors import ApiError, api_error_handler, error_response, unhandled_handler
 from learn_core.learning.ownership import LearningObjectMissing
+from learn_core.learning.creation import CreationConflict
 from learn_api.routers import (
     chat, conversations, generation, jobs, materials, me, models, nodes, notes, paths, progress, projects, quizzes, reports, review, search, sources, tools,
 )
@@ -68,6 +69,10 @@ def create_app() -> FastAPI:
         first = exc.errors()[0] if exc.errors() else {}
         message = f"{'.'.join(str(p) for p in first.get('loc', []))}: {first.get('msg', 'invalid')}"
         return error_response("INVALID_ARGUMENT", message)
+
+    @app.exception_handler(CreationConflict)
+    async def _creation_conflict(request: Request, exc: CreationConflict):
+        return error_response("CONFLICT", str(exc))
 
     @app.exception_handler(LearningObjectMissing)
     async def _missing_learning_object(request: Request, exc: LearningObjectMissing):

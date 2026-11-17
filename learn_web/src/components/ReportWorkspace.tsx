@@ -51,8 +51,7 @@ export default function ReportWorkspace({
     }
     const now = new Date();
     setTo(dateLabel(now));
-    now.setDate(now.getDate() - days + 1);
-    setFrom(dateLabel(now));
+    setFrom(dateLabel(new Date(now.getTime() - (days - 1) * 86_400_000)));
   }
   function download(format: "json" | "csv") {
     if (!visible?.length) return;
@@ -154,7 +153,7 @@ export default function ReportWorkspace({
               </div>
             </dl>
             <p className="muted small">
-              仅汇总已保存的日报；缺失日期不计为零，推进次数不等于不同章节数。
+              按北京时间汇总已加载的日报；缺失日期不计为零，推进次数不等于不同章节数。
             </p>
           </div>
           <div className="content-actions no-print">

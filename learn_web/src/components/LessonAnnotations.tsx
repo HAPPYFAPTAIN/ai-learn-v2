@@ -9,6 +9,7 @@ import { quoteRange, readingIndex, matchingRanges } from "./quoteRange";
 import RangePaint from "./RangePaint";
 import { useDraftGuard } from "./DraftProtection";
 import WriteRecovery, { uncertainWrite } from "./WriteRecovery";
+import { creationRequest, type CreationIntent } from "../api/creation";
 
 type Draft = { selection: string; content: string; noteId?: number };
 export default function LessonAnnotations({
@@ -21,6 +22,7 @@ export default function LessonAnnotations({
   children: ReactNode;
 }) {
   const reading = useRef<HTMLDivElement>(null);
+  const intent = useRef<CreationIntent | undefined>(undefined);
   const [selection, setSelection] = useState<{
     text: string;
     left: number;
@@ -61,13 +63,17 @@ export default function LessonAnnotations({
             content: value.content.trim(),
             selection: value.selection,
           })
-        : endpoints.createNote(projectId, {
-            nodeId,
-            content: value.content.trim(),
-            selection: value.selection,
-          });
+        : endpoints.createNote(
+            projectId,
+            creationRequest(intent, {
+              nodeId,
+              content: value.content.trim(),
+              selection: value.selection,
+            }),
+          );
     },
     onSuccess: () => {
+      intent.current = undefined;
       setDraft(undefined);
       setExpanded(true);
       setHighlight(true);
@@ -90,7 +96,11 @@ export default function LessonAnnotations({
     !!draft && draft.content !== draftInitial.current,
     save.isPending,
   );
-  const close = () => closeDraft(() => setDraft(undefined));
+  const close = () =>
+    closeDraft(() => {
+      intent.current = undefined;
+      setDraft(undefined);
+    });
   async function checkSaved() {
     const fresh = await notes.refetch();
     if (fresh.error) throw fresh.error;
@@ -107,6 +117,7 @@ export default function LessonAnnotations({
             : value.known && !value.ids.includes(note.id)),
       ) || [];
     if (matches.length === 1 && value) {
+      intent.current = undefined;
       if (draft?.content.trim() === value.value.content) setDraft(undefined);
       save.reset();
       setExpanded(true);

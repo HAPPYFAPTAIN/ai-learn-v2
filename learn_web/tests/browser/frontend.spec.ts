@@ -113,7 +113,7 @@ test("batch deletion retries only unfinished files", async ({ page }) => {
   expect(attempts).toEqual({ "demo-1": 1, "demo-2": 2 });
 });
 
-for (const status of [429, 503]) {
+for (const status of [0, 429, 503]) {
   test(`batch deletion stops later requests after HTTP ${status}`, async ({
     page,
   }) => {
@@ -122,6 +122,7 @@ for (const status of [429, 503]) {
     await page.route("**/api/v2/materials/*", async (route) => {
       if (route.request().method() !== "DELETE") return route.fallback();
       count++;
+      if (status === 0) return route.abort("failed");
       return route.fulfill({
         status,
         json: { error: { code: "BUSY", message: "稍后重试", retryable: true } },
