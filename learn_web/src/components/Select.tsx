@@ -52,6 +52,8 @@ export default function Select<T extends string | number>({
   }, [open, active, listId]);
 
   function expand() {
+    // Safari does not focus a button on pointer activation by default.
+    trigger.current?.focus();
     setActive(Math.max(0, selected));
     setOpen(true);
   }
@@ -124,7 +126,10 @@ export default function Select<T extends string | number>({
   }
 
   return (
-    <div className={`ui-select ${className}`} ref={root}>
+    <div
+      className={`ui-select ${open ? "is-open" : ""} ${className}`}
+      ref={root}
+    >
       <button
         id={id}
         ref={trigger}

@@ -16,6 +16,7 @@ export class ApiError extends Error {
     message: string,
     readonly retryable = false,
     readonly retryAfterSeconds?: number,
+    readonly outcomeUnknown = false,
   ) {
     super(message);
   }
@@ -51,6 +52,7 @@ export async function request<T>(
   init: RequestInit = {},
   signal?: AbortSignal,
   responseType: "json" | "blob" = "json",
+  options: { transport?: Transport; timeoutMs?: number } = {},
 ): Promise<T> {
   if (session.get().status === "blocked")
     throw new DOMException("Session stopped", "AbortError");
@@ -60,21 +62,34 @@ export async function request<T>(
   if (init.body && !(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
   const abort = new AbortController();
+  let timedOut = false;
+  const writing = !["GET", "HEAD", "OPTIONS"].includes(
+    (init.method || "GET").toUpperCase(),
+  );
   const signals = [session.signal(), signal].filter(Boolean) as AbortSignal[];
   const cancel = () => abort.abort();
   signals.forEach((s) => {
     if (s.aborted) cancel();
     else s.addEventListener("abort", cancel, { once: true });
   });
-  const timeout = setTimeout(cancel, path.endsWith("/chat") ? 120_000 : 30_000);
+  const timeout = setTimeout(
+    () => {
+      timedOut = true;
+      cancel();
+    },
+    options.timeoutMs ?? (path.endsWith("/chat") ? 120_000 : 30_000),
+  );
   try {
-    const response = await transport(`${API_BASE}${path}`, {
-      ...init,
-      headers,
-      credentials: "same-origin",
-      cache: "no-store",
-      signal: abort.signal,
-    });
+    const response = await (options.transport || transport)(
+      `${API_BASE}${path}`,
+      {
+        ...init,
+        headers,
+        credentials: "same-origin",
+        cache: "no-store",
+        signal: abort.signal,
+      },
+    );
     if (abort.signal.aborted || session.get().status === "blocked")
       throw new DOMException("Request cancelled", "AbortError");
     // A proxy may return an HTML error; the status still invalidates the session.
@@ -114,6 +129,9 @@ export async function request<T>(
         response.status,
         "INVALID_RESPONSE",
         "服务返回了无法识别的内容，请检查 API 代理或登录状态。",
+        false,
+        undefined,
+        writing && (response.ok || response.status >= 500),
       );
     }
     if (!response.ok) {
@@ -124,6 +142,7 @@ export async function request<T>(
         e.message || `请求失败 (${response.status})`,
         !!e.retryable,
         e.retryAfterSeconds,
+        writing && response.status >= 500,
       );
       if (error.code === "ACCOUNT_CHANGED")
         session.stop(
@@ -132,6 +151,37 @@ export async function request<T>(
       throw error;
     }
     return data as T;
+  } catch (error) {
+    // Session/user cancellation keeps its original semantics and must never
+    // invite another write under a stopped or changed identity.
+    if (
+      session.get().status === "blocked" ||
+      signals.some((s) => s.aborted) ||
+      error instanceof ApiError
+    )
+      throw error;
+    if (timedOut)
+      throw new ApiError(
+        0,
+        "REQUEST_TIMEOUT",
+        "等待服务器响应超时，请检查连接后核对结果。",
+        false,
+        undefined,
+        writing,
+      );
+    if (
+      error instanceof TypeError ||
+      (error instanceof Error && error.name === "AbortError")
+    )
+      throw new ApiError(
+        0,
+        "NETWORK_ERROR",
+        "连接中断，请检查网络后核对结果。",
+        false,
+        undefined,
+        writing,
+      );
+    throw error;
   } finally {
     clearTimeout(timeout);
     signals.forEach((s) => s.removeEventListener("abort", cancel));

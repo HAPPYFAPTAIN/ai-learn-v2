@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { parseIdentity } from "./identity";
 
 export type SessionState = {
   status: "loading" | "ready" | "blocked";
@@ -36,13 +37,14 @@ export const session = {
       cleanup.delete(fn);
     };
   },
-  ready(me: {
-    userId: string;
-    displayName: string;
-    capabilities: Record<string, boolean>;
-    storage?: Record<string, number> | null;
-  }) {
+  ready(input: unknown) {
     if (state.status === "blocked") return;
+    let me;
+    try {
+      me = parseIdentity(input);
+    } catch (error) {
+      return session.stop((error as Error).message);
+    }
     const expected = session.expected();
     if (expected && me.userId !== expected)
       return session.stop(

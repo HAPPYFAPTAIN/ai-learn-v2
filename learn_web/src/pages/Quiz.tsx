@@ -81,6 +81,8 @@ function QuizSheet({ id }: { id: number }) {
   const [job, setJob] = useState<JobProgress>();
   const [jobError, setJobError] = useState<Error>();
   const [reconnecting, setReconnecting] = useState(false);
+  const [onlyWrong, setOnlyWrong] = useState(false);
+  const [warning, setWarning] = useState("");
   const quiz = useQuery({
     queryKey: key("quiz", id),
     queryFn: ({ signal }) => endpoints.quiz(id, signal),
@@ -127,47 +129,119 @@ function QuizSheet({ id }: { id: number }) {
     result.isPending ||
     !!current.error ||
     !!result.error;
+  const questions = quiz.data?.questions || [];
+  const answerFor = (questionId: number) =>
+    result.data?.results.find((r) => r.questionId === questionId)?.userAnswer ??
+    answers[questionId] ??
+    "";
+  const unanswered = questions.filter((q) => !answerFor(q.id).trim());
+  function jump(questionId: number) {
+    const target = document.getElementById(`quiz-question-${id}-${questionId}`);
+    target?.scrollIntoView({ block: "center", behavior: "smooth" });
+    target?.focus({ preventScroll: true });
+  }
   return (
-    <section className="panel">
+    <section className="panel quiz-sheet">
       <QueryState query={quiz} />
       <QueryState query={result} />
       <QueryState query={current} />
       {quiz.data && (
         <>
           <h2>{quiz.data.title}</h2>
+          <nav className="quiz-navigation" aria-label="答题导航">
+            {questions.map((q, i) => (
+              <button
+                type="button"
+                key={q.id}
+                aria-label={`跳转第 ${i + 1} 题${answerFor(q.id).trim() ? "，已答" : "，未答"}`}
+                onClick={() => jump(q.id)}
+                className={answerFor(q.id).trim() ? "answered" : ""}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </nav>
+          {!result.data && (
+            <p className="muted small" role="status">
+              已答 {questions.length - unanswered.length} / {questions.length}{" "}
+              题，未答 {unanswered.length} 题。
+            </p>
+          )}
           <form
+            noValidate
             onSubmit={(e) => {
               e.preventDefault();
-              if (!blocked) submit.mutate();
+              if (blocked) return;
+              if (unanswered.length) {
+                setWarning(
+                  `还有 ${unanswered.length} 题未作答，请完成后提交。`,
+                );
+                jump(unanswered[0].id);
+                return;
+              }
+              setWarning("");
+              submit.mutate();
             }}
           >
             <fieldset disabled={blocked} className="quiz-fields">
               {quiz.data.questions.map((q, i) => (
-                <label key={q.id} className="quiz-question">
-                  <strong>
+                <div
+                  key={q.id}
+                  className="quiz-question"
+                  id={`quiz-question-${id}-${q.id}`}
+                  tabIndex={-1}
+                >
+                  <strong id={`question-label-${q.id}`}>
                     {i + 1}. {q.stem}
                   </strong>
-                  {q.options.length > 0 && (
-                    <span className="muted">
-                      {q.options.map(String).join(" · ")}
-                    </span>
+                  {q.qtype === "choice" &&
+                  q.options.length > 0 &&
+                  q.options.length <= 26 &&
+                  q.options.every((option) => typeof option === "string") ? (
+                    <fieldset
+                      className="quiz-options"
+                      aria-labelledby={`question-label-${q.id}`}
+                    >
+                      {q.options.map((option, at) => {
+                        const letter = String.fromCharCode(65 + at);
+                        const text = String(option).replace(
+                          /^[A-Z][.、．)）:：]\s*/i,
+                          "",
+                        );
+                        return (
+                          <label
+                            key={letter}
+                            className={`quiz-option ${answerFor(q.id) === letter ? "selected" : ""}`}
+                          >
+                            <input
+                              type="radio"
+                              name={`question-${q.id}`}
+                              value={letter}
+                              checked={answerFor(q.id) === letter}
+                              onChange={() =>
+                                setAnswers({ ...answers, [q.id]: letter })
+                              }
+                            />
+                            <span>
+                              {letter}. {text}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </fieldset>
+                  ) : (
+                    <textarea
+                      aria-label={`第 ${i + 1} 题答案`}
+                      rows={q.qtype === "choice" ? 1 : 3}
+                      maxLength={8000}
+                      value={answerFor(q.id)}
+                      onChange={(e) =>
+                        setAnswers({ ...answers, [q.id]: e.target.value })
+                      }
+                      required
+                    />
                   )}
-                  <textarea
-                    aria-label={`第 ${i + 1} 题答案`}
-                    rows={q.qtype === "choice" ? 1 : 3}
-                    maxLength={8000}
-                    value={
-                      result.data?.results.find((r) => r.questionId === q.id)
-                        ?.userAnswer ||
-                      answers[q.id] ||
-                      ""
-                    }
-                    onChange={(e) =>
-                      setAnswers({ ...answers, [q.id]: e.target.value })
-                    }
-                    required
-                  />
-                </label>
+                </div>
               ))}
             </fieldset>
             <button
@@ -176,6 +250,11 @@ function QuizSheet({ id }: { id: number }) {
             >
               {pending ? "批改中…" : result.data ? "已提交" : "提交答案"}
             </button>
+            {warning && (
+              <p role="alert" className="notice">
+                {warning}
+              </p>
+            )}
             <ErrorNotice error={submit.error} />
             <ErrorNotice
               error={jobError || (job?.error ? new Error(job.error) : null)}
@@ -199,16 +278,32 @@ function QuizSheet({ id }: { id: number }) {
               <h3>
                 答对 {result.data.correct} / {result.data.total} 题
               </h3>
-              {result.data.results.map((r, i) => (
-                <div key={r.questionId} className="note-card">
-                  <strong>
-                    第 {i + 1} 题 · {r.correct ? "回答正确" : "需要巩固"}
-                  </strong>
-                  <p>参考答案：{r.expected}</p>
-                  {r.feedback && <p>{r.feedback}</p>}
-                  <p className="muted">{r.explanation}</p>
-                </div>
-              ))}
+              <label className="filter-check">
+                <input
+                  type="checkbox"
+                  checked={onlyWrong}
+                  onChange={(e) => setOnlyWrong(e.target.checked)}
+                />
+                仅查看错题
+              </label>
+              {onlyWrong && !result.data.results.some((r) => !r.correct) && (
+                <p className="empty-inline">本次测验暂无错题。</p>
+              )}
+              {result.data.results
+                .filter((r) => !onlyWrong || !r.correct)
+                .map((r) => (
+                  <div key={r.questionId} className="note-card">
+                    <strong>
+                      第 {questions.findIndex((q) => q.id === r.questionId) + 1}{" "}
+                      题 · {r.correct ? "回答正确" : "需要巩固"}
+                    </strong>
+                    <p>{questions.find((q) => q.id === r.questionId)?.stem}</p>
+                    <p>我的答案：{r.userAnswer || "未作答"}</p>
+                    <p>参考答案：{r.expected}</p>
+                    {r.feedback && <p>{r.feedback}</p>}
+                    <p className="muted">{r.explanation}</p>
+                  </div>
+                ))}
             </div>
           )}
         </>
