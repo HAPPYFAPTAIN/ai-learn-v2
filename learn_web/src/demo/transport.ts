@@ -1,4 +1,5 @@
 import { setTransport } from "../api/client";
+import { setUploadAdapter } from "../api/upload";
 import { setStreamFactory, type EventStream } from "../api/jobs";
 import { createDemo } from "./data";
 import { modelPreview } from "../models/preview";
@@ -19,6 +20,34 @@ export function enableDemo() {
           })),
   );
   const demo = createDemo(empty);
+  setUploadAdapter((onProgress) => async (input, init) => {
+    const file = (init?.body as FormData).get("file") as File;
+    await new Promise<void>((resolve, reject) => {
+      let part = 0;
+      const signal = init?.signal;
+      const abort = () => {
+        clearInterval(timer);
+        signal?.removeEventListener("abort", abort);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      const timer = setInterval(() => {
+        part++;
+        onProgress({
+          loaded: Math.round((file.size * part) / 5),
+          total: file.size,
+        });
+        if (part === 5) {
+          clearInterval(timer);
+          signal?.removeEventListener("abort", abort);
+          resolve();
+        }
+      }, 200);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
+    if (init?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    return demo.handle(String(input), init);
+  });
   setTransport(async (input, init) => {
     if (init?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
     return demo.handle(String(input), init);

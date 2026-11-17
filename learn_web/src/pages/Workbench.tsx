@@ -12,13 +12,12 @@ import { useProject } from "../components/ProjectContext";
 import { generationStorageKey } from "../api/generation";
 import GenerationAction from "../components/GenerationAction";
 import ProjectCards from "../components/ProjectCards";
-import {
-  AutoTextarea,
-  Empty,
-  ErrorNotice,
-  Icon,
-  QueryState,
-} from "../components/ui";
+import LessonAnnotations from "../components/LessonAnnotations";
+import ReadingTools from "../components/ReadingTools";
+import NotesManager from "../components/NotesManager";
+import { useConfirmDiscard } from "../components/DraftProtection";
+import { lessonMarkdown, saveMarkdown } from "../components/contentExport";
+import { Empty, ErrorNotice, Icon, QueryState } from "../components/ui";
 const Markdown = lazy(() => import("../components/Markdown"));
 export default function Workbench() {
   const { id, project, projects } = useProject();
@@ -190,27 +189,14 @@ export default function Workbench() {
 }
 
 function Lesson({ node }: { node: KNode }) {
+  const confirmDiscard = useConfirmDiscard();
   const { id } = useProject();
   const client = useQueryClient();
   const [tab, setTab] = useState("内容");
-  const [note, setNote] = useState("");
-  const notes = useQuery({
-    queryKey: key("notes", id),
-    queryFn: ({ signal }) => endpoints.notes(id, signal),
-    enabled: tab === "笔记",
-  });
   const tasks = useQuery({
     queryKey: key("tasks", id),
     queryFn: ({ signal }) => endpoints.tasks(id, signal),
     enabled: tab === "练习",
-  });
-  const save = useMutation({
-    mutationFn: () =>
-      endpoints.createNote(id, { nodeId: node.id, content: note.trim() }),
-    onSuccess: () => {
-      setNote("");
-      void client.invalidateQueries({ queryKey: key("notes", id) });
-    },
   });
   const progress = useMutation({
     mutationFn: () => endpoints.patchNode(node.id, { status: "done" }),
@@ -238,7 +224,9 @@ function Lesson({ node }: { node: KNode }) {
             aria-selected={tab === t}
             id={`tab-${t}`}
             aria-controls="lesson-tabpanel"
-            onClick={() => setTab(t)}
+            onClick={() => {
+              if (t !== tab) confirmDiscard(() => setTab(t));
+            }}
           >
             {t}
           </button>
@@ -247,11 +235,32 @@ function Lesson({ node }: { node: KNode }) {
       <div role="tabpanel" id="lesson-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "内容" && (
           <>
-            <Suspense fallback={<p>正在加载内容…</p>}>
-              <Markdown key={node.description} hideExerciseAnswers>
-                {node.description || "本章节暂无内容。"}
-              </Markdown>
-            </Suspense>
+            <div className="content-actions lesson-export">
+              <button
+                type="button"
+                onClick={() =>
+                  saveMarkdown(
+                    lessonMarkdown(node),
+                    `${node.code}-${node.title}`,
+                  )
+                }
+              >
+                导出本节课文
+              </button>
+            </div>
+            <ReadingTools>
+              <LessonAnnotations
+                key={`${node.id}:${node.contentVersion}`}
+                projectId={id}
+                nodeId={node.id}
+              >
+                <Suspense fallback={<p>正在加载内容…</p>}>
+                  <Markdown key={node.description} hideExerciseAnswers>
+                    {node.description || "本章节暂无内容。"}
+                  </Markdown>
+                </Suspense>
+              </LessonAnnotations>
+            </ReadingTools>
             <GenerationAction
               projectId={id}
               nodeId={node.id}
@@ -277,42 +286,7 @@ function Lesson({ node }: { node: KNode }) {
             </Link>
           </>
         )}
-        {tab === "笔记" && (
-          <>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (note.trim() && !save.isPending) save.mutate();
-              }}
-            >
-              <label htmlFor="lesson-note">记下你的理解</label>
-              <AutoTextarea
-                id="lesson-note"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="一个想通的概念、一段自己的总结…"
-                required
-              />
-              <button
-                className="primary"
-                disabled={!note.trim() || save.isPending}
-              >
-                {save.isPending ? "保存中…" : "保存笔记"}
-              </button>
-              <ErrorNotice error={save.error} />
-            </form>
-            <QueryState query={notes} />
-            {notes.data?.items
-              .filter((n) => n.nodeId === node.id)
-              .map((n) => (
-                <div className="note-card" key={n.id}>
-                  <Suspense fallback={null}>
-                    <Markdown>{n.content}</Markdown>
-                  </Suspense>
-                </div>
-              ))}
-          </>
-        )}
+        {tab === "笔记" && <NotesManager node={node} />}
         {tab === "练习" && (
           <>
             <QueryState query={tasks} />

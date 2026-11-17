@@ -1,14 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endpoints } from "../api";
+import ReportWorkspace from "../components/ReportWorkspace";
 import { key } from "../query";
 import { useProject } from "../components/ProjectContext";
 import {
-  Empty,
-  ErrorNotice,
-  Icon,
-  PageHeading,
-  QueryState,
-} from "../components/ui";
+  LearningTrend,
+  ChapterDistribution,
+} from "../components/LearningCharts";
+import { Icon, PageHeading, QueryState } from "../components/ui";
 export default function Dashboard() {
   const { id, project } = useProject();
   const client = useQueryClient();
@@ -27,25 +26,6 @@ export default function Dashboard() {
     onSuccess: () =>
       void client.invalidateQueries({ queryKey: key("reports", id) }),
   });
-  function download() {
-    if (!reports.data?.items.length) return;
-    const blob = new Blob(
-      [
-        JSON.stringify(
-          { project: project?.title, reports: reports.data.items },
-          null,
-          2,
-        ),
-      ],
-      { type: "application/json" },
-    );
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `learning-report-${id}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
   return (
     <>
       <PageHeading
@@ -113,50 +93,25 @@ export default function Dashboard() {
                   max={1}
                   value={summary.data.completionRatio}
                 />
+                <ChapterDistribution summary={summary.data} />
               </section>
             </>
           )}
-          <section className="panel section-space">
-            <div className="section-title spread">
-              <div>
-                <h2>学习记录</h2>
-                <p className="muted">为今天的学习，留一份小结。</p>
-              </div>
-              <div className="button-row">
-                <button
-                  disabled={!reports.data?.items.length}
-                  onClick={download}
-                >
-                  导出记录
-                </button>
-                <button
-                  className="primary"
-                  disabled={build.isPending}
-                  onClick={() => build.mutate()}
-                >
-                  {build.isPending ? "整理中…" : "整理今日报告"}
-                </button>
-              </div>
-            </div>
-            <ErrorNotice error={build.error} />
-            <QueryState query={reports} />
-            {reports.data &&
-              (reports.data.items.length ? (
-                reports.data.items.map((r) => (
-                  <div className="report-row" key={r.id}>
-                    <div>
-                      <strong>{r.date}</strong>
-                      <small>
-                        {r.studyMinutes} 分钟 · {r.cardsReviewed} 张复习卡
-                      </small>
-                    </div>
-                    <p>{r.content}</p>
-                  </div>
-                ))
-              ) : (
-                <p className="empty-inline">暂无学习记录，快去新建学习计划吧</p>
-              ))}
-          </section>
+          {reports.data && (
+            <LearningTrend key={id} reports={reports.data.items} />
+          )}
+          <QueryState query={reports} />
+          {reports.data && (
+            <ReportWorkspace
+              key={id}
+              projectId={id}
+              title={project?.title || "学习计划"}
+              reports={reports.data.items}
+              building={build.isPending}
+              error={build.error}
+              onBuild={() => build.mutate()}
+            />
+          )}
         </>
       )}
     </>

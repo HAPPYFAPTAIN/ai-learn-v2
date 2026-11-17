@@ -4,6 +4,7 @@ import { endpoints } from "../api";
 import { key } from "../query";
 import { useProject } from "../components/ProjectContext";
 import AssessmentGenerator from "../components/AssessmentGenerator";
+import CardLibrary from "../components/CardLibrary";
 import {
   Empty,
   ErrorNotice,
@@ -101,26 +102,14 @@ export default function Review() {
               />
             ))}
           <section className="panel review-schedule">
-            <h2>当前计划的复习安排</h2>
             <QueryState query={allCards} />
-            {allCards.data &&
-              (allCards.data.items.length ? (
-                <ul className="review-schedule-list">
-                  {allCards.data.items.map((item) => (
-                    <li key={item.id}>
-                      <strong>{item.front}</strong>
-                      <span className="muted">
-                        已复习 {item.reps} 次 ·{" "}
-                        {item.suspended
-                          ? "已暂停"
-                          : `下次 ${nextReviewLabel(item.nextReview)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="muted">暂无复习卡，可从上方选择章节生成。</p>
-              ))}
+            {allCards.data && (
+              <CardLibrary
+                key={id}
+                projectId={id}
+                cards={allCards.data.items}
+              />
+            )}
           </section>
         </>
       )}

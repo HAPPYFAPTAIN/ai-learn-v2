@@ -2,6 +2,8 @@ import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
+import rehypeHighlight from "rehype-highlight";
+import CodeBlock from "./CodeBlock";
 import { useId, useState, type ReactNode } from "react";
 import { remarkExerciseAnswers } from "./exerciseAnswers";
 import "katex/dist/katex.min.css";
@@ -23,11 +25,20 @@ export default function RichText({
         ]}
         rehypePlugins={[
           [
+            rehypeHighlight,
+            {
+              detect: false,
+              ignoreMissing: true,
+              plainText: ["markmap", "mindmap"],
+            },
+          ],
+          [
             rehypeKatex,
             { trust: false, strict: "ignore", maxExpand: 1000, maxSize: 20 },
           ],
         ]}
         components={{
+          pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           section: ({ node, children, ...props }) =>
             node?.properties["data-exercise-answers"] ? (
               <ExerciseAnswers>{children}</ExerciseAnswers>

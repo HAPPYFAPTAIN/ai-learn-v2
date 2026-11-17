@@ -155,6 +155,23 @@ export function createDemo(empty = false) {
           nodesProgressed: 1,
         },
       ];
+  if (!empty) {
+    for (let day = 1; day < 14; day++) {
+      // UI sample history only; this is removed from production builds.
+      const date = new Date(Date.now() - day * 86_400_000)
+        .toISOString()
+        .slice(0, 10);
+      reports.push({
+        id: 1000 + day,
+        projectId: 1,
+        date,
+        content: "记录一次专注的学习，把理解向前推进一点。",
+        studyMinutes: [15, 30, 0, 45, 20][day % 5],
+        cardsReviewed: [4, 6, 0, 8, 3][day % 5],
+        nodesProgressed: day % 3 === 0 ? 1 : 0,
+      });
+    }
+  }
   const quiz: Model<"QuizOut"> = {
     id: 61,
     title: "Python 入门 · 第一份小测",
@@ -265,12 +282,56 @@ export function createDemo(empty = false) {
         notes.push(n);
         return json(n, 201);
       }
+      if (/^\/notes\/\d+$/.test(path)) {
+        const at = notes.findIndex(
+          (note) => note.id === Number(path.split("/")[2]),
+        );
+        if (at < 0)
+          return json(
+            {
+              error: {
+                code: "NOT_FOUND",
+                message: "笔记不存在",
+                retryable: false,
+              },
+            },
+            404,
+          );
+        if (method === "PATCH") {
+          Object.assign(notes[at], body, {
+            updatedAt: new Date().toISOString(),
+          });
+          return json(notes[at]);
+        }
+        if (method === "DELETE") {
+          notes.splice(at, 1);
+          return new Response(null, { status: 204 });
+        }
+      }
       if (resource === "tasks")
         return json({ items: tasks.filter((t) => t.projectId === id) });
       if (path.startsWith("/tasks/") && method === "PATCH") {
         const t = tasks.find((t) => t.id === Number(path.split("/")[2]));
         Object.assign(t!, body);
         return json(t);
+      }
+      if (path === "/cards" && method === "POST") {
+        const card: Model<"CardOut"> = {
+          id: ++sequence,
+          projectId: body.projectId ?? null,
+          nodeId: body.nodeId ?? null,
+          front: body.front,
+          back: body.back,
+          cardType: body.cardType || "basic",
+          state: 0,
+          step: 0,
+          reps: 0,
+          stability: 0,
+          nextReview: new Date().toISOString(),
+          suspended: false,
+        };
+        cards.push(card);
+        return json(card, 201);
       }
       if (path === "/review/due") return json({ items: cards });
       if (resource === "cards")
@@ -506,12 +567,19 @@ export function createDemo(empty = false) {
         const mastered = items.filter((n) => n.mastery >= 0.85).length;
         return json({
           totalNodes: items.length,
-          nodesByStatus: { done: count },
+          nodesByStatus: Object.fromEntries(
+            [...new Set(items.map((node) => node.status))].map((status) => [
+              status,
+              items.filter((node) => node.status === status).length,
+            ]),
+          ),
           completedNodes: count,
           completionRatio: items.length ? count / items.length : 0,
           masteredNodes: mastered,
           masteryRatio: items.length ? mastered / items.length : 0,
-          studyMinutes: id === 1 ? 25 : 0,
+          studyMinutes: reports
+            .filter((report) => report.projectId === id)
+            .reduce((sum, report) => sum + report.studyMinutes, 0),
         });
       }
       if (resource === "reports" && method === "GET")
