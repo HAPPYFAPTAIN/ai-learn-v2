@@ -64,7 +64,7 @@ def test_card_lifecycle(client):
     due = client.get("/api/v2/review/due", headers=headers).json()["items"]
     assert [c["id"] for c in due] == [card["id"]]
 
-    good = client.post(f"/api/v2/review/{card['id']}", json={"rating": 3}, headers=headers).json()
+    good = client.post(f"/api/v2/review/{card['id']}", json={"rating": 3, "expectedReps": 0}, headers=headers).json()
     assert good["reps"] == 1
     assert good["step"] == 1
     assert good["state"] == scheduler.STATE_LEARNING
@@ -72,10 +72,13 @@ def test_card_lifecycle(client):
     # FSRS 新卡 Good 进入第二学习步（10 分钟），此时尚未到期。
     assert client.get("/api/v2/review/due", headers=headers).json()["items"] == []
 
-    easy = client.post(f"/api/v2/review/{card['id']}", json={"rating": 4}, headers=headers).json()
+    duplicate = client.post(f"/api/v2/review/{card['id']}", json={"rating": 3, "expectedReps": 0}, headers=headers)
+    assert duplicate.status_code == 409
+    assert client.post(f"/api/v2/review/{card['id']}", json={"rating": 3}, headers=headers).status_code == 422
+    easy = client.post(f"/api/v2/review/{card['id']}", json={"rating": 4, "expectedReps": 1}, headers=headers).json()
     assert easy["state"] == scheduler.STATE_REVIEW and easy["reps"] == 2
 
-    again = client.post(f"/api/v2/review/{card['id']}", json={"rating": 1}, headers=headers).json()
+    again = client.post(f"/api/v2/review/{card['id']}", json={"rating": 1, "expectedReps": 2}, headers=headers).json()
     assert again["step"] == 0 and again["state"] == scheduler.STATE_RELEARNING
     assert client.get("/api/v2/review/due", headers=headers).json()["items"] == []
 
@@ -87,7 +90,7 @@ def test_due_respects_interval_and_isolation(client):
     card = client.post(
         "/api/v2/cards", json={"front": "q", "back": "a", "projectId": p1["id"]}, headers=t1
     ).json()
-    client.post(f"/api/v2/review/{card['id']}", json={"rating": 3}, headers=t1)
+    client.post(f"/api/v2/review/{card['id']}", json={"rating": 3, "expectedReps": 0}, headers=t1)
 
     assert client.get("/api/v2/review/due", headers=t2).json()["items"] == []
     assert client.get(f"/api/v2/projects/{p1['id']}/cards", headers=t2).status_code == 404

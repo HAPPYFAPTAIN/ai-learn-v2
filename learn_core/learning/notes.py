@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from learn_core.db.models import Note, Task
+from learn_core.learning.ownership import require_project_node
 
 
 # ------------------------------------------------------------------ 笔记
@@ -25,6 +26,7 @@ def create_note(
     content: str,
     selection: str = "",
 ) -> Note:
+    require_project_node(session, project_id=project_id, node_id=node_id)
     note = Note(
         project_id=project_id,
         node_id=node_id,
@@ -87,6 +89,7 @@ def create_task(
 ) -> Task:
     if task_type not in TASK_TYPES:
         raise ValueError(f"unknown task_type: {task_type}")
+    require_project_node(session, project_id=project_id, node_id=node_id)
     task = Task(
         project_id=project_id,
         node_id=node_id,

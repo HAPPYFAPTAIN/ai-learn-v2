@@ -13,6 +13,7 @@ from learn_api.deps import get_session
 from learn_api.errors import ApiError
 from learn_core.db.models import Card
 from learn_core.learning import projects as project_service
+from learn_core.learning.ownership import require_project_node
 from learn_core.review import scheduler
 
 from learn_api.schemas import CardOut, Items
@@ -36,7 +37,7 @@ class ReviewRequest(BaseModel):
     model_config = {"extra": "forbid", "populate_by_name": True}
 
     rating: int = Field(ge=1, le=4)
-    expected_reps: int | None = Field(default=None, ge=0, alias="expectedReps")
+    expected_reps: int = Field(ge=0, alias="expectedReps")
 
 
 def _serialize(card: Card) -> dict:
@@ -60,8 +61,9 @@ def _serialize(card: Card) -> dict:
 def create_card(payload: CardCreate, session: SessionDep) -> dict:
     if payload.project_id is not None and project_service.get_project(session, payload.project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
+    project_id = require_project_node(session, project_id=payload.project_id, node_id=payload.node_id)
     card = Card(
-        project_id=payload.project_id,
+        project_id=project_id,
         node_id=payload.node_id,
         front=payload.front,
         back=payload.back,

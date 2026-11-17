@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from learn_core.db.models import Quiz, QuizQuestion
+from learn_core.learning.ownership import require_project_node
 
 
 def create_quiz(
@@ -17,6 +18,10 @@ def create_quiz(
     node_ids: list[int] | None = None,
     quiz_type: str = "mixed",
 ) -> Quiz:
+    require_project_node(session, project_id=project_id)
+    linked_nodes = set(node_ids or []) | {item["node_id"] for item in questions if item.get("node_id") is not None}
+    for node_id in sorted(linked_nodes):
+        require_project_node(session, project_id=project_id, node_id=node_id)
     quiz = Quiz(
         project_id=project_id,
         title=title,

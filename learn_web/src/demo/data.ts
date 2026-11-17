@@ -249,6 +249,7 @@ export function createDemo(empty = false) {
       if (path.startsWith("/nodes/") && method === "PATCH") {
         const n = nodes.find((n) => n.id === Number(path.split("/")[2]));
         Object.assign(n!, body);
+        if (body.status === "done") n!.mastery = Math.max(n!.mastery, 0.3);
         return json(n);
       }
       if (resource === "notes" && method === "GET")
@@ -502,11 +503,14 @@ export function createDemo(empty = false) {
       if (resource === "summary") {
         const items = nodes.filter((n) => n.projectId === id);
         const count = items.filter((n) => n.status === "done").length;
+        const mastered = items.filter((n) => n.mastery >= 0.85).length;
         return json({
           totalNodes: items.length,
           nodesByStatus: { done: count },
-          masteredNodes: count,
-          masteryRatio: items.length ? count / items.length : 0,
+          completedNodes: count,
+          completionRatio: items.length ? count / items.length : 0,
+          masteredNodes: mastered,
+          masteryRatio: items.length ? mastered / items.length : 0,
           studyMinutes: id === 1 ? 25 : 0,
         });
       }

@@ -114,6 +114,31 @@ test("workbench saves notes and project changes clear the previous draft", async
   await page.getByRole("tab", { name: "笔记" }).click();
   await expect(page.getByLabel("记下你的理解")).toHaveValue("");
 });
+test("reading completion preserves mastery and uses completion statistics", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.goto("/study?project=1&chapter=12");
+  const update = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" &&
+      request.url().endsWith("/api/v2/nodes/12"),
+  );
+  await page.getByRole("button", { name: "标记为已学完", exact: true }).click();
+  expect((await update).postDataJSON()).toEqual({ status: "done" });
+  await expect(
+    page.getByRole("button", { name: "已完成学习", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("link", { name: "学习看板", exact: true }).click();
+  await expect(
+    page.locator(".stat-card").filter({ hasText: "已完成章节" }),
+  ).toContainText("2");
+  await page.reload();
+  await expect(
+    page.locator(".stat-card").filter({ hasText: "已完成章节" }),
+  ).toContainText("2");
+});
+
 test("review requires revealing the answer and advances after rating", async ({
   page,
 }) => {

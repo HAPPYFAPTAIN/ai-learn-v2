@@ -1159,12 +1159,14 @@ export interface components {
             difficulty?: number | null;
             /** Esthours */
             estHours?: number | null;
-            /** Mastery */
-            mastery?: number | null;
             /** Stage */
             stage?: string | null;
-            /** Status */
-            status?: string | null;
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status?: "pending" | "learning" | "reviewing" | "done";
             /** Title */
             title?: string | null;
         };
@@ -1504,7 +1506,7 @@ export interface components {
         /** ReviewRequest */
         ReviewRequest: {
             /** Expectedreps */
-            expectedReps?: number | null;
+            expectedReps: number;
             /** Rating */
             rating: number;
         };
@@ -1534,6 +1536,10 @@ export interface components {
         };
         /** SummaryOut */
         SummaryOut: {
+            /** Completednodes */
+            completedNodes: number;
+            /** Completionratio */
+            completionRatio: number;
             /** Masterednodes */
             masteredNodes: number;
             /** Masteryratio */

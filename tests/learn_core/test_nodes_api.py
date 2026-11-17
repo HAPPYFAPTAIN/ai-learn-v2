@@ -70,13 +70,14 @@ def test_node_crud_and_isolation(client):
     assert [n["code"] for n in listed["items"]] == ["K1"]
 
     patched = client.patch(
-        f"/api/v2/nodes/{node['id']}", json={"mastery": 0.6, "status": "doing"}, headers=_headers(t1)
+        f"/api/v2/nodes/{node['id']}", json={"status": "learning"}, headers=_headers(t1)
     )
-    assert patched.status_code == 200 and patched.json()["mastery"] == 0.6
+    assert patched.status_code == 200 and patched.json()["mastery"] == 0.09
+    assert client.patch(f"/api/v2/nodes/{node['id']}", json={"mastery": 1.0}, headers=_headers(t1)).status_code == 422
 
     # 另一个租户看不到，也改不了
     assert client.get(f"/api/v2/projects/{project['id']}/nodes", headers=_headers(t2)).status_code == 404
-    assert client.patch(f"/api/v2/nodes/{node['id']}", json={"mastery": 1.0}, headers=_headers(t2)).status_code == 404
+    assert client.patch(f"/api/v2/nodes/{node['id']}", json={"status": "done"}, headers=_headers(t2)).status_code == 404
 
     assert client.delete(f"/api/v2/nodes/{node['id']}", headers=_headers(t1)).status_code == 204
     assert client.get(f"/api/v2/projects/{project['id']}/nodes", headers=_headers(t1)).json()["items"] == []

@@ -166,7 +166,8 @@ def hybrid_search(
           FROM rag_chunk c
           LEFT JOIN vec v USING (chunk_id)
           LEFT JOIN txt t USING (chunk_id)
-         WHERE v.rnk IS NOT NULL OR t.rnk IS NOT NULL
+         WHERE c.index_id = :index_id
+           AND (v.rnk IS NOT NULL OR t.rnk IS NOT NULL)
          ORDER BY score DESC
          LIMIT :limit
     """ % {"rrf": _RRF_K}

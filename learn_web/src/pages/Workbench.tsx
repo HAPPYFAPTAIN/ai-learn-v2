@@ -213,8 +213,7 @@ function Lesson({ node }: { node: KNode }) {
     },
   });
   const progress = useMutation({
-    mutationFn: () =>
-      endpoints.patchNode(node.id, { status: "done", mastery: 1 }),
+    mutationFn: () => endpoints.patchNode(node.id, { status: "done" }),
     onSuccess: () => {
       void client.invalidateQueries({ queryKey: key("nodes", id) });
       void client.invalidateQueries({ queryKey: key("summary", id) });

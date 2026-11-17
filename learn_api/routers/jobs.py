@@ -36,7 +36,9 @@ def _serialize(row: JobProgress) -> dict:
         "kind": row.kind,
         "subject": row.subject,
         "state": row.state,
-        "progress": row.progress,
+        # The persisted prompt is only for worker replay, not each polling/SSE
+        # response (it can be much larger than the public progress fields).
+        "progress": {key: value for key, value in row.progress.items() if key != "prepared"},
         "error": row.error,
         "updatedAt": row.updated_at,
     }

@@ -11,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from learn_core.db.models import Card, ReviewLog
+from learn_core.learning.ownership import require_project_node
 
 STATE_NEW = 0
 STATE_LEARNING = 1
@@ -58,16 +59,20 @@ def _advance(card: Card, rating: int, now: datetime) -> None:
 
 def review_card(
     session: Session, *, card_id: int, rating: int, now: datetime | None = None,
-    expected_reps: int | None = None,
+    expected_reps: int,
 ) -> Card | None:
     if rating not in (1, 2, 3, 4):
         raise ValueError("rating must be 1..4")
-    card = session.scalar(select(Card).where(Card.id == card_id).with_for_update())
+    existing = session.execute(select(Card.project_id, Card.node_id).where(Card.id == card_id)).first()
+    if existing is None:
+        return None
+    require_project_node(session, project_id=existing.project_id, node_id=existing.node_id)
+    card = session.scalar(select(Card).where(Card.id == card_id).with_for_update().execution_options(populate_existing=True))
     if card is None:
         return None
     if card.suspended:
         raise ValueError("card is suspended")
-    if expected_reps is not None and card.reps != expected_reps:
+    if card.reps != expected_reps:
         raise ReviewConflict("此卡片已在其他窗口复习，请刷新后查看最新安排")
     now = now or _now()
     previous_state = card.state

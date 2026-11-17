@@ -61,11 +61,15 @@ def update_project(session: Session, project_id: int, **fields: object) -> Proje
 
 
 def delete_project(session: Session, project_id: int) -> bool:
-    project = session.get(Project, project_id)
+    from learn_core.db.models import Knode
+    from learn_core.learning.lifecycle import cancel_learning_jobs, clear_learning_records
+
+    # Workers lock job then project; use that order during deletion too.
+    cancel_learning_jobs(session, project_id=project_id)
+    project = session.scalar(select(Project).where(Project.id == project_id).with_for_update())
     if project is None:
         return False
-    from sqlalchemy import delete
-    from learn_core.db.ktem import KtemConversation
-    session.execute(delete(KtemConversation).where(KtemConversation.id.in_([f'learn-project-{project_id}',f'learn-coach-{project_id}'])))
+    node_ids = list(session.scalars(select(Knode.id).where(Knode.project_id == project_id)))
+    clear_learning_records(session, project_id=project_id, node_ids=node_ids, whole_project=True)
     session.delete(project)
     return True

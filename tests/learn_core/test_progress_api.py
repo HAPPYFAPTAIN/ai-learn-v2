@@ -74,8 +74,10 @@ def test_summary_aggregates_nodes_and_minutes(client):
 
     summary = client.get(f"/api/v2/projects/{pid}/summary", headers=headers).json()
     assert summary["totalNodes"] == 3
-    assert summary["masteredNodes"] == 2
-    assert summary["masteryRatio"] == 0.6667
+    assert summary["completedNodes"] == 2
+    assert summary["completionRatio"] == 0.6667
+    assert summary["masteredNodes"] == 0
+    assert summary["masteryRatio"] == 0
     assert summary["studyMinutes"] == 60.0
 
     listed = client.get(f"/api/v2/projects/{pid}/progress", headers=headers).json()

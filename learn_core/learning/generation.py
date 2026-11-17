@@ -182,10 +182,12 @@ def _load_input(session: Session, row: JobProgress) -> dict:
     return data
 
 
-def _finish_error(job_id: str, message: str, state: str = "failed") -> None:
+def _finish_error(job_id: str, message: str, state: str = "failed", *, new_event: bool = False) -> None:
     with session_scope() as session:
         row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
         if row and row.state not in {"done", "cancelled"}:
+            if new_event:
+                row.progress = {**row.progress, "eventAttempt": row.progress.get("eventAttempt", 1) + 1}
             row.state = state
             row.error = message
             row.updated_at = datetime.now(timezone.utc)
@@ -204,7 +206,10 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                 progress = dict(row.progress)
                 progress.setdefault("startedAt", now_iso())
                 progress["attempt"] = attempt
-                progress["eventId"] = step_event(progress["eventBase"], 1, attempt + 1)
+                # Queue attempts include crash recovery. Only an explicit
+                # upstream rejection starts a new logical billing event.
+                progress.setdefault("eventAttempt", 1)
+                progress["eventId"] = step_event(progress["eventBase"], 1, progress["eventAttempt"])
                 progress["phase"] = "generating"
                 progress["attemptStartedAt"] = now_iso()
                 row.state, row.error, row.progress = "running", None, progress
@@ -226,10 +231,17 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
             if prompt:
                 if len(system) + len(prompt) > 120_000:
                     raise ValueError("所选学习内容过长，请缩小范围")
+                if "prepared" not in progress:
+                    progress["prepared"] = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
+                    with session_scope() as session:
+                        row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
+                        if row is None or row.state in {"done", "cancelled"}:
+                            return
+                        row.progress = dict(progress)
                 with GatewayClient() as gateway:
                     result = gateway.chat_detached(
                         event_id=progress["eventId"], job_id=job_id,
-                        messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+                        messages=progress["prepared"],
                         purpose=kind, model=progress["model"], max_tokens=8000,
                     )
             model_ms = round((time.monotonic() - started) * 1000)
@@ -280,7 +292,8 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
         except (GatewayError, LeaseUnavailable) as exc:
             retryable = isinstance(exc, LeaseUnavailable) or exc.status in TRANSIENT_STATUS
             if retryable and attempt < 2:
-                _finish_error(job_id, "模型暂时繁忙，正在等待重试", "queued")
+                _finish_error(job_id, "模型暂时繁忙，正在等待重试", "queued",
+                              new_event=isinstance(exc, GatewayError) and exc.status != 0)
                 raise RetryableGenerationError((10, 40)[attempt]) from exc
             message = str(exc) if isinstance(exc, GatewayError) else "模型并发额度已满，请稍后重试"
             _finish_error(job_id, message)

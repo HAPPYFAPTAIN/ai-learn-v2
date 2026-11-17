@@ -74,13 +74,13 @@ export default function Dashboard() {
                   ],
                   [
                     "已完成章节",
-                    `${summary.data.masteredNodes}`,
+                    `${summary.data.completedNodes}`,
                     `/ ${summary.data.totalNodes} 章`,
                     "book",
                   ],
                   [
                     "章节完成率",
-                    `${Math.round(summary.data.masteryRatio * 100)}`,
+                    `${Math.round(summary.data.completionRatio * 100)}`,
                     "%",
                     "chart",
                   ],
@@ -100,10 +100,10 @@ export default function Dashboard() {
               <section className="panel section-space">
                 <h2>章节完成进度</h2>
                 <p className="muted">
-                  完成 {summary.data.masteredNodes} 个章节，还剩{" "}
+                  完成 {summary.data.completedNodes} 个章节，还剩{" "}
                   {Math.max(
                     0,
-                    summary.data.totalNodes - summary.data.masteredNodes,
+                    summary.data.totalNodes - summary.data.completedNodes,
                   )}{" "}
                   个。
                 </p>
@@ -111,7 +111,7 @@ export default function Dashboard() {
                   className="mastery-progress"
                   aria-label="章节完成率"
                   max={1}
-                  value={summary.data.masteryRatio}
+                  value={summary.data.completionRatio}
                 />
               </section>
             </>

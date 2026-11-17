@@ -96,7 +96,7 @@ def test_submit_source_returns_202_and_hides_enqueue_details(monkeypatch):
     calls: list[dict] = []
     monkeypatch.setattr(
         "learn_core.jobs.enqueue.enqueue_index",
-        lambda **kw: calls.append(kw) or "42",
+        lambda session, **kw: calls.append(kw) or "42",
     )
 
     stable_user = f"src-{uuid.uuid4().hex[:8]}"
