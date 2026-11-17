@@ -1,11 +1,12 @@
 import { Input } from "../components/fields";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { endpoints } from "../api";
 import { key } from "../query";
 import { useProject } from "../components/ProjectContext";
 import GenerationAction from "../components/GenerationAction";
+import { roadmapOutline, downloadRoadmap } from "../components/roadmapContent";
 import {
   Empty,
   ErrorNotice,
@@ -13,8 +14,9 @@ import {
   PageHeading,
   QueryState,
 } from "../components/ui";
+const MindMap = lazy(() => import("../components/MindMap"));
 export default function Roadmap() {
-  const { id } = useProject();
+  const { id, project } = useProject();
   const client = useQueryClient();
   const nodes = useQuery({
     queryKey: key("nodes", id),
@@ -26,6 +28,8 @@ export default function Roadmap() {
   const [hours, setHours] = useState(2);
   const [weeks, setWeeks] = useState(8);
   const [weekly, setWeekly] = useState(5);
+  const [mapProject, setMapProject] = useState<number>();
+  const [exportError, setExportError] = useState<Error>();
   const add = useMutation({
     mutationFn: () =>
       endpoints.createNode(id, {
@@ -58,10 +62,45 @@ export default function Roadmap() {
               <div className="panel">
                 <div className="section-title spread">
                   <h2>我的知识章节</h2>
-                  <span className="badge">
-                    {nodes.data.items.length} 个章节
-                  </span>
+                  <div className="content-actions">
+                    <span className="badge">
+                      {nodes.data.items.length} 个章节
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!nodes.data.items.length}
+                      aria-expanded={mapProject === id}
+                      onClick={() =>
+                        setMapProject(mapProject === id ? undefined : id)
+                      }
+                    >
+                      {mapProject === id ? "收起思维导图" : "思维导图"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!nodes.data.items.length}
+                      onClick={() => {
+                        try {
+                          downloadRoadmap(project, nodes.data.items);
+                          setExportError(undefined);
+                        } catch {
+                          setExportError(new Error("导出未完成，请重试"));
+                        }
+                      }}
+                    >
+                      导出路线
+                    </button>
+                  </div>
                 </div>
+                <ErrorNotice error={exportError} />
+                {mapProject === id && !!nodes.data.items.length && (
+                  <Suspense fallback={<p role="status">正在加载思维导图…</p>}>
+                    <MindMap
+                      key={id}
+                      source={roadmapOutline(project, nodes.data.items)}
+                    />
+                  </Suspense>
+                )}
                 <GenerationAction
                   key={id}
                   projectId={id}

@@ -1,24 +1,36 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 
+const stack: HTMLDivElement[] = [];
+let originalOverflow = "";
+
 export default function Dialog({
   title,
   onClose,
   children,
+  dismissible = true,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
+  dismissible?: boolean;
 }) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
-  close.current = onClose;
+  close.current = () => {
+    if (dismissible) onClose();
+  };
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
+    if (!stack.length) originalOverflow = document.body.style.overflow;
+    const root = panel.current!;
+    const previousPanel = stack[stack.length - 1];
+    if (previousPanel) previousPanel.inert = true;
+    stack.push(root);
     document.body.style.overflow = "hidden";
     panel.current?.focus();
     const key = (e: KeyboardEvent) => {
+      if (stack[stack.length - 1] !== root || e.defaultPrevented) return;
       if (e.key === "Escape") {
         e.preventDefault();
         close.current();
@@ -53,16 +65,21 @@ export default function Dialog({
     };
     document.addEventListener("keydown", key);
     return () => {
-      document.body.style.overflow = overflow;
+      const wasTop = stack[stack.length - 1] === root;
+      const index = stack.indexOf(root);
+      if (index >= 0) stack.splice(index, 1);
+      if (!stack.length) document.body.style.overflow = originalOverflow;
+      const next = stack[stack.length - 1];
+      if (next) next.inert = false;
       document.removeEventListener("keydown", key);
-      if (previous?.isConnected) previous.focus();
+      if (wasTop && previous?.isConnected) previous.focus();
     };
   }, []);
   return (
     <div
       className="provider-dialog-backdrop"
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (dismissible && e.target === e.currentTarget) onClose();
       }}
     >
       <div
@@ -75,7 +92,11 @@ export default function Dialog({
       >
         <header className="provider-dialog-header">
           <h2 id={id}>{title}</h2>
-          <button onClick={onClose} aria-label="关闭对话框">
+          <button
+            onClick={onClose}
+            disabled={!dismissible}
+            aria-label="关闭对话框"
+          >
             关闭
           </button>
         </header>

@@ -1,5 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { createDemo } from "../../src/demo/data";
+import { samplePdf } from "./pdfFixture";
 async function mock(page: Page, empty = false) {
   const demo = createDemo(empty);
   await page.route("**/api/v2/**", async (route) => {
@@ -28,6 +30,769 @@ const pages = [
   ["/tools", "学习工具"],
   ["/models", "模型设置"],
 ];
+
+for (const width of [390, 1440]) {
+  test(`batch deletion confirms the full selection and preserves its result at ${width}px`, async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width, height: 960 });
+    await mock(page);
+    const requests: string[] = [];
+    page.on("request", (req) => {
+      if (req.method() === "DELETE") requests.push(req.url());
+    });
+    await page.goto("/library");
+    const all = page.getByRole("checkbox", { name: "选择当前结果" });
+    await page
+      .getByRole("checkbox", { name: "选择资料：Python 基础学习笔记.md" })
+      .check();
+    await expect(all).toHaveJSProperty("indeterminate", true);
+    await all.check();
+    await expect(all).toBeChecked();
+    await page.getByRole("searchbox", { name: "搜索资料" }).fill("Python");
+    await expect(
+      page.getByText(
+        "已选资料中有 1 份不在当前筛选结果中，删除前可核对完整清单。",
+      ),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "批量删除", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "批量删除资料" });
+    await expect(dialog).toContainText("第一周练习清单.txt");
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    expect(requests).toHaveLength(0);
+    await page.getByRole("button", { name: "批量删除", exact: true }).click();
+    await page.screenshot({ path: testInfo.outputPath("batch-confirm.png") });
+    const box = (await dialog.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(width);
+    await dialog.getByRole("button", { name: "确认删除 2 份资料" }).click();
+    await expect(dialog.getByRole("status")).toHaveText("已删除 2 份资料。");
+    expect(requests).toHaveLength(2);
+    await expect(page.locator(".file-row")).toHaveCount(0);
+    await dialog.getByRole("button", { name: "完成", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "资料库还是空的" }),
+    ).toBeVisible();
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "资料库还是空的" }),
+    ).toBeVisible();
+  });
+}
+
+test("batch deletion retries only unfinished files", async ({ page }) => {
+  await mock(page);
+  const attempts: Record<string, number> = {};
+  await page.route("**/api/v2/materials/*", async (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    const id = route.request().url().split("/").pop()!;
+    attempts[id] = (attempts[id] || 0) + 1;
+    if (id === "demo-2" && attempts[id] === 1)
+      return route.fulfill({
+        status: 409,
+        json: {
+          error: { code: "FILE_BUSY", message: "资料处理中", retryable: true },
+        },
+      });
+    return route.fallback();
+  });
+  await page.goto("/library");
+  await page.getByRole("checkbox", { name: "选择当前结果" }).check();
+  await page.getByRole("button", { name: "批量删除", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "批量删除资料" });
+  await dialog.getByRole("button", { name: "确认删除 2 份资料" }).click();
+  await expect(dialog.getByRole("status")).toContainText(
+    "已删除 1 份资料，1 份未完成",
+  );
+  await expect(page.locator(".file-row")).toHaveCount(1);
+  await expect(
+    page.getByRole("checkbox", { name: "选择资料：第一周练习清单.txt" }),
+  ).toBeChecked();
+  await dialog.getByRole("button", { name: "重试未完成的 1 份" }).click();
+  await expect(dialog.getByRole("status")).toHaveText("已删除 2 份资料。");
+  expect(attempts).toEqual({ "demo-1": 1, "demo-2": 2 });
+});
+
+for (const status of [429, 503]) {
+  test(`batch deletion stops later requests after HTTP ${status}`, async ({
+    page,
+  }) => {
+    await mock(page);
+    let count = 0;
+    await page.route("**/api/v2/materials/*", async (route) => {
+      if (route.request().method() !== "DELETE") return route.fallback();
+      count++;
+      return route.fulfill({
+        status,
+        json: { error: { code: "BUSY", message: "稍后重试", retryable: true } },
+      });
+    });
+    await page.goto("/library");
+    await page.getByRole("checkbox", { name: "选择当前结果" }).check();
+    await page.getByRole("button", { name: "批量删除", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "批量删除资料" });
+    await dialog.getByRole("button", { name: "确认删除 2 份资料" }).click();
+    await expect(dialog.getByRole("status")).toContainText(
+      "已删除 0 份资料，2 份未完成",
+    );
+    await expect(dialog).toContainText("未处理：尚未处理，可稍后重试");
+    expect(count).toBe(1);
+  });
+}
+
+test("batch deletion can stop after its current request", async ({ page }) => {
+  await mock(page);
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let count = 0;
+  await page.route("**/api/v2/materials/*", async (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    count++;
+    await pending;
+    return route.fallback();
+  });
+  await page.goto("/library");
+  await page.getByRole("checkbox", { name: "选择当前结果" }).check();
+  await page.getByRole("button", { name: "批量删除", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "批量删除资料" });
+  await dialog.getByRole("button", { name: "确认删除 2 份资料" }).click();
+  await expect.poll(() => count).toBe(1);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "停止后续删除" }).click();
+  release();
+  await expect(dialog.getByRole("status")).toContainText(
+    "已删除 1 份资料，1 份未完成",
+  );
+  expect(count).toBe(1);
+});
+
+test("batch deletion stops on account changes and clears old filenames", async ({
+  page,
+}) => {
+  await mock(page);
+  let count = 0;
+  await page.route("**/api/v2/materials/*", async (route) => {
+    if (route.request().method() !== "DELETE") return route.fallback();
+    count++;
+    return route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: "ACCOUNT_CHANGED",
+          message: "账号已切换",
+          retryable: false,
+        },
+      },
+    });
+  });
+  await page.goto("/library");
+  await page.getByRole("checkbox", { name: "选择当前结果" }).check();
+  await page.getByRole("button", { name: "批量删除", exact: true }).click();
+  await page.getByRole("button", { name: "确认删除 2 份资料" }).click();
+  await expect(
+    page.getByRole("heading", { name: "请重新进入学习应用" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Python 基础学习笔记.md", { exact: true }),
+  ).toHaveCount(0);
+  expect(count).toBe(1);
+});
+
+test("batch deletion caps each confirmed operation at 50 files", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.route("**/api/v2/projects/*/materials", (route) =>
+    route.fulfill({
+      json: {
+        items: Array.from({ length: 51 }, (_, i) => ({
+          fileId: `file-${i}`,
+          name: `资料${i}.txt`,
+          sizeBytes: 100,
+          createdAt: "2026-11-17T00:00:00Z",
+          sha256: "fixture",
+        })),
+      },
+    }),
+  );
+  await page.goto("/library");
+  await page.getByRole("checkbox", { name: "选择当前结果" }).check();
+  await expect(
+    page.getByRole("button", { name: "批量删除", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("每批最多删除 50 份资料，请减少选择。"),
+  ).toBeVisible();
+});
+
+test("identity contract rejects malformed accounts before loading business data", async ({
+  page,
+}) => {
+  await mock(page);
+  let business = 0;
+  await page.route("**/api/v2/**", async (route) => {
+    if (route.request().url().endsWith("/me"))
+      return route.fulfill({
+        json: { userId: "", displayName: "学习者", capabilities: {} },
+      });
+    business++;
+    return route.fallback();
+  });
+  await page.goto("/library");
+  await expect(
+    page.getByRole("heading", { name: "请重新进入学习应用" }),
+  ).toBeVisible();
+  await expect(page.getByRole("alert")).toContainText("账号信息格式不正确");
+  expect(business).toBe(0);
+});
+
+test("identity contract clears ready data when account renewal becomes malformed", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.goto("/library");
+  await expect(page.locator(".file-row")).toHaveCount(2);
+  await page.route("**/api/v2/me", (route) =>
+    route.fulfill({
+      json: {
+        userId: "demo-user",
+        displayName: "学习者",
+        capabilities: { chat: "true" },
+      },
+    }),
+  );
+  await page.evaluate(() =>
+    document.dispatchEvent(new Event("visibilitychange")),
+  );
+  await expect(
+    page.getByRole("heading", { name: "请重新进入学习应用" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Python 基础学习笔记.md", { exact: true }),
+  ).toHaveCount(0);
+});
+
+async function mockPdf(page: Page, sizeBytes = 4096) {
+  await mock(page);
+  await page.route("**/api/v2/projects/*/materials", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            fileId: "pdf-first",
+            name: "课程原件.pdf",
+            sizeBytes,
+            createdAt: "2026-11-17T00:00:00Z",
+            sha256: "fixture",
+          },
+          {
+            fileId: "demo-1",
+            name: "第10课.md",
+            sizeBytes: 100,
+            createdAt: "2026-11-15T00:00:00Z",
+            sha256: "fixture",
+          },
+          {
+            fileId: "demo-2",
+            name: "第2课.txt",
+            sizeBytes: 200,
+            createdAt: "2026-11-16T00:00:00Z",
+            sha256: "fixture",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/v2/materials/pdf-first/preview", (route) =>
+    route.fulfill({
+      json: {
+        fileId: "pdf-first",
+        name: "课程原件.pdf",
+        text: "可复制的 PDF 提取文字。",
+        truncated: false,
+      },
+    }),
+  );
+  await page.route("**/api/v2/materials/pdf-first/download", (route) =>
+    route.fulfill({ contentType: "application/pdf", body: samplePdf() }),
+  );
+}
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"]) {
+    test(`PDF original renders, pages and zooms at ${width}px / ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("learn.theme", theme),
+        theme,
+      );
+      await mockPdf(page);
+      const errors: string[] = [];
+      const external: string[] = [];
+      let dialogs = 0;
+      let downloads = 0;
+      page.on("pageerror", (error) => errors.push(error.message));
+      page.on("request", (req) => {
+        if (!req.url().startsWith("http://127.0.0.1:"))
+          external.push(req.url());
+        if (req.url().endsWith("/pdf-first/download")) downloads++;
+      });
+      page.on("dialog", (dialog) => {
+        dialogs++;
+        void dialog.dismiss();
+      });
+      await page.goto("/library");
+      await page
+        .locator(".file-row")
+        .filter({ hasText: "课程原件.pdf" })
+        .getByRole("button", { name: "查看", exact: true })
+        .click();
+      const dialog = page.getByRole("dialog", { name: "课程原件.pdf" });
+      await expect(dialog).toContainText("可复制的 PDF 提取文字。");
+      expect(downloads).toBe(0);
+      await dialog
+        .getByRole("button", { name: "PDF 原件", exact: true })
+        .click();
+      await expect(dialog.locator(".pdf-canvas-scroll")).toHaveAttribute(
+        "aria-busy",
+        "false",
+      );
+      const canvas = dialog.getByRole("img", { name: "课程原件.pdf，第 1 页" });
+      await expect(canvas).toBeVisible();
+      const originalWidth = await canvas.evaluate(
+        (element) => (element as HTMLCanvasElement).width,
+      );
+      expect(originalWidth).toBeGreaterThan(100);
+      expect(
+        await canvas.evaluate((element) => {
+          const c = element as HTMLCanvasElement;
+          const pixel = c
+            .getContext("2d")!
+            .getImageData(
+              Math.floor(c.width / 2),
+              Math.floor(c.height / 4),
+              1,
+              1,
+            ).data;
+          return pixel[1] > pixel[0] && pixel[1] > pixel[2];
+        }),
+      ).toBe(true);
+      await dialog.getByRole("button", { name: "下一页", exact: true }).click();
+      await expect(
+        dialog.getByRole("img", { name: "课程原件.pdf，第 2 页" }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole("button", { name: "下一页", exact: true }),
+      ).toBeDisabled();
+      await dialog.getByRole("button", { name: "放大 PDF" }).click();
+      await expect(dialog.locator(".pdf-toolbar")).toContainText("125%");
+      await expect(dialog.locator(".pdf-canvas-scroll")).toHaveAttribute(
+        "aria-busy",
+        "false",
+      );
+      await dialog
+        .getByRole("button", { name: "适应宽度", exact: true })
+        .click();
+      await dialog.getByRole("spinbutton", { name: "PDF 页码" }).fill("1");
+      await dialog.getByRole("button", { name: "跳转", exact: true }).click();
+      await expect(
+        dialog.getByRole("img", { name: "课程原件.pdf，第 1 页" }),
+      ).toBeVisible();
+      await expect(
+        dialog.getByRole("button", { name: "上一页", exact: true }),
+      ).toBeDisabled();
+      await expect(dialog.locator(".pdf-canvas-scroll")).toHaveAttribute(
+        "aria-busy",
+        "false",
+      );
+      await expect
+        .poll(() =>
+          canvas.evaluate((element) => {
+            const c = element as HTMLCanvasElement;
+            const pixel = c
+              .getContext("2d")!
+              .getImageData(
+                Math.floor(c.width / 2),
+                Math.floor(c.height / 4),
+                1,
+                1,
+              ).data;
+            return pixel[1] > pixel[0] && pixel[1] > pixel[2];
+          }),
+        )
+        .toBe(true);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        )
+        .toBe(true);
+      await page.screenshot({ path: testInfo.outputPath("pdf-preview.png") });
+      const download = page.waitForEvent("download");
+      await dialog
+        .getByRole("button", { name: "下载原件", exact: true })
+        .click();
+      expect((await download).suggestedFilename()).toBe("课程原件.pdf");
+      await dialog
+        .getByRole("button", { name: "提取文字", exact: true })
+        .click();
+      await expect(dialog.locator(".material-preview-text")).toContainText(
+        "可复制的 PDF",
+      );
+      await expect(dialog.locator("canvas")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+      expect(errors).toEqual([]);
+      expect(external).toEqual([]);
+      expect(dialogs).toBe(0);
+    });
+  }
+}
+
+test("PDF errors retry safely and oversized files keep the extracted text available", async ({
+  page,
+}) => {
+  await mockPdf(page);
+  let calls = 0;
+  let corrupt = true;
+  await page.route("**/api/v2/materials/pdf-first/download", (route) => {
+    calls++;
+    return route.fulfill({
+      contentType: "application/pdf",
+      body: corrupt ? Buffer.from("not a PDF") : samplePdf(),
+    });
+  });
+  await page.goto("/library");
+  await page
+    .locator(".file-row")
+    .filter({ hasText: "课程原件.pdf" })
+    .getByRole("button", { name: "查看", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "课程原件.pdf" });
+  await dialog.getByRole("button", { name: "PDF 原件", exact: true }).click();
+  await expect(dialog).toContainText("PDF 原件暂时无法预览");
+  const beforeRetry = calls;
+  corrupt = false;
+  await dialog.getByRole("button", { name: "重试预览", exact: true }).click();
+  await expect(dialog.getByRole("img")).toBeVisible();
+  expect(calls).toBe(beforeRetry + 1);
+  await page.keyboard.press("Escape");
+  await mockPdf(page, 21 * 1024 * 1024);
+  let oversizedDownloads = 0;
+  await page.route("**/api/v2/materials/pdf-first/download", (route) => {
+    oversizedDownloads++;
+    return route.fulfill({ contentType: "application/pdf", body: samplePdf() });
+  });
+  await page.reload();
+  await page
+    .locator(".file-row")
+    .filter({ hasText: "课程原件.pdf" })
+    .getByRole("button", { name: "查看", exact: true })
+    .click();
+  await dialog.getByRole("button", { name: "PDF 原件", exact: true }).click();
+  await expect(dialog).toContainText("20 MB 以内");
+  expect(oversizedDownloads).toBe(0);
+  await dialog.getByRole("button", { name: "提取文字", exact: true }).click();
+  await expect(dialog.locator(".material-preview-text")).toContainText(
+    "可复制的 PDF",
+  );
+});
+
+test("PDF page count limit preserves the text fallback", async ({ page }) => {
+  await mockPdf(page);
+  await page.route("**/api/v2/materials/pdf-first/download", (route) =>
+    route.fulfill({ contentType: "application/pdf", body: samplePdf(201) }),
+  );
+  await page.goto("/library");
+  await page
+    .locator(".file-row")
+    .filter({ hasText: "课程原件.pdf" })
+    .getByRole("button", { name: "查看", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "课程原件.pdf" });
+  await dialog.getByRole("button", { name: "PDF 原件", exact: true }).click();
+  await expect(dialog).toContainText("最多支持 200 页");
+  await expect(dialog.locator("canvas")).toHaveCount(0);
+  await dialog.getByRole("button", { name: "提取文字", exact: true }).click();
+  await expect(dialog.locator(".material-preview-text")).toContainText(
+    "可复制的 PDF",
+  );
+});
+
+test("closing a PDF preview aborts its pending file request", async ({
+  page,
+}) => {
+  await mockPdf(page);
+  let finish!: () => void;
+  await page.route("**/api/v2/materials/pdf-first/download", async (route) => {
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    await route.fulfill({ contentType: "application/pdf", body: samplePdf() });
+  });
+  await page.goto("/library");
+  await page
+    .locator(".file-row")
+    .filter({ hasText: "课程原件.pdf" })
+    .getByRole("button", { name: "查看", exact: true })
+    .click();
+  await page.getByRole("button", { name: "PDF 原件", exact: true }).click();
+  await expect.poll(() => !!finish).toBe(true);
+  const cancelled = page.waitForEvent("requestfailed", (req) =>
+    req.url().endsWith("/pdf-first/download"),
+  );
+  await page.keyboard.press("Escape");
+  await cancelled;
+  finish();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+});
+
+for (const width of [390, 1440]) {
+  test(`library combines search, type filtering and sorting at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 960 });
+    await mockPdf(page);
+    await page.goto("/library");
+    await expect(page.locator(".file-name strong")).toHaveText([
+      "课程原件.pdf",
+      "第2课.txt",
+      "第10课.md",
+    ]);
+    await page.getByRole("combobox", { name: "资料排序" }).click();
+    await page.getByRole("option", { name: "名称顺序", exact: true }).click();
+    await expect(page.locator(".file-name strong")).toHaveText([
+      "第2课.txt",
+      "第10课.md",
+      "课程原件.pdf",
+    ]);
+    await page.getByRole("combobox", { name: "资料排序" }).click();
+    await page.getByRole("option", { name: "最早添加", exact: true }).click();
+    await expect(page.locator(".file-name strong")).toHaveText([
+      "第10课.md",
+      "第2课.txt",
+      "课程原件.pdf",
+    ]);
+    await page.getByRole("combobox", { name: "资料排序" }).click();
+    await page.getByRole("option", { name: "文件大小", exact: true }).click();
+    await expect(page.locator(".file-name strong")).toHaveText([
+      "课程原件.pdf",
+      "第2课.txt",
+      "第10课.md",
+    ]);
+    await page.getByRole("combobox", { name: "资料类型" }).click();
+    await page.getByRole("option", { name: "PDF", exact: true }).click();
+    await expect(page.locator(".file-row")).toHaveCount(1);
+    await expect(page.getByRole("status")).toContainText("显示 1 / 3 份资料");
+    await page.getByRole("searchbox", { name: "搜索资料" }).fill("不存在");
+    await expect(
+      page.getByText("没有找到匹配的资料。", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "清除筛选", exact: true }).click();
+    await expect(page.locator(".file-row")).toHaveCount(3);
+    await expect(page.getByRole("searchbox", { name: "搜索资料" })).toHaveValue(
+      "",
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
+  });
+}
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"]) {
+    test(`code highlighting and copy preserve source at ${width}px / ${theme}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript((theme) => {
+        localStorage.setItem("learn.theme", theme);
+        Object.defineProperty(navigator, "clipboard", {
+          configurable: true,
+          value: {
+            writeText: async (text: string) => {
+              document.documentElement.setAttribute("data-copied", text);
+            },
+          },
+        });
+      }, theme);
+      await mock(page);
+      await page.goto("/study?project=1&chapter=11");
+      await expect(page.locator(".code-block .hljs-string")).toContainText(
+        "Hello, learning!",
+      );
+      await page.getByRole("button", { name: "复制代码", exact: true }).click();
+      await expect(page.locator("html")).toHaveAttribute(
+        "data-copied",
+        "print('Hello, learning!')",
+      );
+      await expect(
+        page.getByRole("status").filter({ hasText: "已复制" }),
+      ).toBeVisible();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        )
+        .toBe(true);
+    });
+
+    test(`roadmap mindmap supports zoom, export and project changes at ${width}px / ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("learn.theme", theme),
+        theme,
+      );
+      await mock(page);
+      const external: string[] = [];
+      page.on("request", (request) => {
+        if (!request.url().startsWith("http://127.0.0.1:"))
+          external.push(request.url());
+      });
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto("/roadmap?project=1");
+      await page.getByRole("button", { name: "思维导图", exact: true }).click();
+      const map = page.getByRole("region", { name: "思维导图", exact: true });
+      await expect(map.getByRole("img")).toBeVisible();
+      await expect(map.locator("svg")).toContainText(
+        /认识 Python\s*与第一个程序/,
+      );
+      const transform = () =>
+        map.locator("svg > g").first().getAttribute("transform");
+      const initial = await transform();
+      await map.getByRole("button", { name: "放大导图" }).click();
+      await expect.poll(transform).not.toBe(initial);
+      await map.getByRole("button", { name: "缩小导图" }).click();
+      await map.getByRole("button", { name: "适应画布" }).click();
+      await map.getByText("查看文字大纲", { exact: true }).click();
+      await expect(map.locator(".mindmap-outline")).toContainText(
+        "A1 认识 Python 与第一个程序",
+      );
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        )
+        .toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath("mindmap.png"),
+        fullPage: true,
+      });
+      const downloaded = page.waitForEvent("download");
+      await page.getByRole("button", { name: "导出路线", exact: true }).click();
+      const file = await downloaded;
+      expect(file.suggestedFilename()).toBe("Python 从入门到实践-学习路线.md");
+      const contents = await readFile((await file.path())!, "utf8");
+      expect(contents).toContain("学会用 Python 解决日常的小问题");
+      expect(contents).toContain("A1 认识 Python 与第一个程序");
+      expect(contents).toContain("掌握度：100%");
+      expect(contents).toContain("不包含教材正文、笔记或完整账号数据");
+      expect(contents).not.toContain("Hello, learning!");
+      await page
+        .getByRole("button", { name: "收起思维导图", exact: true })
+        .click();
+      await expect(map).toHaveCount(0);
+      await expect(page.locator(".roadmap-list li")).toHaveCount(3);
+      await page.getByRole("combobox", { name: "当前学习计划" }).click();
+      await page.getByRole("option", { name: "读懂设计的基本语言" }).click();
+      await expect(page.locator(".roadmap-list li")).toHaveCount(1);
+      await expect(map).toHaveCount(0);
+      await page.getByRole("button", { name: "思维导图", exact: true }).click();
+      await expect(map.locator("svg")).toContainText("从留白开始理解版式");
+      await expect(map.locator("svg")).not.toContainText("认识 Python");
+      expect(errors).toEqual([]);
+      expect(external).toEqual([]);
+    });
+  }
+}
+
+test("mindmap code fences ignore active content and unknown languages remain readable", async ({
+  page,
+}) => {
+  const demo = await mock(page);
+  await page.route("**/projects/1/nodes", async (route) => {
+    const data = await (
+      await demo.handle(route.request().url(), { method: "GET" })
+    ).json();
+    data.items[0].description = [
+      "```markmap",
+      "# 安全导图",
+      "## [链接文字](javascript:alert(1))",
+      "## ![图片文字](https://untrusted.invalid/a.png)",
+      "## <img src=x onerror=alert(1)>普通文字",
+      "```",
+      "```unknown-language",
+      "raw <value> & text",
+      "```",
+    ].join("\n");
+    await route.fulfill({ json: data });
+  });
+  const external: string[] = [];
+  page.on("request", (request) => {
+    if (request.url().includes("untrusted.invalid"))
+      external.push(request.url());
+  });
+  await page.goto("/study?project=1&chapter=11");
+  await expect(page.locator(".code-block").last().locator("pre")).toHaveText(
+    "raw <value> & text\n",
+  );
+  await page.getByRole("button", { name: "查看思维导图", exact: true }).click();
+  const map = page.getByRole("region", { name: "思维导图", exact: true });
+  await expect(map.locator("svg")).toContainText("链接文字");
+  await expect(map.locator("svg")).toContainText("图片文字");
+  await expect(map.locator("img, a, script, foreignObject")).toHaveCount(0);
+  expect(external).toEqual([]);
+  await page.getByRole("button", { name: "查看源码", exact: true }).click();
+  await expect(map).toHaveCount(0);
+  await expect(
+    page.locator(".code-block").first().locator("pre"),
+  ).toContainText("# 安全导图");
+});
+
+test("empty roadmap disables mindmap and export and denied clipboard shows manual fallback", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    Object.defineProperty(navigator, "clipboard", {
+      value: {
+        writeText: async () => {
+          throw new Error("denied");
+        },
+      },
+    }),
+  );
+  await mock(page);
+  await page.route("**/projects/1/nodes", (route) =>
+    route.fulfill({ json: { items: [] } }),
+  );
+  await page.goto("/roadmap?project=1");
+  await expect(
+    page.getByRole("button", { name: "思维导图", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "导出路线", exact: true }),
+  ).toBeDisabled();
+  await page.unroute("**/projects/1/nodes");
+  await page.goto("/study?project=1&chapter=11");
+  await page.getByRole("button", { name: "复制代码", exact: true }).click();
+  await expect(page.getByText("复制失败，请选中代码手动复制")).toBeVisible();
+  await expect(page.locator(".code-block pre")).toContainText(
+    "Hello, learning!",
+  );
+});
 for (const width of [390, 1440])
   for (const theme of ["light", "dark"]) {
     test.describe(`${width}px / ${theme}`, () => {
@@ -106,6 +871,9 @@ test("workbench saves notes and project changes clear the previous draft", async
   await page.getByLabel("记下你的理解").fill("旧计划的草稿");
   await page.getByRole("combobox", { name: "当前学习计划" }).click();
   await page.getByRole("option", { name: "读懂设计的基本语言" }).click();
+  await page
+    .getByRole("button", { name: "放弃未保存内容", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "从留白开始理解版式" }),
   ).toBeVisible();

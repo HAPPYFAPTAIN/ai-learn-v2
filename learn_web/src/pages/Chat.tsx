@@ -7,6 +7,8 @@ import { generationStorageKey } from "../api/generation";
 import { watchJob } from "../api/jobs";
 import { useProject } from "../components/ProjectContext";
 import MaterialPreview from "../components/MaterialPreview";
+import { useDraftGuard } from "../components/DraftProtection";
+import WriteRecovery, { uncertainWrite } from "../components/WriteRecovery";
 import {
   AutoTextarea,
   Empty,
@@ -122,6 +124,7 @@ export function ChatRoom({
       void history.refetch();
     },
   });
+  useDraftGuard(coach ? "教练反馈" : "问答输入", !!draft, send.isPending);
   const pending =
     send.isPending ||
     (!!activeId &&
@@ -214,7 +217,8 @@ export function ChatRoom({
         className="chat-composer"
         onSubmit={(e) => {
           e.preventDefault();
-          if (draft.trim() && !pending) send.mutate();
+          if (draft.trim() && !pending && !uncertainWrite(send.error))
+            send.mutate();
         }}
       >
         <label htmlFor="question" className="sr-only">
@@ -278,12 +282,28 @@ export function ChatRoom({
           </span>
           <button
             className="primary"
-            disabled={!draft.trim() || pending || !history.data}
+            disabled={
+              !draft.trim() ||
+              pending ||
+              !history.data ||
+              uncertainWrite(send.error)
+            }
           >
             发送 <Icon name="arrow" />
           </button>
         </div>
         <ErrorNotice error={send.error} />
+        <WriteRecovery
+          error={send.error}
+          onCheck={async () => {
+            const fresh = await history.refetch();
+            if (fresh.error) throw fresh.error;
+            return fresh.data?.activeJob
+              ? "已找到进行中的问答任务，请等待结果，不必再次发送。"
+              : "已更新问答历史，请核对本次问题和回答。同一内容重发仍使用原请求编号。";
+          }}
+          onAllowRetry={() => send.reset()}
+        />
       </form>
       {preview && (
         <MaterialPreview file={preview} onClose={() => setPreview(undefined)} />

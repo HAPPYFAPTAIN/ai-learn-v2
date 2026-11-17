@@ -1,4 +1,5 @@
 import { get, post, patch, request, type Model } from "./api/client";
+import { uploadMaterial } from "./api/upload";
 export { ApiError } from "./api/client";
 export type Project = Model<"ProjectOut">;
 export type KNode = Model<"NodeOut">;
@@ -23,6 +24,10 @@ export const endpoints = {
     get("/api/v2/projects/{project_id}/notes", { project_id: id }, signal),
   createNote: (id: number, body: Model<"NoteCreate">) =>
     post("/api/v2/projects/{project_id}/notes", body, { project_id: id }),
+  updateNote: (id: number, body: Model<"NoteUpdate">) =>
+    patch("/api/v2/notes/{note_id}", body, { note_id: id }),
+  deleteNote: (id: number) =>
+    request<void>(`/notes/${id}`, { method: "DELETE" }),
   tasks: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}/tasks", { project_id: id }, signal),
   patchTask: (id: number, body: Model<"TaskUpdate">) =>
@@ -34,6 +39,7 @@ export const endpoints = {
       signal,
       new URLSearchParams({ limit: "20" }),
     ),
+  createCard: (body: Model<"CardCreate">) => post("/api/v2/cards", body),
   review: (id: number, rating: number, expectedReps: number) =>
     post("/api/v2/review/{card_id}", { rating, expectedReps }, { card_id: id }),
   quizzes: (id: number, signal?: AbortSignal) =>
@@ -48,21 +54,14 @@ export const endpoints = {
     get("/api/v2/quizzes/{quiz_id}/grade-job", { quiz_id: id }, signal),
   materials: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}/materials", { project_id: id }, signal),
-  upload: (id: number, file: File) => {
-    const body = new FormData();
-    body.append("file", file);
-    return request<Model<"UploadOut">>(`/projects/${id}/materials`, {
-      method: "POST",
-      body,
-    });
-  },
+  upload: uploadMaterial,
   materialPreview: (id: string, signal?: AbortSignal) =>
     get("/api/v2/materials/{file_id}/preview", { file_id: id }, signal),
-  downloadMaterial: (id: string) =>
+  downloadMaterial: (id: string, signal?: AbortSignal) =>
     request<Blob>(
       `/materials/${encodeURIComponent(id)}/download`,
       {},
-      undefined,
+      signal,
       "blob",
     ),
   deleteMaterial: (id: string) =>

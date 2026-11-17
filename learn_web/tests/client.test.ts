@@ -10,6 +10,62 @@ beforeEach(() => {
   session.ready(me);
 });
 describe("account-bound client", () => {
+  it.each(["GET", "POST"])(
+    "classifies a lost %s response without repeating the request",
+    async (method) => {
+      const fetcher = vi.fn(async () => {
+        throw new TypeError("Failed to fetch");
+      });
+      setTransport(fetcher);
+      await expect(request("/cards", { method })).rejects.toMatchObject({
+        code: "NETWORK_ERROR",
+        outcomeUnknown: method === "POST",
+      });
+      expect(fetcher).toHaveBeenCalledTimes(1);
+    },
+  );
+  it("distinguishes timeout from caller cancellation and preserves uncertain write status", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetcher = vi.fn(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          }),
+      );
+      setTransport(fetcher);
+      const outcome = expect(
+        request("/cards", { method: "POST" }, undefined, "json", {
+          timeoutMs: 50,
+        }),
+      ).rejects.toMatchObject({
+        code: "REQUEST_TIMEOUT",
+        outcomeUnknown: true,
+      });
+      await vi.advanceTimersByTimeAsync(51);
+      await outcome;
+      expect(fetcher).toHaveBeenCalledTimes(1);
+      const caller = new AbortController();
+      const cancelled = expect(
+        request("/cards", { method: "POST" }, caller.signal),
+      ).rejects.toMatchObject({ name: "AbortError" });
+      caller.abort();
+      await cancelled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it.each([200, 502])(
+    "keeps ambiguous write outcome for a non-JSON response with status %i",
+    async (status) => {
+      setTransport(async () => new Response("<html>proxy</html>", { status }));
+      await expect(request("/cards", { method: "POST" })).rejects.toMatchObject(
+        { code: "INVALID_RESPONSE", outcomeUnknown: true },
+      );
+    },
+  );
   it("binds mutations to the page account and cookie, without ticket storage", async () => {
     const fetcher = vi.fn(async () => new Response('{"ok":true}'));
     setTransport(fetcher);

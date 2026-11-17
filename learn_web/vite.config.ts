@@ -4,6 +4,9 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig(({ mode }) => ({
   plugins: [react(), tailwindcss()],
+  // Prebundle the lazy PDF reader before navigation so its first import does
+  // not restart the dev page and discard an open preview or unsaved draft.
+  optimizeDeps: { include: ["pdfjs-dist/legacy/build/pdf.mjs"] },
   base:
     mode === "production"
       ? process.env.LEARN_WEB_BASE || "/official/learn-everything/app/"
