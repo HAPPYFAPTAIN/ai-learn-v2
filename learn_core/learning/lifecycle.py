@@ -11,6 +11,7 @@ from learn_core.db.models import (
     JobProgress, Kedge, KnodeCollection, LessonGate, Note, ProgressRecord,
     Quiz, QuizAttempt, QuizQuestion, Resource, ReviewLog, Task,
 )
+from learn_core.learning.progress import refresh_mastery
 
 
 def _related_quiz_ids(session: Session, node_ids: list[int]) -> list[int]:
@@ -49,6 +50,12 @@ def clear_learning_records(session: Session, *, project_id: int, node_ids: list[
     else:
         quiz_condition = Quiz.id.in_(_related_quiz_ids(session, node_ids))
     quiz_ids = list(session.scalars(select(Quiz.id).where(quiz_condition)))
+    surviving_assessed_nodes = sorted(set(session.scalars(
+        select(QuizQuestion.node_id).where(
+            QuizQuestion.quiz_id.in_(quiz_ids), QuizQuestion.node_id.is_not(None),
+            QuizQuestion.node_id.not_in(node_ids),
+        ),
+    ))) if not whole_project else []
     question_ids = select(QuizQuestion.id).where(QuizQuestion.quiz_id.in_(quiz_ids))
     session.execute(delete(QuizAttempt).where(QuizAttempt.question_id.in_(question_ids)))
     session.execute(delete(QuizQuestion).where(QuizQuestion.quiz_id.in_(quiz_ids)))
@@ -70,6 +77,8 @@ def clear_learning_records(session: Session, *, project_id: int, node_ids: list[
     session.execute(delete(Kedge).where(or_(Kedge.source_id.in_(node_ids), Kedge.target_id.in_(node_ids))))
     # Aggregated reports are stale after either kind of deletion.
     session.execute(delete(DailyReport).where(DailyReport.project_id == project_id))
+    for node_id in surviving_assessed_nodes:
+        refresh_mastery(session, node_id=node_id)
     if whole_project:
         session.execute(delete(AdaptSnapshot).where(AdaptSnapshot.project_id == project_id))
         session.execute(delete(KtemConversation).where(KtemConversation.id.in_(

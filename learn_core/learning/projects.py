@@ -6,10 +6,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from learn_core.db.models import Project
+from learn_core.db.models import CreationRequest, Project
 
 
 def create_project(
@@ -71,5 +71,8 @@ def delete_project(session: Session, project_id: int) -> bool:
         return False
     node_ids = list(session.scalars(select(Knode.id).where(Knode.project_id == project_id)))
     clear_learning_records(session, project_id=project_id, node_ids=node_ids, whole_project=True)
+    session.execute(update(CreationRequest).where(
+        CreationRequest.operation == "project", CreationRequest.resource_id == project_id,
+    ).values(response={}))
     session.delete(project)
     return True

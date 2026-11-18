@@ -29,6 +29,7 @@ EXPECTED = {
     ("GET", "/api/v2/me"),
     ("GET", "/api/v2/projects"),
     ("POST", "/api/v2/projects"),
+    ("GET", "/api/v2/projects/creation-requests/{request_id}"),
     ("GET", "/api/v2/projects/{project_id}"),
     ("PATCH", "/api/v2/projects/{project_id}"),
     ("DELETE", "/api/v2/projects/{project_id}"),

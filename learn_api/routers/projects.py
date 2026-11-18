@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ from learn_api.deps import get_session
 from learn_api.errors import ApiError
 from learn_core.db.models import Project
 from learn_core.learning import projects as service
+from learn_core.learning.creation import create_once, lookup_creation
 
 from learn_api.schemas import ProjectCreated, ProjectList, ProjectOut
 from learn_core.learning.generation import submit_generation, GenerationConflict
@@ -26,6 +28,7 @@ class ProjectCreate(BaseModel):
     goal: str = ""
     weekly_hours: float = Field(default=10.0, gt=0, le=168, alias="weeklyHours")
     generate_roadmap: bool = Field(default=False, alias="generateRoadmap")
+    request_id: UUID | None = Field(default=None, alias="requestId")
 
 
 class ProjectUpdate(BaseModel):
@@ -66,22 +69,31 @@ def list_projects(
 
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ProjectCreated)
 def create_project(payload: ProjectCreate, session: SessionDep) -> dict:
-    project = service.create_project(
-        session,
-        title=payload.title,
-        topic=payload.topic,
-        background=payload.background,
-        goal=payload.goal,
-        weekly_hours=payload.weekly_hours,
-    )
-    result = _serialize(project)
-    if payload.generate_roadmap:
-        try:
-            job = submit_generation(session, project_id=project.id, kind="roadmap")
-        except GenerationConflict as exc:
-            raise ApiError("CONFLICT", str(exc)) from exc
-        result["generation"] = {"jobId": job.job_id, "state": job.state}
-    return result
+    def create() -> dict:
+        project = service.create_project(
+            session,
+            title=payload.title,
+            topic=payload.topic,
+            background=payload.background,
+            goal=payload.goal,
+            weekly_hours=payload.weekly_hours,
+        )
+        result = _serialize(project)
+        if payload.generate_roadmap:
+            try:
+                job = submit_generation(session, project_id=project.id, kind="roadmap")
+            except GenerationConflict as exc:
+                raise ApiError("CONFLICT", str(exc)) from exc
+            result["generation"] = {"jobId": job.job_id, "state": job.state}
+        return result
+
+    return create_once(session, operation="project", request_id=payload.request_id,
+        payload=payload.model_dump(mode="json", exclude={"request_id"}), create=create)
+
+
+@router.get("/creation-requests/{request_id}", response_model=ProjectCreated | None)
+def get_project_creation(request_id: UUID, session: SessionDep) -> dict | None:
+    return lookup_creation(session, operation="project", request_id=request_id)
 
 
 @router.get("/{project_id}", response_model=ProjectOut)

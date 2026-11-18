@@ -1,5 +1,5 @@
 import { Input } from "../components/fields";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { endpoints } from "../api";
@@ -8,6 +8,9 @@ import { useProject } from "../components/ProjectContext";
 import { AutoTextarea, ErrorNotice, Icon } from "../components/ui";
 import ProjectCards from "../components/ProjectCards";
 import { generationStorageKey } from "../api/generation";
+import { creationRequest, type CreationIntent } from "../api/creation";
+import type { Model } from "../api/client";
+import WriteRecovery, { uncertainWrite } from "../components/WriteRecovery";
 export default function Home() {
   const { projects } = useProject();
   const navigate = useNavigate();
@@ -20,27 +23,42 @@ export default function Home() {
   const client = useQueryClient();
   const [goal, setGoal] = useState("");
   const [hours, setHours] = useState(5);
+  const intent = useRef<CreationIntent | undefined>(undefined);
+  async function openProject(p: Model<"ProjectCreated">) {
+    // Remember the original job before navigation; recovery never enqueues it again.
+    if (p.generation)
+      sessionStorage.setItem(generationStorageKey(p.id), p.generation.jobId);
+    await client.invalidateQueries({ queryKey: key("projects") });
+    intent.current = undefined;
+    navigate(`/study?project=${p.id}`, {
+      state: {
+        generationProjectId: p.id,
+        generationJobId: p.generation?.jobId,
+      },
+    });
+  }
   const create = useMutation({
     mutationFn: () =>
-      endpoints.createProject({
-        title: goal.trim().slice(0, 60),
-        goal: goal.trim(),
-        weeklyHours: hours,
-        generateRoadmap: !__DEMO__,
-      }),
-    onSuccess: async (p) => {
-      // Remember the already-created job before navigation; refresh only resumes watching.
-      if (p.generation)
-        sessionStorage.setItem(generationStorageKey(p.id), p.generation.jobId);
-      await client.invalidateQueries({ queryKey: key("projects") });
-      navigate(`/study?project=${p.id}`, {
-        state: {
-          generationProjectId: p.id,
-          generationJobId: p.generation?.jobId,
-        },
-      });
-    },
+      endpoints.createProject(
+        creationRequest(intent, {
+          title: goal.trim().slice(0, 60),
+          goal: goal.trim(),
+          weeklyHours: hours,
+          generateRoadmap: !__DEMO__,
+        }),
+      ),
+    onSuccess: openProject,
   });
+  const blocked = create.isPending || uncertainWrite(create.error);
+  async function checkCreated() {
+    if (!intent.current) return "本次创建尚未提交。";
+    const result = await endpoints.projectCreation(intent.current.requestId);
+    if (result) {
+      await openProject(result);
+      return "已找到本次计划，正在进入学习工作台。";
+    }
+    return "尚未查到本次创建结果。允许重试后，将继续本次创建。";
+  }
   return (
     <>
       <section className="home-hero">
@@ -88,7 +106,7 @@ export default function Home() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (goal.trim() && !create.isPending) create.mutate();
+            if (goal.trim() && !blocked) create.mutate();
           }}
         >
           <label htmlFor="goal-text" className="sr-only">
@@ -100,6 +118,7 @@ export default function Home() {
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
             maxLength={8000}
+            disabled={blocked}
             required
           />
           <div className="form-footer">
@@ -112,15 +131,13 @@ export default function Home() {
                 max={80}
                 step={0.5}
                 value={hours}
+                disabled={blocked}
                 onChange={(e) => setHours(Number(e.target.value))}
                 required
               />{" "}
               小时
             </label>
-            <button
-              className="primary"
-              disabled={!goal.trim() || create.isPending}
-            >
+            <button className="primary" disabled={!goal.trim() || blocked}>
               {create.isPending ? "正在创建…" : "创建学习计划"}
               <Icon name="arrow" />
             </button>
@@ -131,6 +148,11 @@ export default function Home() {
               : "创建后自动进入工作台并用当前主模型生成学习路线，将消耗模型额度。"}
           </p>
           <ErrorNotice error={create.error} />
+          <WriteRecovery
+            error={create.error}
+            onCheck={checkCreated}
+            onAllowRetry={() => create.reset()}
+          />
         </form>
       </section>
       <section className="section-space">
