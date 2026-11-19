@@ -1,0 +1,4 @@
+# 嵌入服务单独一份依赖：onnxruntime 体积大，API 进程不需要装。
+fastembed>=0.9,<1
+fastapi>=0.115
+uvicorn>=0.32

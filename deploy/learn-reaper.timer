@@ -1,0 +1,11 @@
+[Unit]
+Description=Scan for stalled learn-core jobs every 10 minutes
+
+[Timer]
+OnBootSec=3min
+OnCalendar=*:0/10
+Persistent=true
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

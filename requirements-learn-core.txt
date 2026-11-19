@@ -1,0 +1,17 @@
+# 阶段 0 核心依赖（API、数据访问、队列）。版本上限只在已知不兼容时收紧。
+sqlalchemy>=2.0.36,<2.2
+sqlmodel>=0.0.22
+alembic>=1.14
+psycopg[binary]>=3.2
+pgvector>=0.3.6
+pydantic-settings>=2.6
+# Transactional enqueues use the 3.11 SQL v1 schema, removed in 3.12.
+procrastinate==3.11.0
+fastapi>=0.115
+uvicorn>=0.32
+httpx>=0.28
+pytest>=8.3
+python-multipart>=0.0.20
+# Same pure-Python scheduler version as the existing Linux runtime.
+fsrs==6.3.1
+pypdf==7.1.0

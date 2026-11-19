@@ -12,6 +12,9 @@
 | [TEXT_POLISH.md](TEXT_POLISH.md) | 网页输入润色与过期结果保护 |
 | [ACTION_LEARNING.md](ACTION_LEARNING.md) | 课程行动、记录与兼容组件设计 |
 | [ACCOUNT_INTEGRATION.md](ACCOUNT_INTEGRATION.md) | 上游账户接口设计；官网实现以 OFFICIAL_API 为准 |
+| [local-ui-preview.md](learn-core/local-ui-preview.md) | 仅检查本地 React UI：上传进度、看板图表与课文批注 |
+| [frontend-backend-handoff.md](learn-core/frontend-backend-handoff.md) | React 前端与账号后端交接、当前接口契约和联调顺序 |
+| [ai-platform-backend-handoff.md](learn-core/ai-platform-backend-handoff.md) | 账号后端与 AI 平台接入、产品密钥和供应商 Key 的边界、网关联调 |
 | [CHAT_AUTO_LANGUAGE.md](CHAT_AUTO_LANGUAGE.md) | 对话语言策略 |
 | [CHAT_RETRIEVAL_STATUS.md](CHAT_RETRIEVAL_STATUS.md) | 检索状态反馈 |
 | [LEARNING_AGENT.md](LEARNING_AGENT.md) | 学习业务基础设计 |
