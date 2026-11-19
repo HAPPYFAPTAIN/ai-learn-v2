@@ -668,7 +668,7 @@ for (const width of [390, 1440]) {
       const map = page.getByRole("region", { name: "思维导图", exact: true });
       await expect(map.getByRole("img")).toBeVisible();
       await expect(map.locator("svg")).toContainText(
-        /认识 Python\s*与第一个程序/,
+        /认识\s*Python\s*与第一个程序/,
       );
       const transform = () =>
         map.locator("svg > g").first().getAttribute("transform");
@@ -713,7 +713,7 @@ for (const width of [390, 1440]) {
       await expect(map).toHaveCount(0);
       await page.getByRole("button", { name: "思维导图", exact: true }).click();
       await expect(map.locator("svg")).toContainText("从留白开始理解版式");
-      await expect(map.locator("svg")).not.toContainText("认识 Python");
+      await expect(map.locator("svg")).not.toContainText(/认识\s*Python/);
       expect(errors).toEqual([]);
       expect(external).toEqual([]);
     });
