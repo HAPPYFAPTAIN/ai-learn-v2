@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from learn_core.db.models import Card, Knode, ProgressRecord, QuizAttempt, QuizQuestion
+from learn_core.learning.ownership import require_project_node
 
 METRICS = {"minutes", "cards_reviewed", "quiz_correct", "quiz_total", "mastery"}
 
@@ -49,6 +50,7 @@ def record_progress(
 ) -> ProgressRecord:
     if metric not in METRICS:
         raise ValueError(f"unknown metric: {metric}")
+    require_project_node(session, project_id=project_id, node_id=node_id)
     row = ProgressRecord(
         project_id=project_id,
         node_id=node_id,
@@ -78,7 +80,10 @@ def project_summary(session: Session, *, project_id: int) -> dict:
         ).all()
     )
     total_nodes = sum(nodes_by_status.values())
-    mastered = nodes_by_status.get("done", 0) + nodes_by_status.get("mastered", 0)
+    completed = nodes_by_status.get("done", 0)
+    mastered = session.scalar(select(func.count()).select_from(Knode).where(
+        Knode.project_id == project_id, Knode.mastery >= 0.85,
+    )) or 0
 
     minutes = session.execute(
         select(func.coalesce(func.sum(ProgressRecord.value), 0.0)).where(
@@ -89,6 +94,8 @@ def project_summary(session: Session, *, project_id: int) -> dict:
     return {
         "totalNodes": total_nodes,
         "nodesByStatus": nodes_by_status,
+        "completedNodes": completed,
+        "completionRatio": round(completed / total_nodes, 4) if total_nodes else 0.0,
         "masteredNodes": mastered,
         "masteryRatio": round(mastered / total_nodes, 4) if total_nodes else 0.0,
         "studyMinutes": float(minutes),

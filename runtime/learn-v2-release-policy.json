@@ -1,0 +1,12 @@
+{
+  "trees": ["learn_api", "learn_core", "learn_embed", "migrations", "deploy/learn-v2"],
+  "files": [
+    "alembic.ini",
+    "requirements-learn-core.txt",
+    "requirements-learn-embed.txt",
+    "scripts/phase0/apply_queue_schema.py",
+    "deploy/learn-reaper.service",
+    "deploy/learn-reaper.timer"
+  ],
+  "exclude": []
+}

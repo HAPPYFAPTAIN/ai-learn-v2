@@ -3,7 +3,7 @@
 网关是官网那套 OpenAI 兼容服务。这里多做三件事：
 
 1. 每次调用先拿租约，避免单租户把并发吃满；
-2. 事件 id 由调用方给，传输失败用同一个 id 重发，业务重试用新 id；
+2. 事件 id 由调用方给，后台任务只重试确认未发送或明确限流的请求；
 3. 每次调用写一行 ``model_call``，和网关账单逐条对账。
 """
 
@@ -24,12 +24,14 @@ from learn_core.tenancy.context import current_tenant
 from learn_core.llm.lease import lease
 
 LANE_BY_PURPOSE = {"interactive": "interactive", "background": "background"}
+UNKNOWN_RESULT = "模型请求结果未确认，已停止自动重试。请核对任务与用量记录"
 
 
 class GatewayError(RuntimeError):
-    def __init__(self, status: int, message: str) -> None:
+    def __init__(self, status: int, message: str, *, retryable: bool = False) -> None:
         super().__init__(message)
         self.status = status
+        self.retryable = retryable
 
 
 @dataclass
@@ -46,13 +48,15 @@ class GatewayClient:
         base_url: str | None = None,
         product_key: str | None = None,
         transport: httpx.BaseTransport | None = None,
-        timeout: float = 120.0,
+        timeout: float | None = None,
     ) -> None:
         settings = get_settings()
         self._key = product_key if product_key is not None else settings.gateway_product_key
+        read_timeout = settings.gateway_read_timeout if timeout is None else timeout
+        self._detached_lease_ttl = timedelta(seconds=max(300, read_timeout + 60))
         self._client = httpx.Client(
             base_url=(base_url or settings.gateway_url).rstrip("/"),
-            timeout=timeout,
+            timeout=httpx.Timeout(read_timeout, connect=5, write=10, pool=5),
             transport=transport,
         )
 
@@ -97,8 +101,8 @@ class GatewayClient:
     ) -> ChatResult:
         """Worker calls: commit the lease before HTTP; record/release in a new transaction.
 
-        The caller must close its input transaction first. Transport retry reuses
-        exactly the same body and event id; task retry supplies a new event id.
+        The caller must close its input transaction first. Each invocation makes
+        one HTTP attempt; the task runner decides whether to retry.
         """
         from learn_core.llm.lease import acquire, release
 
@@ -112,7 +116,7 @@ class GatewayClient:
             selected = model or (setting.chat_model if setting else "")
             if not selected:
                 raise GatewayError(400, "尚未配置网关主模型")
-            holder = acquire(session, tenant_id=tenant_id, lane=lane, ttl=timedelta(minutes=5))
+            holder = acquire(session, tenant_id=tenant_id, lane=lane, ttl=self._detached_lease_ttl)
 
         payload: dict[str, Any] = {"messages": list(messages), "model": selected, **params}
         if "kimi" in selected.lower():
@@ -124,22 +128,32 @@ class GatewayClient:
         status = "transport_error"
         usage: dict = {}
         try:
-            for attempt in range(2):
-                try:
-                    response = self._client.post(
-                        "/chat/completions", json=payload,
-                        headers={"Authorization": f"Bearer {self._key}",
-                                 "X-Event-Id": event_id, "X-End-User": end_user,
-                                 "X-Product": "learn-everything"},
-                    )
-                    break
-                except httpx.TransportError as exc:
-                    if attempt:
-                        raise GatewayError(0, "模型网关连接失败或超时") from exc
+            try:
+                response = self._client.post(
+                    "/chat/completions", json=payload,
+                    headers={"Authorization": f"Bearer {self._key}",
+                             "X-Event-Id": event_id, "X-End-User": end_user,
+                             "X-Product": "learn-everything"},
+                )
+            except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as exc:
+                status = "connect_error"
+                raise GatewayError(0, "无法连接模型网关，请稍后重试", retryable=True) from exc
+            except httpx.ReadTimeout as exc:
+                status = "read_timeout"
+                raise GatewayError(504, f"等待模型响应超时。{UNKNOWN_RESULT}") from exc
+            except httpx.TransportError as exc:
+                raise GatewayError(502, f"模型请求传输中断。{UNKNOWN_RESULT}") from exc
             status = f"http_{response.status_code}"
             if response.status_code >= 400:
                 # Upstream bodies can contain credentials or internal URLs.
-                raise GatewayError(response.status_code, f"模型网关返回 HTTP {response.status_code}")
+                code = response.status_code
+                if code == 429:
+                    raise GatewayError(code, "模型网关限流，请稍后重试（HTTP 429）", retryable=True)
+                if code == 504:
+                    raise GatewayError(code, f"模型网关等待上游响应超时（HTTP 504）。{UNKNOWN_RESULT}")
+                if code >= 500:
+                    raise GatewayError(code, f"模型网关暂时不可用（HTTP {code}）。{UNKNOWN_RESULT}")
+                raise GatewayError(code, f"模型网关拒绝请求（HTTP {code}）")
             status = "invalid_output"
             try:
                 data = response.json()

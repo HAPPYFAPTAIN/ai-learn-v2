@@ -250,6 +250,7 @@ for (const width of [390, 1440]) {
         "demo-learner",
       );
       expect(route.request().postDataJSON()).toEqual({
+        requestId: expect.stringMatching(/^[\da-f-]{36}$/),
         projectId: 1,
         nodeId: 11,
         front: "手工问题：变量是什么？",

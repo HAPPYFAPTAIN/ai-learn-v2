@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from learn_api.deps import get_session
@@ -39,7 +39,11 @@ def build_report(project_id: int, session: SessionDep) -> dict:
 
 
 @router.get("/{project_id}/reports", response_model=Items[ReportOut])
-def list_reports(project_id: int, session: SessionDep) -> dict:
+def list_reports(project_id: int, session: SessionDep, limit: int = Query(default=30, ge=1, le=366),
+                 offset: int = Query(default=0, ge=0), fromDate: date | None = None, toDate: date | None = None) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
-    return {"items": [_payload(r) for r in service.list_reports(session, project_id=project_id)]}
+    if fromDate and toDate and fromDate > toDate:
+        raise ApiError("INVALID_ARGUMENT", "开始日期不能晚于结束日期")
+    return {"items": [_payload(r) for r in service.list_reports(session, project_id=project_id,
+        limit=limit, offset=offset, from_date=fromDate, to_date=toDate)]}

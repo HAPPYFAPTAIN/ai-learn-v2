@@ -53,14 +53,19 @@ def update_node(session: Session, node_id: int, **fields: object) -> Knode | Non
     node = session.scalar(select(Knode).where(Knode.id == node_id).with_for_update())
     if node is None:
         return None
-    allowed = {"title", "description", "stage", "est_hours", "difficulty", "mastery", "status"}
+    allowed = {"title", "description", "stage", "est_hours", "difficulty", "status"}
+    if set(fields) - allowed:
+        raise ValueError("field not writable")
+    if "status" in fields and fields["status"] not in {"pending", "learning", "reviewing", "done"}:
+        raise ValueError("status is not writable")
     for key, value in fields.items():
-        if key not in allowed:
-            raise ValueError(f"field not writable: {key}")
         setattr(node, key, value)
     if any(k in fields for k in ("title", "description", "stage", "est_hours", "difficulty")):
         node.content_version += 1
     session.flush()
+    if "status" in fields:
+        from learn_core.learning.progress import refresh_mastery
+        refresh_mastery(session, node_id=node_id)
     return node
 
 
@@ -68,5 +73,10 @@ def delete_node(session: Session, node_id: int) -> bool:
     node = session.get(Knode, node_id)
     if node is None:
         return False
+    from learn_core.learning.lifecycle import cancel_learning_jobs, clear_learning_records
+    cancel_learning_jobs(session, project_id=node.project_id, node_id=node_id)
+    if session.scalar(select(Project).where(Project.id == node.project_id).with_for_update()) is None:
+        return False
+    clear_learning_records(session, project_id=node.project_id, node_ids=[node_id], whole_project=False)
     session.delete(node)
     return True

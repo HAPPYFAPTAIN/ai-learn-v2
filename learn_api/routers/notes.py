@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, Field
@@ -12,6 +13,7 @@ from learn_api.deps import get_session
 from learn_api.errors import ApiError
 from learn_core.learning import notes as service
 from learn_core.learning import projects as project_service
+from learn_core.learning.creation import create_once
 
 from learn_api.schemas import Items, NoteOut, TaskOut
 
@@ -26,6 +28,7 @@ class NoteCreate(BaseModel):
     node_id: int = Field(alias="nodeId")
     content: str = Field(min_length=1)
     selection: str = ""
+    request_id: UUID | None = Field(default=None, alias="requestId")
 
 
 class NoteUpdate(BaseModel):
@@ -81,14 +84,10 @@ def _task(task) -> dict:
 def create_note(project_id: int, payload: NoteCreate, session: SessionDep) -> dict:
     if project_service.get_project(session, project_id) is None:
         raise ApiError("NOT_FOUND", "project not found")
-    note = service.create_note(
-        session,
-        project_id=project_id,
-        node_id=payload.node_id,
-        content=payload.content,
-        selection=payload.selection,
-    )
-    return _note(note)
+    return create_once(session, operation="note", request_id=payload.request_id,
+        payload={"projectId": project_id, **payload.model_dump(mode="json", exclude={"request_id"})},
+        create=lambda: _note(service.create_note(session, project_id=project_id,
+            node_id=payload.node_id, content=payload.content, selection=payload.selection)))
 
 
 @router.get("/projects/{project_id}/notes", response_model=Items[NoteOut])

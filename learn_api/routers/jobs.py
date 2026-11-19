@@ -36,7 +36,8 @@ def _serialize(row: JobProgress) -> dict:
         "kind": row.kind,
         "subject": row.subject,
         "state": row.state,
-        "progress": row.progress,
+        "progress": {key: value for key, value in row.progress.items()
+                     if key not in {"prepared", "gatewayCallPending"}},
         "error": row.error,
         "updatedAt": row.updated_at,
     }

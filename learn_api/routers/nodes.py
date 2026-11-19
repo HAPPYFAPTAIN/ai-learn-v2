@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
@@ -41,8 +41,7 @@ class NodeUpdate(BaseModel):
     stage: str | None = None
     est_hours: float | None = Field(default=None, gt=0, le=1000, alias="estHours")
     difficulty: float | None = Field(default=None, gt=0, le=10)
-    mastery: float | None = Field(default=None, ge=0, le=1)
-    status: str | None = None
+    status: Literal["pending", "learning", "reviewing", "done"] = Field(default="pending")
 
 
 def _serialize(node: Knode) -> dict:

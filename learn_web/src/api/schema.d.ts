@@ -245,6 +245,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/projects/creation-requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Project Creation */
+        get: operations["get_project_creation_api_v2_projects_creation_requests__request_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/projects/{project_id}": {
         parameters: {
             query?: never;
@@ -833,6 +850,8 @@ export interface components {
             nodeId?: number | null;
             /** Projectid */
             projectId?: number | null;
+            /** Requestid */
+            requestId?: string | null;
         };
         /** CardOut */
         CardOut: {
@@ -1159,12 +1178,14 @@ export interface components {
             difficulty?: number | null;
             /** Esthours */
             estHours?: number | null;
-            /** Mastery */
-            mastery?: number | null;
             /** Stage */
             stage?: string | null;
-            /** Status */
-            status?: string | null;
+            /**
+             * Status
+             * @default pending
+             * @enum {string}
+             */
+            status?: "pending" | "learning" | "reviewing" | "done";
             /** Title */
             title?: string | null;
         };
@@ -1174,6 +1195,8 @@ export interface components {
             content: string;
             /** Nodeid */
             nodeId: number;
+            /** Requestid */
+            requestId?: string | null;
             /**
              * Selection
              * @default
@@ -1288,6 +1311,8 @@ export interface components {
              * @default
              */
             goal?: string;
+            /** Requestid */
+            requestId?: string | null;
             /** Title */
             title: string;
             /**
@@ -1504,7 +1529,7 @@ export interface components {
         /** ReviewRequest */
         ReviewRequest: {
             /** Expectedreps */
-            expectedReps?: number | null;
+            expectedReps: number;
             /** Rating */
             rating: number;
         };
@@ -1534,6 +1559,10 @@ export interface components {
         };
         /** SummaryOut */
         SummaryOut: {
+            /** Completednodes */
+            completedNodes: number;
+            /** Completionratio */
+            completionRatio: number;
             /** Masterednodes */
             masteredNodes: number;
             /** Masteryratio */
@@ -2132,6 +2161,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProjectCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_creation_api_v2_projects_creation_requests__request_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProjectCreated"] | null;
                 };
             };
             /** @description Validation Error */
@@ -2885,7 +2945,12 @@ export interface operations {
     };
     list_reports_api_v2_projects__project_id__reports_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+                fromDate?: string | null;
+                toDate?: string | null;
+            };
             header?: never;
             path: {
                 project_id: number;

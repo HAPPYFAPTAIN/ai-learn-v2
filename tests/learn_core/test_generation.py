@@ -173,27 +173,73 @@ def test_inflight_edit_discards_result_and_other_tenant_cannot_generate(tenant, 
 
 
 @db_test
-def test_transport_replay_same_event_but_business_retry_new_event(tenant, monkeypatch):
+@pytest.mark.parametrize("failure", [httpx.ConnectTimeout, 429])
+def test_only_safe_failures_are_queued_for_retry(tenant, monkeypatch, failure):
     jid = enqueue(tenant)
     seen = []
     def respond(request):
         seen.append(request.headers["X-Event-Id"])
-        if len(seen) == 1:
-            raise httpx.ReadTimeout("simulated disconnect")
-        return httpx.Response(503, text="provider secret must not reach UI")
+        if failure == 429:
+            return httpx.Response(429, text="provider secret must not reach UI")
+        raise failure("simulated connect timeout")
     mock_gateway(monkeypatch, handler=respond)
     with pytest.raises(generation.RetryableGenerationError) as exc:
         run_generation(tenant=str(tenant[0]), job_id=jid)
     assert exc.value.delay == 10
-    assert seen[0] == seen[1]
+    assert len(seen) == 1
     assert read_job(tenant, jid)[0] == "queued"
     mock_gateway(monkeypatch, json.dumps(ROADMAP))
     run_generation(tenant=str(tenant[0]), job_id=jid, attempt=1)
     assert read_job(tenant, jid)[0] == "done"
     with tenant_context(tenant[0]), session_scope() as session:
         calls = list(session.scalars(select(ModelCall).order_by(ModelCall.id)))
-        assert calls[0].event_id != calls[1].event_id
-        assert calls[0].status == "http_503" and calls[1].status == "ok"
+        assert (calls[0].event_id != calls[1].event_id) == (failure == 429)
+        assert calls[0].status == ("http_429" if failure == 429 else "connect_error")
+        assert calls[1].status == "ok"
+
+
+@db_test
+@pytest.mark.parametrize(("failure", "hint", "call_status"), [
+    (httpx.ReadTimeout, "等待模型响应超时", "read_timeout"),
+    (httpx.WriteError, "传输中断", "transport_error"),
+    (502, "HTTP 502", "http_502"),
+    (503, "HTTP 503", "http_503"),
+    (504, "等待上游响应超时", "http_504"),
+])
+def test_uncertain_gateway_result_is_terminal(tenant, monkeypatch, failure, hint, call_status):
+    jid = enqueue(tenant)
+
+    def respond(request):
+        if isinstance(failure, int):
+            return httpx.Response(failure, text="private-token")
+        raise failure("private-token")
+
+    mock_gateway(monkeypatch, handler=respond)
+    run_generation(tenant=str(tenant[0]), job_id=jid)
+    run_generation(tenant=str(tenant[0]), job_id=jid, attempt=1)
+    state, _, error = read_job(tenant, jid)
+    assert state == "failed" and hint in error and "结果未确认" in error
+    assert "private-token" not in error
+    with tenant_context(tenant[0]), session_scope() as session:
+        assert session.scalars(select(ModelCall.status)).all() == [call_status]
+        assert session.scalar(text("SELECT count(*) FROM llm_lease")) == 0
+
+
+@db_test
+def test_recovered_in_flight_request_is_not_sent_again(tenant, monkeypatch):
+    jid = enqueue(tenant)
+
+    def interrupt(request):
+        raise SystemExit("worker stopped mid-request")
+
+    mock_gateway(monkeypatch, handler=interrupt)
+    with pytest.raises(SystemExit):
+        run_generation(tenant=str(tenant[0]), job_id=jid)
+    assert read_job(tenant, jid)[0] == "running"
+    monkeypatch.setattr(generation, "GatewayClient", lambda: pytest.fail("replayed paid request"))
+    run_generation(tenant=str(tenant[0]), job_id=jid, attempt=1)
+    state, _, error = read_job(tenant, jid)
+    assert state == "failed" and "结果未确认" in error
 
 
 @db_test

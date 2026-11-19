@@ -113,7 +113,7 @@ test("batch deletion retries only unfinished files", async ({ page }) => {
   expect(attempts).toEqual({ "demo-1": 1, "demo-2": 2 });
 });
 
-for (const status of [429, 503]) {
+for (const status of [0, 429, 503]) {
   test(`batch deletion stops later requests after HTTP ${status}`, async ({
     page,
   }) => {
@@ -122,6 +122,7 @@ for (const status of [429, 503]) {
     await page.route("**/api/v2/materials/*", async (route) => {
       if (route.request().method() !== "DELETE") return route.fallback();
       count++;
+      if (status === 0) return route.abort("failed");
       return route.fulfill({
         status,
         json: { error: { code: "BUSY", message: "稍后重试", retryable: true } },
@@ -667,7 +668,7 @@ for (const width of [390, 1440]) {
       const map = page.getByRole("region", { name: "思维导图", exact: true });
       await expect(map.getByRole("img")).toBeVisible();
       await expect(map.locator("svg")).toContainText(
-        /认识 Python\s*与第一个程序/,
+        /认识\s*Python\s*与第一个程序/,
       );
       const transform = () =>
         map.locator("svg > g").first().getAttribute("transform");
@@ -712,7 +713,7 @@ for (const width of [390, 1440]) {
       await expect(map).toHaveCount(0);
       await page.getByRole("button", { name: "思维导图", exact: true }).click();
       await expect(map.locator("svg")).toContainText("从留白开始理解版式");
-      await expect(map.locator("svg")).not.toContainText("认识 Python");
+      await expect(map.locator("svg")).not.toContainText(/认识\s*Python/);
       expect(errors).toEqual([]);
       expect(external).toEqual([]);
     });
@@ -882,6 +883,31 @@ test("workbench saves notes and project changes clear the previous draft", async
   await page.getByRole("tab", { name: "笔记" }).click();
   await expect(page.getByLabel("记下你的理解")).toHaveValue("");
 });
+test("reading completion preserves mastery and uses completion statistics", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.goto("/study?project=1&chapter=12");
+  const update = page.waitForRequest(
+    (request) =>
+      request.method() === "PATCH" &&
+      request.url().endsWith("/api/v2/nodes/12"),
+  );
+  await page.getByRole("button", { name: "标记为已学完", exact: true }).click();
+  expect((await update).postDataJSON()).toEqual({ status: "done" });
+  await expect(
+    page.getByRole("button", { name: "已完成学习", exact: true }),
+  ).toBeDisabled();
+  await page.getByRole("link", { name: "学习看板", exact: true }).click();
+  await expect(
+    page.locator(".stat-card").filter({ hasText: "已完成章节" }),
+  ).toContainText("2");
+  await page.reload();
+  await expect(
+    page.locator(".stat-card").filter({ hasText: "已完成章节" }),
+  ).toContainText("2");
+});
+
 test("review requires revealing the answer and advances after rating", async ({
   page,
 }) => {

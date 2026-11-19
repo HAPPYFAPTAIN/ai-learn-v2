@@ -12,6 +12,10 @@ export const endpoints = {
     get("/api/v2/projects", undefined, signal),
   createProject: (body: Model<"ProjectCreate">) =>
     post("/api/v2/projects", body),
+  projectCreation: (requestId: string) =>
+    get("/api/v2/projects/creation-requests/{request_id}", {
+      request_id: requestId,
+    }),
   project: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}", { project_id: id }, signal),
   nodes: (id: number, signal?: AbortSignal) =>

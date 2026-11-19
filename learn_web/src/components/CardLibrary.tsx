@@ -9,6 +9,7 @@ import Dialog from "./Dialog";
 import { AutoTextarea, ErrorNotice, QueryState } from "./ui";
 import { useDraftGuard } from "./DraftProtection";
 import WriteRecovery, { uncertainWrite } from "./WriteRecovery";
+import { creationRequest, type CreationIntent } from "../api/creation";
 
 export default function CardLibrary({
   projectId,
@@ -27,6 +28,7 @@ export default function CardLibrary({
   const [node, setNode] = useState("none");
   const [notice, setNotice] = useState("");
   const client = useQueryClient();
+  const intent = useRef<CreationIntent | undefined>(undefined);
   const sent = useRef<
     | { ids: number[]; front: string; back: string; node: number | null }
     | undefined
@@ -43,15 +45,18 @@ export default function CardLibrary({
         back: back.trim(),
         node: node === "none" ? null : Number(node),
       };
-      return endpoints.createCard({
-        projectId,
-        nodeId: node === "none" ? null : Number(node),
-        front: front.trim(),
-        back: back.trim(),
-        cardType: "basic",
-      });
+      return endpoints.createCard(
+        creationRequest(intent, {
+          projectId,
+          nodeId: node === "none" ? null : Number(node),
+          front: front.trim(),
+          back: back.trim(),
+          cardType: "basic",
+        }),
+      );
     },
     onSuccess: () => {
+      intent.current = undefined;
       setOpen(false);
       setFront("");
       setBack("");
@@ -67,6 +72,7 @@ export default function CardLibrary({
   );
   const close = () =>
     closeDraft(() => {
+      intent.current = undefined;
       setOpen(false);
       setFront("");
       setBack("");
@@ -86,6 +92,7 @@ export default function CardLibrary({
         card.nodeId === value.node,
     );
     if (matches.length === 1) {
+      intent.current = undefined;
       if (
         front.trim() === value?.front &&
         back.trim() === value.back &&

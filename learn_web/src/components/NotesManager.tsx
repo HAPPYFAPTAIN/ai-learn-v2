@@ -11,11 +11,13 @@ import { AutoTextarea, ErrorNotice, QueryState } from "./ui";
 import { notesMarkdown, saveMarkdown } from "./contentExport";
 import { useDraftGuard } from "./DraftProtection";
 import WriteRecovery, { uncertainWrite } from "./WriteRecovery";
+import { creationRequest, type CreationIntent } from "../api/creation";
 const Markdown = lazy(() => import("./Markdown"));
 export default function NotesManager({ node }: { node: KNode }) {
   const { id, project } = useProject();
   const client = useQueryClient();
   const createForm = useRef<HTMLFormElement>(null);
+  const intent = useRef<CreationIntent | undefined>(undefined);
   const [content, setContent] = useState("");
   const [search, setSearch] = useState("");
   const [chapter, setChapter] = useState(String(node.id));
@@ -48,12 +50,16 @@ export default function NotesManager({ node }: { node: KNode }) {
         content: content.trim(),
         known: !!notes.data,
       };
-      return endpoints.createNote(id, {
-        nodeId: node.id,
-        content: content.trim(),
-      });
+      return endpoints.createNote(
+        id,
+        creationRequest(intent, {
+          nodeId: node.id,
+          content: content.trim(),
+        }),
+      );
     },
     onSuccess: () => {
+      intent.current = undefined;
       setContent("");
       createForm.current?.reset();
       setNotice("笔记已保存。");
@@ -107,6 +113,7 @@ export default function NotesManager({ node }: { node: KNode }) {
         if (draft.trim() === sent.content) setEditing(undefined);
         edit.reset();
       } else {
+        intent.current = undefined;
         if (content.trim() === sent.content) {
           setContent("");
           createForm.current?.reset();

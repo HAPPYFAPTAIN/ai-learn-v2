@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -47,6 +48,7 @@ class Settings(BaseSettings):
     # 官网模型网关
     gateway_url: str = "http://127.0.0.1:18040/v1"
     gateway_product_key: str = ""
+    gateway_read_timeout: float = Field(default=120, gt=0, le=600)
     gateway_concurrency: int = 16
     tenant_interactive_leases: int = 2
     background_llm_concurrency: int = 6

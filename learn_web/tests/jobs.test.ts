@@ -104,3 +104,48 @@ it("ignores progress from a different job and closes malformed streams", async (
   expect(fail).toHaveBeenCalled();
   expect(source.close).toHaveBeenCalledTimes(1);
 });
+
+it("survives offline preflight and receives progress after reconnection", async () => {
+  const transport = vi
+    .fn()
+    .mockRejectedValueOnce(new TypeError("offline"))
+    .mockResolvedValue(new Response(JSON.stringify(job)));
+  setTransport(transport);
+  const update = vi.fn(),
+    fail = vi.fn();
+  watchJob("j1", update, vi.fn(), fail);
+  await flush();
+  expect(fail).not.toHaveBeenCalled();
+  expect(source.close).not.toHaveBeenCalled();
+  source.onopen!.call(source as EventSource, new Event("open"));
+  target.dispatchEvent(
+    new MessageEvent("progress", {
+      data: JSON.stringify({ ...job, state: "done" }),
+    }),
+  );
+  expect(update).toHaveBeenLastCalledWith({ ...job, state: "done" });
+  expect(source.close).toHaveBeenCalledTimes(1);
+});
+
+it("keeps fallback polling through a temporary network failure", async () => {
+  const transport = vi
+    .fn()
+    .mockResolvedValueOnce(new Response(JSON.stringify(job)))
+    .mockRejectedValueOnce(new TypeError("offline"))
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ ...job, state: "done" })),
+    );
+  setTransport(transport);
+  const update = vi.fn(),
+    fail = vi.fn();
+  watchJob("j1", update, vi.fn(), fail);
+  await flush();
+  source.onerror!.call(source as EventSource, new Event("error"));
+  await flush();
+  expect(fail).not.toHaveBeenCalled();
+  expect(source.close).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(transport).toHaveBeenCalledTimes(3);
+  expect(update).toHaveBeenLastCalledWith({ ...job, state: "done" });
+  expect(source.close).toHaveBeenCalledTimes(1);
+});

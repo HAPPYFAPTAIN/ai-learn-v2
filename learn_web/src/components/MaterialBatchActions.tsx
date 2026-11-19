@@ -128,6 +128,8 @@ export default function MaterialBatchActions({
             };
             if (
               !(error instanceof ApiError) ||
+              error.status === 0 ||
+              error.outcomeUnknown ||
               error.status === 429 ||
               error.status >= 500
             )

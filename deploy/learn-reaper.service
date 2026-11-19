@@ -5,15 +5,14 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=@RELEASE@
-EnvironmentFile=/var/lib/learn-everything-platform/service.env
-ExecStart=@PYTHON@ -m learn_core.jobs.reaper --seconds-since-heartbeat 120
-User=root
-Group=root
+WorkingDirectory=/opt/ai-learn-v2/current
+EnvironmentFile=/etc/ai-learn-v2/service.env
+ExecStart=/opt/ai-learn-v2/core-venv/bin/python -m learn_core.jobs.reaper --seconds-since-heartbeat 120
+User=learn-v2
+Group=learn-v2
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/data/learn-everything
 TimeoutStartSec=60

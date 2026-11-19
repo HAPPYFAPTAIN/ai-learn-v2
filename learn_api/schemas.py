@@ -166,6 +166,8 @@ class ReportOut(BaseModel):
 class SummaryOut(BaseModel):
     totalNodes: int
     nodesByStatus: dict[str, int]
+    completedNodes: int
+    completionRatio: float
     masteredNodes: int
     masteryRatio: float
     studyMinutes: float

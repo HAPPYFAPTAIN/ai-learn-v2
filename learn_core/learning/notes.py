@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from learn_core.db.models import Note, Task
+from learn_core.db.models import CreationRequest, Note, Task
+from learn_core.learning.ownership import require_project_node
 
 
 # ------------------------------------------------------------------ 笔记
@@ -25,6 +26,7 @@ def create_note(
     content: str,
     selection: str = "",
 ) -> Note:
+    require_project_node(session, project_id=project_id, node_id=node_id)
     note = Note(
         project_id=project_id,
         node_id=node_id,
@@ -65,6 +67,9 @@ def delete_note(session: Session, note_id: int) -> bool:
     note = session.get(Note, note_id)
     if note is None:
         return False
+    session.execute(update(CreationRequest).where(
+        CreationRequest.operation == "note", CreationRequest.resource_id == note_id,
+    ).values(response={}))
     session.delete(note)
     session.flush()
     return True
@@ -87,6 +92,7 @@ def create_task(
 ) -> Task:
     if task_type not in TASK_TYPES:
         raise ValueError(f"unknown task_type: {task_type}")
+    require_project_node(session, project_id=project_id, node_id=node_id)
     task = Task(
         project_id=project_id,
         node_id=node_id,

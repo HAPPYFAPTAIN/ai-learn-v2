@@ -137,6 +137,18 @@
               }
             ],
             "title": "Projectid"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
           }
         },
         "required": [
@@ -1004,19 +1016,6 @@
             ],
             "title": "Esthours"
           },
-          "mastery": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Mastery"
-          },
           "stage": {
             "anyOf": [
               {
@@ -1029,15 +1028,15 @@
             "title": "Stage"
           },
           "status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "default": "pending",
+            "enum": [
+              "pending",
+              "learning",
+              "reviewing",
+              "done"
             ],
-            "title": "Status"
+            "title": "Status",
+            "type": "string"
           },
           "title": {
             "anyOf": [
@@ -1067,6 +1066,18 @@
           "nodeId": {
             "title": "Nodeid",
             "type": "integer"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
           },
           "selection": {
             "default": "",
@@ -1324,6 +1335,18 @@
             "default": "",
             "title": "Goal",
             "type": "string"
+          },
+          "requestId": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requestid"
           },
           "title": {
             "maxLength": 200,
@@ -1853,16 +1876,9 @@
         "additionalProperties": false,
         "properties": {
           "expectedReps": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expectedreps"
+            "minimum": 0.0,
+            "title": "Expectedreps",
+            "type": "integer"
           },
           "rating": {
             "maximum": 4.0,
@@ -1872,7 +1888,8 @@
           }
         },
         "required": [
-          "rating"
+          "rating",
+          "expectedReps"
         ],
         "title": "ReviewRequest",
         "type": "object"
@@ -1935,6 +1952,14 @@
       },
       "SummaryOut": {
         "properties": {
+          "completedNodes": {
+            "title": "Completednodes",
+            "type": "integer"
+          },
+          "completionRatio": {
+            "title": "Completionratio",
+            "type": "number"
+          },
           "masteredNodes": {
             "title": "Masterednodes",
             "type": "integer"
@@ -1962,6 +1987,8 @@
         "required": [
           "totalNodes",
           "nodesByStatus",
+          "completedNodes",
+          "completionRatio",
           "masteredNodes",
           "masteryRatio",
           "studyMinutes"
@@ -2878,6 +2905,57 @@
           }
         },
         "summary": "Create Project",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/v2/projects/creation-requests/{request_id}": {
+      "get": {
+        "operationId": "get_project_creation_api_v2_projects_creation_requests__request_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "request_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Request Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/ProjectCreated"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Project Creation Api V2 Projects Creation Requests  Request Id  Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project Creation",
         "tags": [
           "projects"
         ]
@@ -3971,6 +4049,63 @@
             "schema": {
               "title": "Project Id",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 366,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Fromdate"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toDate",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Todate"
             }
           }
         ],

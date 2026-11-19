@@ -9,6 +9,10 @@ on:
       - "learn_embed/**"
       - "learn_migrate/**"
       - "learn_web/**"
+      - "deploy/learn-v2/**"
+      - "deploy/learn-reaper.*"
+      - "runtime/learn-v2-release-policy.json"
+      - "scripts/learn_v2_release.py"
       - "migrations/**"
       - "tests/learn_core/**"
       - "scripts/phase0/**"
@@ -87,6 +91,9 @@ jobs:
         working-directory: learn_web
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -95,3 +102,10 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: bash ../scripts/ci-check.sh web
+      - name: Build and verify the v2 candidate
+        working-directory: .
+        run: |
+          python scripts/learn_v2_release.py pack
+          mkdir -p output/learn-v2/extracted
+          tar -xzf output/learn-v2/learn-v2-*.tar.gz -C output/learn-v2/extracted
+          python scripts/learn_v2_release.py verify output/learn-v2/extracted

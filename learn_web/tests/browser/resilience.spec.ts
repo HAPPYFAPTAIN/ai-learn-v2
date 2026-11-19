@@ -30,6 +30,70 @@ const discard = (page: Page) =>
     .getByRole("button", { name: "放弃未保存内容", exact: true })
     .click();
 
+for (const saved of [false, true]) {
+  test(`project creation recovers a lost response without a new paid intent (saved=${saved})`, async ({
+    page,
+  }) => {
+    const demo = await mock(page);
+    const ids: string[] = [];
+    let result: Record<string, unknown> | null = null;
+    await page.route("**/api/v2/projects", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const body = route.request().postDataJSON();
+      ids.push(body.requestId);
+      if (ids.length === 1) {
+        if (saved) {
+          const response = await demo.handle(route.request().url(), {
+            method: "POST",
+            body: route.request().postData()!,
+          });
+          result = await response.json();
+        }
+        return route.abort("failed");
+      }
+      const response = await demo.handle(route.request().url(), {
+        method: "POST",
+        body: route.request().postData()!,
+      });
+      result = await response.json();
+      return route.fulfill({ json: result });
+    });
+    await page.route("**/api/v2/projects/creation-requests/*", (route) => {
+      expect(route.request().url()).toContain(ids[0]);
+      return route.fulfill({ json: result });
+    });
+    await page.goto("/");
+    await page.getByLabel("学习目标", { exact: true }).fill("可恢复的计划");
+    const submit = page.getByRole("button", {
+      name: "创建学习计划",
+      exact: true,
+    });
+    await submit.click();
+    await expect(submit).toBeDisabled();
+    await expect(page.getByLabel("学习目标", { exact: true })).toBeDisabled();
+    await page
+      .getByRole("button", { name: "核对已保存记录", exact: true })
+      .click();
+    if (!saved) {
+      await page
+        .getByRole("button", { name: "已核对，允许再次提交", exact: true })
+        .click();
+      expect(ids).toHaveLength(1);
+      await submit.click();
+      expect(ids[1]).toBe(ids[0]);
+    }
+    await expect(page).toHaveURL(/\/study\?project=\d+/);
+    expect(ids[0]).toMatch(/^[\da-f-]{36}$/);
+    expect(ids).toHaveLength(saved ? 1 : 2);
+    const projects = await (await demo.handle("/api/v2/projects")).json();
+    expect(
+      projects.items.filter(
+        (p: { title: string }) => p.title === "可恢复的计划",
+      ),
+    ).toHaveLength(1);
+  });
+}
+
 for (const width of [390, 1440]) {
   test(`drafts survive cancelled tab, route and browser-back navigation at ${width}px`, async ({
     page,
@@ -292,8 +356,10 @@ test("existing identical cards do not falsely confirm a lost creation; a new sav
     body: JSON.stringify(body),
   });
   let writes = 0;
+  const requestIds: string[] = [];
   await page.route("**/api/v2/cards", async (route) => {
     writes++;
+    requestIds.push(route.request().postDataJSON().requestId);
     if (writes === 2)
       await demo.handle(route.request().url(), {
         method: "POST",
@@ -323,6 +389,8 @@ test("existing identical cards do not falsely confirm a lost creation; a new sav
     page.getByText("已核对，复习卡已保存，无需再次提交。", { exact: true }),
   ).toBeVisible();
   expect(writes).toBe(2);
+  expect(requestIds[0]).toMatch(/^[\da-f-]{36}$/);
+  expect(requestIds[1]).toBe(requestIds[0]);
   const fresh = await (await demo.handle("/api/v2/projects/1/cards")).json();
   expect(
     fresh.items.filter((card: { front: string }) => card.front === body.front),

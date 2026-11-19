@@ -50,6 +50,7 @@ def create_source(
 
     try:
         enqueue.enqueue_index(
+            session,
             tenant_id=tenant_id,
             job_id=job_id,
             source_id=payload.source_id,

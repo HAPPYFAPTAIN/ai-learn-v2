@@ -1,0 +1,24 @@
+[Unit]
+Description=AI Learn v2 API and React app
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=learn-v2
+Group=learn-v2
+WorkingDirectory=/opt/ai-learn-v2/current
+EnvironmentFile=/etc/ai-learn-v2/service.env
+ExecStart=/opt/ai-learn-v2/core-venv/bin/python -m uvicorn learn_api.app:app --host 127.0.0.1 --port 18080 --no-access-log
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=12min
+StateDirectory=ai-learn-v2
+StateDirectoryMode=0750
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

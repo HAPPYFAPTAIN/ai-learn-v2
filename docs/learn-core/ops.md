@@ -13,10 +13,8 @@ Procrastinate 只在任务被**正常处理**时改状态。worker 被 OOM、被
 需要一个定时器每 10 分钟跑一次：
 
 ```sh
-# 复制到 /etc/systemd/system/，把 @RELEASE@ / @PYTHON@ 换成实际路径
+# 沿用新版发布约定中的服务账号、目录和环境文件
 cp deploy/learn-reaper.service deploy/learn-reaper.timer /etc/systemd/system/
-sed -i 's#@RELEASE@#/opt/learn/releases/2026-11-12#; s#@PYTHON@#/opt/learn/venv/bin/python#' \
-  /etc/systemd/system/learn-reaper.service
 systemctl daemon-reload
 systemctl enable --now learn-reaper.timer
 ```

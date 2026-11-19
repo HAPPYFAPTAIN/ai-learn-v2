@@ -116,10 +116,10 @@ export default function Roadmap() {
                     {nodes.data.items.map((n) => (
                       <li key={n.id}>
                         <span
-                          className={`roadmap-dot ${n.mastery === 1 ? "done" : ""}`}
+                          className={`roadmap-dot ${n.status === "done" ? "done" : ""}`}
                         >
                           <Icon
-                            name={n.mastery === 1 ? "check" : "book"}
+                            name={n.status === "done" ? "check" : "book"}
                             size={17}
                           />
                         </span>
