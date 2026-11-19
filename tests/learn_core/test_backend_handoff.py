@@ -134,7 +134,7 @@ def test_hybrid_search_does_not_mix_indexes_with_same_chunk_id(tenant):
 
 
 @db_test
-def test_generation_crash_reuses_event_and_request_with_new_queue_attempt(tenant, monkeypatch):
+def test_generation_crash_after_gateway_acceptance_does_not_repeat_request(tenant, monkeypatch):
     job_id = enqueue(tenant)
     requests = []
 
@@ -153,8 +153,9 @@ def test_generation_crash_reuses_event_and_request_with_new_queue_attempt(tenant
         generation.run_generation(tenant=str(tenant[0]), job_id=job_id)
     monkeypatch.setattr(generation, "parse_roadmap", original)
     generation.run_generation(tenant=str(tenant[0]), job_id=job_id, attempt=1)
-    assert read_job(tenant, job_id)[0] == "done"
-    assert len(requests) == 2 and requests[0] == requests[1]
+    state, _, error = read_job(tenant, job_id)
+    assert state == "failed" and "结果未确认" in error
+    assert len(requests) == 1
 
 
 @db_test

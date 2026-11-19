@@ -1,0 +1,22 @@
+[Unit]
+Description=AI Learn v2 embedding service
+
+[Service]
+User=learn-v2
+Group=learn-v2
+WorkingDirectory=/opt/ai-learn-v2/current
+Environment=LEARN_EMBED_CACHE=/var/lib/ai-learn-v2/embed
+Environment=HF_HUB_OFFLINE=1
+ExecStart=/opt/ai-learn-v2/embed-venv/bin/python -m learn_embed --port 18090
+Restart=on-failure
+RestartSec=3
+StateDirectory=ai-learn-v2
+StateDirectoryMode=0750
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -18,12 +18,11 @@ from learn_core.learning.prompts.lesson import SYSTEM as LESSON_SYSTEM, lesson_p
 from learn_core.learning.roadmaps import parse_roadmap, save_roadmap
 from learn_core.learning import assessment, grading
 from learn_core.llm.event_id import next_event_id, step_event
-from learn_core.llm.gateway import GatewayClient, GatewayError
+from learn_core.llm.gateway import UNKNOWN_RESULT, GatewayClient, GatewayError
 from learn_core.llm.lease import LeaseUnavailable
 from learn_core.tenancy.context import current_tenant, tenant_context
 
 ACTIVE_STATES = ("queued", "running")
-TRANSIENT_STATUS = {0, 429, 502, 503, 504}
 
 
 class GenerationConflict(ValueError):
@@ -185,9 +184,11 @@ def _load_input(session: Session, row: JobProgress) -> dict:
 def _finish_error(job_id: str, message: str, state: str = "failed", *, new_event: bool = False) -> None:
     with session_scope() as session:
         row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
-        if row and row.state not in {"done", "cancelled"}:
+        if row and row.state in ACTIVE_STATES:
+            progress = {**row.progress, "gatewayCallPending": False}
             if new_event:
-                row.progress = {**row.progress, "eventAttempt": row.progress.get("eventAttempt", 1) + 1}
+                progress["eventAttempt"] = progress.get("eventAttempt", 1) + 1
+            row.progress = progress
             row.state = state
             row.error = message
             row.updated_at = datetime.now(timezone.utc)
@@ -201,6 +202,13 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                 row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
                 if row is None or row.state in {"done", "cancelled", "failed"}:
                     return
+                # Older running jobs used the persisted prompt as their only
+                # durable indication that the request might have been sent.
+                pending = row.progress.get("gatewayCallPending", "prepared" in row.progress)
+                if row.state == "running" and pending:
+                    row.state, row.error = "failed", UNKNOWN_RESULT
+                    row.updated_at = datetime.now(timezone.utc)
+                    return
                 data = _load_input(session, row)
                 kind = row.kind
                 progress = dict(row.progress)
@@ -210,6 +218,7 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                 # upstream rejection starts a new logical billing event.
                 progress.setdefault("eventAttempt", 1)
                 progress["eventId"] = step_event(progress["eventBase"], 1, progress["eventAttempt"])
+                progress["gatewayCallPending"] = False
                 progress["phase"] = "generating"
                 progress["attemptStartedAt"] = now_iso()
                 row.state, row.error, row.progress = "running", None, progress
@@ -233,11 +242,12 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                     raise ValueError("所选学习内容过长，请缩小范围")
                 if "prepared" not in progress:
                     progress["prepared"] = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
-                    with session_scope() as session:
-                        row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
-                        if row is None or row.state in {"done", "cancelled"}:
-                            return
-                        row.progress = dict(progress)
+                with session_scope() as session:
+                    row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
+                    if row is None or row.state != "running":
+                        return
+                    progress["gatewayCallPending"] = True
+                    row.progress = dict(progress)
                 with GatewayClient() as gateway:
                     result = gateway.chat_detached(
                         event_id=progress["eventId"], job_id=job_id,
@@ -253,14 +263,14 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
             writing = time.monotonic()
             with session_scope() as session:
                 row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
-                if row is None or row.state in {"cancelled", "done"}:
+                if row is None or row.state != "running":
                     return
                 progress["phase"] = "saving"
                 row.progress = dict(progress)
                 row.updated_at = datetime.now(timezone.utc)
             with session_scope() as session:
                 row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
-                if row is None or row.state in {"cancelled", "done"}:
+                if row is None or row.state != "running":
                     return
                 _load_input(session, row)
                 if kind == "roadmap":
@@ -280,6 +290,7 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                     output = assessment.save_output(session, project_id=progress["projectId"], kind=kind, data=data, items=items, options=progress["options"])
                 finished = datetime.now(timezone.utc)
                 row.state, row.error = "done", None
+                progress["gatewayCallPending"] = False
                 row.progress = {**progress, "done": 1, "total": 1, **output,
                     "phase": "done",
                     "modelMs": model_ms, "saveMs": round((time.monotonic() - writing) * 1000),
@@ -290,10 +301,10 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
         except (GenerationMissing, GenerationConflict) as exc:
             _finish_error(job_id, str(exc), "cancelled")
         except (GatewayError, LeaseUnavailable) as exc:
-            retryable = isinstance(exc, LeaseUnavailable) or exc.status in TRANSIENT_STATUS
+            retryable = isinstance(exc, LeaseUnavailable) or exc.retryable
             if retryable and attempt < 2:
                 _finish_error(job_id, "模型暂时繁忙，正在等待重试", "queued",
-                              new_event=isinstance(exc, GatewayError) and exc.status != 0)
+                              new_event=isinstance(exc, GatewayError) and exc.status == 429)
                 raise RetryableGenerationError((10, 40)[attempt]) from exc
             message = str(exc) if isinstance(exc, GatewayError) else "模型并发额度已满，请稍后重试"
             _finish_error(job_id, message)
