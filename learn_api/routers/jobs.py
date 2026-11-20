@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import asyncio
+import anyio
 import json
 from typing import Annotated, AsyncIterator
 
@@ -16,7 +17,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.db.engine import session_scope
 from learn_core.db.models import JobProgress
@@ -43,7 +44,6 @@ def _serialize(row: JobProgress) -> dict:
     }
 
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("/{job_id}", response_model=JobOut)
@@ -66,15 +66,18 @@ def job_events(job_id: str, session: SessionDep) -> StreamingResponse:
     snapshot = _serialize(row)
     tenant_id = row.tenant_id
 
+    def poll():
+        with tenant_context(tenant_id), session_scope() as scoped:
+            current = scoped.scalar(select(JobProgress).where(JobProgress.job_id == job_id))
+            return _serialize(current) if current else None
+
     async def stream() -> AsyncIterator[bytes]:
-        last = None
+        last = snapshot
+        if snapshot["state"] in TERMINAL_STATES:
+            yield b"event: end\ndata: {}\n\n"
+            return
         while True:
-            with tenant_context(tenant_id):
-                with session_scope() as scoped:
-                    current = scoped.scalars(
-                        select(JobProgress).where(JobProgress.job_id == job_id)
-                    ).first()
-                    payload = _serialize(current) if current else None
+            payload = await anyio.to_thread.run_sync(poll)
             if payload is None:
                 yield b"event: gone\ndata: {}\n\n"
                 return

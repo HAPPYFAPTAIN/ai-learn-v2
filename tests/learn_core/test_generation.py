@@ -249,7 +249,7 @@ def test_terminal_gateway_failure_is_visible_without_retry(tenant, monkeypatch, 
     mock_gateway(monkeypatch, handler=lambda request: httpx.Response(status, text="private-token"))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     state, _, error = read_job(tenant, jid)
-    assert state == "failed" and str(status) in error and "private-token" not in error
+    assert state == "failed" and ("官网积分不足" in error if status == 402 else str(status) in error) and "private-token" not in error
 
 
 @db_test
@@ -296,7 +296,8 @@ def test_nonempty_project_is_preserved_and_missing_model_rejected(tenant):
         session.get(TenantSetting, tenant[0]).chat_model = ""
         nid = session.scalar(select(Knode.id).where(Knode.project_id == tenant[1]))
     with tenant_context(tenant[0]), session_scope() as session:
-        with pytest.raises(GenerationConflict, match="主模型"):
+        from learn_core.llm.providers import ModelNotConfigured
+        with pytest.raises(ModelNotConfigured, match="选择主模型"):
             submit_generation(session, project_id=tenant[1], kind="lesson", node_id=nid)
 
 

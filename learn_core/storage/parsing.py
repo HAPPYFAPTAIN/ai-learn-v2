@@ -8,7 +8,7 @@ EXTENSIONS = {'.txt', '.md', '.pdf', '.docx'}
 MAX_TEXT = 1_000_000
 
 
-def extract_text(data: bytes, name: str) -> str:
+def _extract_text(data: bytes, name: str) -> str:
     ext = Path(name).suffix.lower()
     if ext not in EXTENSIONS:
         raise ValueError('当前支持 TXT、Markdown、PDF 和 DOCX 文件')
@@ -56,3 +56,54 @@ def extract_text(data: bytes, name: str) -> str:
     if not result.strip():
         raise ValueError('未提取到文字；扫描 PDF 请先识别文字后上传')
     return result.strip()
+
+
+PARSE_TIMEOUT = 120
+PARSE_MEMORY = 1024 ** 3
+
+def _parse_child() -> None:
+    import resource
+    import sys
+    # Linux deployment enforces virtual memory. macOS does not implement AS
+    # consistently; the production Linux unit also has a cgroup memory cap.
+    if sys.platform == 'linux':
+        resource.setrlimit(resource.RLIMIT_AS, (PARSE_MEMORY, PARSE_MEMORY))
+        # Prefer the disposable parser if the enclosing IO cgroup runs out of
+        # physical memory before the child's address-space ceiling is reached.
+        try:
+            Path('/proc/self/oom_score_adj').write_text('500')
+        except OSError:
+            pass
+    resource.setrlimit(resource.RLIMIT_CPU, (PARSE_TIMEOUT, PARSE_TIMEOUT))
+    try:
+        result = _extract_text(sys.stdin.buffer.read(50 * 1024 * 1024 + 1), sys.argv[1])
+        sys.stdout.buffer.write(result.encode('utf-8'))
+    except Exception:
+        raise SystemExit(1) from None
+
+
+def extract_text(data: bytes, name: str) -> str:
+    import subprocess
+    import sys
+    if len(data) > 50 * 1024 * 1024:
+        raise ValueError('文件无法解析')
+    ext = Path(name).suffix.lower()
+    if ext not in {'.pdf', '.docx'}:
+        return _extract_text(data, name)
+    try:
+        # Only the extension crosses argv; filenames and document contents are
+        # never printed. communicate kills/reaps the child on timeout.
+        result = subprocess.run(
+            [sys.executable, '-m', 'learn_core.storage.parsing', 'document' + ext],
+            input=data, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+            timeout=PARSE_TIMEOUT, check=True,
+        )
+        if len(result.stdout) > MAX_TEXT * 4:
+            raise ValueError('文件无法解析')
+        return result.stdout.decode('utf-8')
+    except (subprocess.SubprocessError, OSError, UnicodeError) as exc:
+        raise ValueError('文件无法解析') from None
+
+
+if __name__ == '__main__':
+    _parse_child()

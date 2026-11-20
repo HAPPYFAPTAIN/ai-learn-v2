@@ -26,93 +26,97 @@ export default function Dashboard() {
     onSuccess: () =>
       void client.invalidateQueries({ queryKey: key("reports", id) }),
   });
+  const data = id
+    ? summary.data
+    : {
+        totalNodes: 0,
+        nodesByStatus: {},
+        completedNodes: 0,
+        completionRatio: 0,
+        masteredNodes: 0,
+        masteryRatio: 0,
+        studyMinutes: 0,
+      };
+  const reportItems = id ? reports.data?.items : [];
   return (
     <>
       <PageHeading
         title="学习看板"
         description="看见每一点积累，找到属于你的学习节奏。"
       />
-      {!id ? (
-        <div className="panel dashboard-empty">
-          <div className="search-field" role="note">
-            <Icon name="chart" />
-            <span>暂无学习记录，快去新建学习计划吧</span>
-          </div>
-        </div>
-      ) : (
+      {!id && (
+        <p className="muted" role="status">
+          暂无学习记录
+        </p>
+      )}
+      {!!id && <QueryState query={summary} />}
+      {data && (
         <>
-          <QueryState query={summary} />
-          {summary.data && (
-            <>
-              <div className="stat-grid">
-                {[
-                  [
-                    "累计学习",
-                    `${Math.round(summary.data.studyMinutes)}`,
-                    "分钟",
-                    "review",
-                  ],
-                  [
-                    "已完成章节",
-                    `${summary.data.completedNodes}`,
-                    `/ ${summary.data.totalNodes} 章`,
-                    "book",
-                  ],
-                  [
-                    "章节完成率",
-                    `${Math.round(summary.data.completionRatio * 100)}`,
-                    "%",
-                    "chart",
-                  ],
-                ].map(([label, number, unit, icon]) => (
-                  <div className="panel stat-card" key={label}>
-                    <div className="stat-top">
-                      <span>{label}</span>
-                      <Icon name={icon} />
-                    </div>
-                    <strong>
-                      {number}
-                      <small>{unit}</small>
-                    </strong>
-                  </div>
-                ))}
+          <div className="stat-grid">
+            {[
+              [
+                "累计学习",
+                `${Math.round(data.studyMinutes)}`,
+                "分钟",
+                "review",
+              ],
+              [
+                "已完成章节",
+                `${data.completedNodes}`,
+                `/ ${data.totalNodes} 章`,
+                "book",
+              ],
+              [
+                "章节完成率",
+                `${Math.round(data.completionRatio * 100)}`,
+                "%",
+                "chart",
+              ],
+            ].map(([label, number, unit, icon]) => (
+              <div className="panel stat-card" key={label}>
+                <div className="stat-top">
+                  <span>{label}</span>
+                  <Icon name={icon} />
+                </div>
+                <strong>
+                  {number}
+                  <small>{unit}</small>
+                </strong>
               </div>
-              <section className="panel section-space">
-                <h2>章节完成进度</h2>
-                <p className="muted">
-                  完成 {summary.data.completedNodes} 个章节，还剩{" "}
-                  {Math.max(
-                    0,
-                    summary.data.totalNodes - summary.data.completedNodes,
-                  )}{" "}
-                  个。
-                </p>
-                <progress
-                  className="mastery-progress"
-                  aria-label="章节完成率"
-                  max={1}
-                  value={summary.data.completionRatio}
-                />
-                <ChapterDistribution summary={summary.data} />
-              </section>
-            </>
-          )}
-          {reports.data && (
-            <LearningTrend key={id} reports={reports.data.items} />
-          )}
-          <QueryState query={reports} />
-          {reports.data && (
-            <ReportWorkspace
-              key={id}
-              projectId={id}
-              title={project?.title || "学习计划"}
-              reports={reports.data.items}
-              building={build.isPending}
-              error={build.error}
-              onBuild={() => build.mutate()}
+            ))}
+          </div>
+          <section className="panel section-space">
+            <h2>章节完成进度</h2>
+            <p className="muted">
+              完成 {data.completedNodes} 个章节，还剩{" "}
+              {Math.max(0, data.totalNodes - data.completedNodes)} 个。
+            </p>
+            <progress
+              className="mastery-progress"
+              aria-label="章节完成率"
+              max={1}
+              value={data.completionRatio}
             />
-          )}
+            <ChapterDistribution summary={data} />
+          </section>
         </>
+      )}
+      {reportItems && (
+        <LearningTrend key={`trend-${id}`} reports={reportItems} />
+      )}
+      {!!id && <QueryState query={reports} />}
+      {reportItems && (
+        <ReportWorkspace
+          key={`reports-${id}`}
+          projectId={id}
+          title={project?.title || "我的学习"}
+          reports={reportItems}
+          building={build.isPending}
+          error={build.error}
+          onBuild={() => {
+            if (id) build.mutate();
+          }}
+        />
       )}
     </>
   );

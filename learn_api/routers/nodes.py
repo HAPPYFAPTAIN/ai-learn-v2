@@ -8,37 +8,36 @@ from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.db.models import Knode
 from learn_core.learning import nodes as service
 from learn_core.learning import projects as project_service
 
-from learn_api.schemas import Items, NodeOut
+from learn_api.schemas import NonNullPatch, Items, NodeOut
 
 router = APIRouter(tags=["nodes"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class NodeCreate(BaseModel):
     # 宁可 422 也不要静默忽略拼错的字段。
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
-    code: str = Field(min_length=1, max_length=64)
+    code: str = Field(min_length=1, max_length=32, pattern=r"\S")
     title: str = Field(min_length=1, max_length=200)
-    description: str = ""
-    stage: str = ""
+    description: str = Field(default="", max_length=50000)
+    stage: str = Field(default="", max_length=16)
     est_hours: float = Field(default=1.0, gt=0, le=1000, alias="estHours")
     difficulty: float = Field(default=1.0, gt=0, le=10)
 
 
-class NodeUpdate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+class NodeUpdate(NonNullPatch):
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
-    description: str | None = None
-    stage: str | None = None
+    description: str | None = Field(default=None, max_length=50000)
+    stage: str | None = Field(default=None, max_length=16)
     est_hours: float | None = Field(default=None, gt=0, le=1000, alias="estHours")
     difficulty: float | None = Field(default=None, gt=0, le=10)
     status: Literal["pending", "learning", "reviewing", "done"] = Field(default="pending")

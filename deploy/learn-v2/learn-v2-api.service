@@ -4,6 +4,8 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
+MemoryMax=768M
+Environment=LEARN_DB_STATEMENT_TIMEOUT=30000
 User=learn-v2
 Group=learn-v2
 WorkingDirectory=/opt/ai-learn-v2/current

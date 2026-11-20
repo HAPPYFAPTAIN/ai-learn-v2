@@ -92,7 +92,11 @@ export default function ReportWorkspace({
           <button disabled={!visible?.length} onClick={() => download("json")}>
             导出记录
           </button>
-          <button className="primary" disabled={building} onClick={onBuild}>
+          <button
+            className="primary"
+            disabled={building || !projectId}
+            onClick={onBuild}
+          >
             {building ? "整理中…" : "整理今日报告"}
           </button>
         </div>
@@ -199,7 +203,7 @@ export default function ReportWorkspace({
             <p className="empty-inline">
               {reports.length
                 ? "此日期范围暂无学习记录。"
-                : "暂无学习记录，快去新建学习计划吧"}
+                : "暂无学习记录，完成学习后会在这里展示。"}
             </p>
           )}
         </>

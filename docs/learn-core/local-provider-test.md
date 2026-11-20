@@ -1,12 +1,13 @@
 # 本地个人供应商测试入口
 
-这套工具仅用于本机隔离数据库。官网及在线测试统一走官网账号和模型网关；正常 API 不注册供应商添加接口，生产前端不启用该能力。
+这套旧工具仅用于本机隔离数据库和临时内存代理。2026-11-20 起，正常 API 已提供按账号加密保存个人 Key 的接口，优先使用 [个人 Key 接入](personal-api-key.md)。以下工具仍可在显式 gateway 模式下使用，不能部署到线上；不要与新的持久化入口混用。
 
 实现为 `scripts/dev/local_provider_gateway.py`（单进程内存代理）与 `scripts/dev/local_provider_api.py`（明确的开发 API 入口）。Key 只保留在代理进程内存，不写浏览器存储/业务库/配置文件，不回传 Key。刷新页面保留，重启代理清空；此前选择的本地模型会提示不可用，需要重新添加并选择。暂支持公开 HTTPS（443）的 OpenAI 兼容 `/models`、`/chat/completions`；不支持 Ollama、本机或内网服务，也不代表全部预设平台协议都已兼容。
 
 先用已有流程准备独立数据库、迁移、队列和嵌入服务；在所有本地进程的受控环境中设置：
 
 - `LEARN_DEV_AUTH=1`，数据库与文件目录必须是本地测试专用。
+- `LEARN_MODEL_SOURCE=gateway`：API 和 worker 均显式使用本机代理目录。
 - `LEARN_LOCAL_PROXY_TOKEN`：本次会话临时随机值，至少 32 字符。
 - `LEARN_GATEWAY_PRODUCT_KEY`：与上述临时值相同（不是供应商 Key）。
 - `LEARN_GATEWAY_URL=http://127.0.0.1:18091/v1`。

@@ -1,5 +1,6 @@
 import { defineConfig } from "@playwright/test";
 const modelDemo = process.env.LEARN_WEB_TEST_DEMO === "1";
+const productionPreview = process.env.LEARN_WEB_TEST_PREVIEW === "1";
 export default defineConfig({
   testDir: "./tests/browser",
   testMatch: modelDemo
@@ -9,6 +10,7 @@ export default defineConfig({
         "ui-enhancements.spec.ts",
         "learning-workflows.spec.ts",
         "resilience.spec.ts",
+        ...(productionPreview ? ["production-security.spec.ts"] : []),
       ],
   fullyParallel: true,
   workers: 2,
@@ -23,9 +25,11 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: modelDemo
-      ? "npm run dev:demo -- --port 5174"
-      : "npm run dev -- --port 5174",
+    command: productionPreview
+      ? "npm run preview -- --base / --port 5174 --strictPort"
+      : modelDemo
+        ? "npm run dev:demo -- --port 5174"
+        : "npm run dev -- --port 5174",
     url: "http://127.0.0.1:5174",
     reuseExistingServer: false,
   },

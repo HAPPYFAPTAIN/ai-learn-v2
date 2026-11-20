@@ -56,6 +56,8 @@ def update_project(session: Session, project_id: int, **fields: object) -> Proje
         if key not in allowed:
             raise ValueError(f"field not writable: {key}")
         setattr(project, key, value)
+    from datetime import datetime, timezone
+    project.updated_at = datetime.now(timezone.utc)
     session.flush()
     return project
 

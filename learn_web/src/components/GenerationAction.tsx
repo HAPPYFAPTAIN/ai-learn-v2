@@ -1,3 +1,4 @@
+import { jobFailure } from "../api/jobError";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { endpoints, type JobProgress } from "../api";
@@ -152,9 +153,7 @@ export default function GenerationAction({
       {job && (
         <div className="job-status" role="status">
           <strong>{labels[job.state] || job.state}</strong>
-          {!nodeId && !assessment && (
-            <GenerationProgress job={job} reconnecting={reconnecting} />
-          )}
+          <GenerationProgress job={job} reconnecting={reconnecting} />
           {reconnecting && <p>连接中断，正在重新检查任务状态…</p>}
           {job.state === "done" && (
             <dl className="generation-timings">
@@ -181,7 +180,7 @@ export default function GenerationAction({
               完成
             </button>
           )}
-          <ErrorNotice error={job.error ? new Error(job.error) : null} />
+          <ErrorNotice error={jobFailure(job)} />
           {job.state === "done" && assessment && (
             <p>
               已保存 {Number(job.progress.count || 0)}{" "}

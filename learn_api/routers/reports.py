@@ -8,7 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.learning import projects as project_service
 from learn_core.learning import reports as service
@@ -17,7 +17,6 @@ from learn_api.schemas import Items, ReportOut
 
 router = APIRouter(prefix="/projects", tags=["reports"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 def _payload(report) -> dict:

@@ -1,12 +1,22 @@
 {
-  "trees": ["learn_api", "learn_core", "learn_embed", "migrations", "deploy/learn-v2"],
+  "trees": [
+    "learn_api",
+    "learn_core",
+    "learn_embed",
+    "migrations",
+    "deploy/learn-v2"
+  ],
   "files": [
     "alembic.ini",
     "requirements-learn-core.txt",
     "requirements-learn-embed.txt",
     "scripts/phase0/apply_queue_schema.py",
     "deploy/learn-reaper.service",
-    "deploy/learn-reaper.timer"
+    "deploy/learn-reaper.timer",
+    "scripts/learn_v2_backup.py",
+    "scripts/check_learn_v2_memory.sh",
+    "scripts/learn_v2_preflight.sql",
+    "scripts/install_learn_v2_dependencies.sh"
   ],
   "exclude": []
 }

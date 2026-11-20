@@ -77,6 +77,123 @@
         "title": "AssessmentGenerate",
         "type": "object"
       },
+      "AssistantAppend": {
+        "properties": {
+          "expectedVersion": {
+            "minimum": 0.0,
+            "title": "Expectedversion",
+            "type": "integer"
+          },
+          "nodeId": {
+            "exclusiveMinimum": 0.0,
+            "title": "Nodeid",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "nodeId",
+          "expectedVersion"
+        ],
+        "title": "AssistantAppend",
+        "type": "object"
+      },
+      "AssistantContext": {
+        "additionalProperties": false,
+        "properties": {
+          "cardId": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cardid"
+          },
+          "page": {
+            "default": "学习首页",
+            "enum": [
+              "学习首页",
+              "学习路线",
+              "学习工作台",
+              "间隔复习",
+              "查漏测验",
+              "学习看板",
+              "知识问答",
+              "资料库",
+              "学习工具",
+              "模型设置"
+            ],
+            "title": "Page",
+            "type": "string"
+          },
+          "questionId": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Questionid"
+          }
+        },
+        "title": "AssistantContext",
+        "type": "object"
+      },
+      "AssistantQuestion": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 16000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "context": {
+            "$ref": "#/components/schemas/AssistantContext"
+          },
+          "nodeId": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nodeid"
+          },
+          "projectId": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Projectid"
+          },
+          "requestId": {
+            "format": "uuid",
+            "title": "Requestid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "content",
+          "requestId"
+        ],
+        "title": "AssistantQuestion",
+        "type": "object"
+      },
       "Body_upload_material_api_v2_projects__project_id__materials_post": {
         "properties": {
           "file": {
@@ -107,6 +224,11 @@
           },
           "cardType": {
             "default": "basic",
+            "enum": [
+              "basic",
+              "cloze",
+              "concept"
+            ],
             "title": "Cardtype",
             "type": "string"
           },
@@ -248,89 +370,6 @@
         "title": "CardOut",
         "type": "object"
       },
-      "ChatMessage": {
-        "properties": {
-          "content": {
-            "maxLength": 16000,
-            "minLength": 1,
-            "title": "Content",
-            "type": "string"
-          },
-          "role": {
-            "pattern": "^(system|user|assistant)$",
-            "title": "Role",
-            "type": "string"
-          }
-        },
-        "required": [
-          "role",
-          "content"
-        ],
-        "title": "ChatMessage",
-        "type": "object"
-      },
-      "ChatOut": {
-        "properties": {
-          "content": {
-            "title": "Content",
-            "type": "string"
-          },
-          "eventId": {
-            "title": "Eventid",
-            "type": "string"
-          },
-          "model": {
-            "title": "Model",
-            "type": "string"
-          },
-          "usage": {
-            "additionalProperties": true,
-            "title": "Usage",
-            "type": "object"
-          }
-        },
-        "required": [
-          "eventId",
-          "content",
-          "model",
-          "usage"
-        ],
-        "title": "ChatOut",
-        "type": "object"
-      },
-      "ChatRequest": {
-        "properties": {
-          "background": {
-            "default": false,
-            "title": "Background",
-            "type": "boolean"
-          },
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/ChatMessage"
-            },
-            "maxItems": 40,
-            "minItems": 1,
-            "title": "Messages",
-            "type": "array"
-          },
-          "model": {
-            "default": "",
-            "title": "Model",
-            "type": "string"
-          },
-          "purpose": {
-            "default": "chat",
-            "title": "Purpose",
-            "type": "string"
-          }
-        },
-        "required": [
-          "messages"
-        ],
-        "title": "ChatRequest",
-        "type": "object"
-      },
       "CitationOut": {
         "properties": {
           "excerpt": {
@@ -379,6 +418,11 @@
           "role": {
             "title": "Role",
             "type": "string"
+          },
+          "truncated": {
+            "default": false,
+            "title": "Truncated",
+            "type": "boolean"
           }
         },
         "required": [
@@ -797,12 +841,26 @@
             "title": "Items",
             "type": "array"
           },
+          "providerImportEnabled": {
+            "default": false,
+            "title": "Providerimportenabled",
+            "type": "boolean"
+          },
           "selectedAvailable": {
             "title": "Selectedavailable",
             "type": "boolean"
           },
           "selectedModel": {
             "title": "Selectedmodel",
+            "type": "string"
+          },
+          "source": {
+            "default": "gateway",
+            "enum": [
+              "personal",
+              "gateway"
+            ],
+            "title": "Source",
             "type": "string"
           }
         },
@@ -864,13 +922,15 @@
         "additionalProperties": false,
         "properties": {
           "code": {
-            "maxLength": 64,
+            "maxLength": 32,
             "minLength": 1,
+            "pattern": "\\S",
             "title": "Code",
             "type": "string"
           },
           "description": {
             "default": "",
+            "maxLength": 50000,
             "title": "Description",
             "type": "string"
           },
@@ -890,6 +950,7 @@
           },
           "stage": {
             "default": "",
+            "maxLength": 16,
             "title": "Stage",
             "type": "string"
           },
@@ -982,6 +1043,7 @@
           "description": {
             "anyOf": [
               {
+                "maxLength": 50000,
                 "type": "string"
               },
               {
@@ -1019,6 +1081,7 @@
           "stage": {
             "anyOf": [
               {
+                "maxLength": 16,
                 "type": "string"
               },
               {
@@ -1059,6 +1122,7 @@
         "additionalProperties": false,
         "properties": {
           "content": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Content",
             "type": "string"
@@ -1081,6 +1145,7 @@
           },
           "selection": {
             "default": "",
+            "maxLength": 50000,
             "title": "Selection",
             "type": "string"
           }
@@ -1137,6 +1202,7 @@
           "content": {
             "anyOf": [
               {
+                "maxLength": 50000,
                 "minLength": 1,
                 "type": "string"
               },
@@ -1149,6 +1215,7 @@
           "selection": {
             "anyOf": [
               {
+                "maxLength": 50000,
                 "type": "string"
               },
               {
@@ -1323,6 +1390,7 @@
         "properties": {
           "background": {
             "default": "",
+            "maxLength": 5000,
             "title": "Background",
             "type": "string"
           },
@@ -1333,6 +1401,7 @@
           },
           "goal": {
             "default": "",
+            "maxLength": 5000,
             "title": "Goal",
             "type": "string"
           },
@@ -1356,6 +1425,7 @@
           },
           "topic": {
             "default": "",
+            "maxLength": 200,
             "title": "Topic",
             "type": "string"
           },
@@ -1524,6 +1594,7 @@
           "background": {
             "anyOf": [
               {
+                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -1535,6 +1606,7 @@
           "goal": {
             "anyOf": [
               {
+                "maxLength": 5000,
                 "type": "string"
               },
               {
@@ -1546,6 +1618,12 @@
           "status": {
             "anyOf": [
               {
+                "enum": [
+                  "active",
+                  "paused",
+                  "completed",
+                  "archived"
+                ],
                 "type": "string"
               },
               {
@@ -1570,6 +1648,7 @@
           "topic": {
             "anyOf": [
               {
+                "maxLength": 200,
                 "type": "string"
               },
               {
@@ -1593,6 +1672,156 @@
           }
         },
         "title": "ProjectUpdate",
+        "type": "object"
+      },
+      "ProviderCreatedOut": {
+        "properties": {
+          "connection": {
+            "$ref": "#/components/schemas/ProviderOut"
+          },
+          "verifiedMs": {
+            "title": "Verifiedms",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "connection",
+          "verifiedMs"
+        ],
+        "title": "ProviderCreatedOut",
+        "type": "object"
+      },
+      "ProviderInput": {
+        "properties": {
+          "apiKey": {
+            "format": "password",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Apikey",
+            "type": "string",
+            "writeOnly": true
+          },
+          "baseUrl": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Baseurl",
+            "type": "string"
+          },
+          "id": {
+            "pattern": "^[a-f0-9]{12}$",
+            "title": "Id",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Models",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "remark": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Remark",
+            "type": "string"
+          },
+          "website": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "baseUrl",
+          "apiKey",
+          "models"
+        ],
+        "title": "ProviderInput",
+        "type": "object"
+      },
+      "ProviderListOut": {
+        "properties": {
+          "connections": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderOut"
+            },
+            "title": "Connections",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "connections"
+        ],
+        "title": "ProviderListOut",
+        "type": "object"
+      },
+      "ProviderOut": {
+        "properties": {
+          "baseUrl": {
+            "title": "Baseurl",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "remark": {
+            "default": "",
+            "title": "Remark",
+            "type": "string"
+          },
+          "website": {
+            "default": "",
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "baseUrl",
+          "models"
+        ],
+        "title": "ProviderOut",
         "type": "object"
       },
       "QuestionCreate": {
@@ -1654,6 +1883,7 @@
         "additionalProperties": false,
         "properties": {
           "answer": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Answer",
             "type": "string"
@@ -1667,6 +1897,7 @@
           },
           "explanation": {
             "default": "",
+            "maxLength": 50000,
             "title": "Explanation",
             "type": "string"
           },
@@ -1682,16 +1913,27 @@
             "title": "Nodeid"
           },
           "options": {
-            "items": {},
+            "items": {
+              "maxLength": 4000,
+              "type": "string"
+            },
+            "maxItems": 20,
             "title": "Options",
             "type": "array"
           },
           "qtype": {
             "default": "short",
+            "enum": [
+              "choice",
+              "fill",
+              "short",
+              "practice"
+            ],
             "title": "Qtype",
             "type": "string"
           },
           "stem": {
+            "maxLength": 50000,
             "minLength": 1,
             "title": "Stem",
             "type": "string"
@@ -1774,6 +2016,7 @@
             "items": {
               "type": "integer"
             },
+            "maxItems": 100,
             "title": "Nodeids",
             "type": "array"
           },
@@ -1781,12 +2024,22 @@
             "items": {
               "$ref": "#/components/schemas/QuestionIn"
             },
+            "maxItems": 100,
             "minItems": 1,
             "title": "Questions",
             "type": "array"
           },
           "quizType": {
             "default": "mixed",
+            "enum": [
+              "mixed",
+              "choice",
+              "fill",
+              "short",
+              "practice",
+              "diagnostic",
+              "review"
+            ],
             "title": "Quiztype",
             "type": "string"
           },
@@ -1923,33 +2176,6 @@
         "title": "SearchRequest",
         "type": "object"
       },
-      "SourceCreate": {
-        "properties": {
-          "indexId": {
-            "default": "material",
-            "maxLength": 64,
-            "title": "Indexid",
-            "type": "string"
-          },
-          "sourceId": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Sourceid",
-            "type": "string"
-          },
-          "text": {
-            "minLength": 1,
-            "title": "Text",
-            "type": "string"
-          }
-        },
-        "required": [
-          "sourceId",
-          "text"
-        ],
-        "title": "SourceCreate",
-        "type": "object"
-      },
       "SummaryOut": {
         "properties": {
           "completedNodes": {
@@ -2001,6 +2227,7 @@
         "properties": {
           "description": {
             "default": "",
+            "maxLength": 50000,
             "title": "Description",
             "type": "string"
           },
@@ -2094,6 +2321,7 @@
           "description": {
             "anyOf": [
               {
+                "maxLength": 50000,
                 "type": "string"
               },
               {
@@ -2105,6 +2333,7 @@
           "output": {
             "anyOf": [
               {
+                "maxLength": 50000,
                 "type": "string"
               },
               {
@@ -2224,6 +2453,119 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v2/assistant/append": {
+      "post": {
+        "operationId": "append_api_v2_assistant_append_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantAppend"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Append",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/api/v2/assistant/chat-jobs": {
+      "post": {
+        "operationId": "ask_api_v2_assistant_chat_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistantQuestion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
+    "/api/v2/assistant/conversation": {
+      "delete": {
+        "operationId": "clear_api_v2_assistant_conversation_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear",
+        "tags": [
+          "assistant"
+        ]
+      },
+      "get": {
+        "operationId": "history_api_v2_assistant_conversation_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "History",
+        "tags": [
+          "assistant"
+        ]
+      }
+    },
     "/api/v2/cards": {
       "post": {
         "operationId": "create_card_api_v2_cards_post",
@@ -2344,6 +2686,28 @@
         "summary": "Job Events",
         "tags": [
           "jobs"
+        ]
+      }
+    },
+    "/api/v2/materials": {
+      "get": {
+        "description": "Library ownership is the authenticated tenant, independent of any plan.",
+        "operationId": "list_account_materials_api_v2_materials_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Items_MaterialOut_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Account Materials",
+        "tags": [
+          "materials"
         ]
       }
     },
@@ -2528,6 +2892,101 @@
         "summary": "Me",
         "tags": [
           "session"
+        ]
+      }
+    },
+    "/api/v2/model-providers": {
+      "get": {
+        "operationId": "providers_api_v2_model_providers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Providers",
+        "tags": [
+          "models"
+        ]
+      },
+      "post": {
+        "operationId": "add_api_v2_model_providers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add",
+        "tags": [
+          "models"
+        ]
+      }
+    },
+    "/api/v2/model-providers/{provider_id}": {
+      "delete": {
+        "operationId": "remove_api_v2_model_providers__provider_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove",
+        "tags": [
+          "models"
         ]
       }
     },
@@ -3177,58 +3636,6 @@
         "summary": "List Cards",
         "tags": [
           "review"
-        ]
-      }
-    },
-    "/api/v2/projects/{project_id}/chat": {
-      "post": {
-        "operationId": "chat_api_v2_projects__project_id__chat_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatOut"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Chat",
-        "tags": [
-          "chat"
         ]
       }
     },
@@ -4177,6 +4584,41 @@
         ]
       }
     },
+    "/api/v2/projects/{project_id}/roadmap": {
+      "delete": {
+        "operationId": "delete_roadmap_api_v2_projects__project_id__roadmap_delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Roadmap",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/v2/projects/{project_id}/roadmap-jobs": {
       "post": {
         "operationId": "generate_roadmap_api_v2_projects__project_id__roadmap_jobs_post",
@@ -4216,60 +4658,6 @@
         "summary": "Generate Roadmap",
         "tags": [
           "generation"
-        ]
-      }
-    },
-    "/api/v2/projects/{project_id}/sources": {
-      "post": {
-        "operationId": "create_source_api_v2_projects__project_id__sources_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "project_id",
-            "required": true,
-            "schema": {
-              "title": "Project Id",
-              "type": "integer"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SourceCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Create Source Api V2 Projects  Project Id  Sources Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Create Source",
-        "tags": [
-          "sources"
         ]
       }
     },

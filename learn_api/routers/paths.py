@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.learning import paths as service
 from learn_core.learning import projects as project_service
@@ -17,11 +17,10 @@ from learn_api.schemas import PlanOut
 
 router = APIRouter(prefix="/projects", tags=["paths"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class PlanRequest(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     weeks: int = Field(default=8, ge=1, le=52)
     hours_per_week: float = Field(default=10.0, gt=0, le=80, alias="hoursPerWeek")

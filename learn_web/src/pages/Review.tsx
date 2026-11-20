@@ -1,3 +1,4 @@
+import { useAssistantPageContext } from "../components/AssistantContext";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endpoints } from "../api";
@@ -24,6 +25,7 @@ export default function Review() {
     enabled: !!projects.length,
   });
   const card = cards.data?.items[0];
+  useAssistantPageContext({ cardId: card?.id, title: card?.front });
   const revealed = !!card && revealedId === card.id;
   const allCards = useQuery({
     queryKey: key("cards", id),

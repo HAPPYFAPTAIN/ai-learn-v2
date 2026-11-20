@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily AI Learn v2 backup at 03:30 server local time
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+Unit=ai-learn-v2-backup.service
+[Install]
+WantedBy=timers.target

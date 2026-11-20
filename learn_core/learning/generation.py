@@ -17,6 +17,7 @@ from learn_core.learning.prompts.roadmap import SYSTEM as ROADMAP_SYSTEM, USER_T
 from learn_core.learning.prompts.lesson import SYSTEM as LESSON_SYSTEM, lesson_prompt
 from learn_core.learning.roadmaps import parse_roadmap, save_roadmap
 from learn_core.learning import assessment, grading
+from learn_core.jobs.logging import log_job_failure
 from learn_core.llm.event_id import next_event_id, step_event
 from learn_core.llm.gateway import UNKNOWN_RESULT, GatewayClient, GatewayError
 from learn_core.llm.lease import LeaseUnavailable
@@ -26,6 +27,10 @@ ACTIVE_STATES = ("queued", "running")
 
 
 class GenerationConflict(ValueError):
+    pass
+
+
+class GenerationBusy(GenerationConflict):
     pass
 
 
@@ -125,6 +130,9 @@ def submit_generation(
         JobProgress.state.in_((*ACTIVE_STATES, "done") if kind == "grade" else ACTIVE_STATES),
     ).order_by(JobProgress.id.desc()).limit(1))
     if active:
+        if active.state == 'done': return active
+        if active.progress.get('options', {}) != options or active.progress.get('force', False) != force or active.progress.get('nodeId') != node_id:
+            raise GenerationBusy('已有同类任务在进行，完成后再提交')
         return active
     if kind == "roadmap" and session.scalar(select(Knode.id).where(Knode.project_id == project_id).limit(1)):
         raise GenerationConflict("已有章节，已保留原学习内容；请新建计划生成路线")
@@ -134,13 +142,14 @@ def submit_generation(
     setting = session.get(TenantSetting, tenant_id)
     snapshot = _input_snapshot(session, project, node, kind, options)
     requires_model = kind != "grade" or grading.grading_prompt(snapshot) is not None
-    if requires_model and (not setting or not setting.chat_model):
-        raise GenerationConflict("请先由测试环境配置网关主模型，再生成课程")
+    if requires_model:
+        from learn_core.learning.model_settings import require_model
+        require_model(session)
     estimate_ms, estimate_source = estimated_model_ms(session, kind=kind, model=setting.chat_model if setting else "")
     job_id = f"{kind}-{uuid4().hex}"
     row = JobProgress(job_id=job_id, kind=kind, subject=subject, state="queued", progress={
         "done": 0, "total": 1, "projectId": project_id, "nodeId": node_id,
-        "inputDigest": _digest(snapshot), "options": options,
+        "inputDigest": _digest(snapshot), "options": options, "force": force,
         "model": setting.chat_model if setting else "", "eventBase": next_event_id(session, tenant_id=tenant_id),
         "queuedAt": now_iso(),
         "phase": "queued", "estimatedModelMs": estimate_ms, "estimateSource": estimate_source,
@@ -181,16 +190,18 @@ def _load_input(session: Session, row: JobProgress) -> dict:
     return data
 
 
-def _finish_error(job_id: str, message: str, state: str = "failed", *, new_event: bool = False) -> None:
+def _finish_error(job_id: str, message: str, state: str = "failed", *, new_event: bool = False, error_code: str = "INTERNAL") -> None:
     with session_scope() as session:
         row = session.scalar(select(JobProgress).where(JobProgress.job_id == job_id).with_for_update())
         if row and row.state in ACTIVE_STATES:
-            progress = {**row.progress, "gatewayCallPending": False}
+            progress = {**row.progress, "gatewayCallPending": False, "errorCode": error_code}
             if new_event:
                 progress["eventAttempt"] = progress.get("eventAttempt", 1) + 1
             row.progress = progress
             row.state = state
             row.error = message
+            if state == 'failed':
+                log_job_failure(row.kind, job_id, error_code, current_tenant())
             row.updated_at = datetime.now(timezone.utc)
 
 
@@ -207,6 +218,8 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                 pending = row.progress.get("gatewayCallPending", "prepared" in row.progress)
                 if row.state == "running" and pending:
                     row.state, row.error = "failed", UNKNOWN_RESULT
+                    row.progress = {**row.progress, 'errorCode': 'RESULT_UNCONFIRMED'}
+                    log_job_failure(row.kind, job_id, 'RESULT_UNCONFIRMED', tenant)
                     row.updated_at = datetime.now(timezone.utc)
                     return
                 data = _load_input(session, row)
@@ -252,13 +265,15 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                     result = gateway.chat_detached(
                         event_id=progress["eventId"], job_id=job_id,
                         messages=progress["prepared"],
-                        purpose=kind, model=progress["model"], max_tokens=8000,
+                        purpose=kind, model=progress["model"], max_tokens=16000,
                     )
+                if result.truncated:
+                    raise GatewayError(422, "生成内容超出长度上限，未能保存。可以缩小章节范围后重试。", code='OUTPUT_TRUNCATED')
             model_ms = round((time.monotonic() - started) * 1000)
             roadmap = parse_roadmap(result.content) if kind == "roadmap" else None
             items = assessment.validate_output(kind, result.content, data, progress["options"]) if kind in {"quiz", "cards"} else None
             grades = grading.validate_results(data, result.content if result else None) if kind == "grade" else None
-            if kind == "lesson" and not is_content_valid(result.content):
+            if kind == "lesson" and (len(result.content) > 50000 or not is_content_valid(result.content)):
                 raise ValueError("教材内容过短或无效，原内容已保留")
             writing = time.monotonic()
             with session_scope() as session:
@@ -307,7 +322,7 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                               new_event=isinstance(exc, GatewayError) and exc.status == 429)
                 raise RetryableGenerationError((10, 40)[attempt]) from exc
             message = str(exc) if isinstance(exc, GatewayError) else "模型并发额度已满，请稍后重试"
-            _finish_error(job_id, message)
+            _finish_error(job_id, message, error_code=exc.code if isinstance(exc, GatewayError) else "TENANT_BUSY")
         except (ValueError, TypeError) as exc:
             # Never publish raw provider JSON, Pydantic input values or secrets.
             _finish_error(job_id, "生成内容未通过校验，原内容已保留；请调整模型后重试")

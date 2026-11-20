@@ -1,7 +1,7 @@
 """Response contracts for the React client; no additional business operations."""
 from datetime import datetime
-from typing import Any, Generic, TypeVar
-from pydantic import BaseModel
+from typing import Any, Generic, TypeVar, Literal
+from pydantic import BaseModel, model_validator
 
 T = TypeVar("T")
 
@@ -19,6 +19,25 @@ class ModelSelectionOut(BaseModel):
 class ModelCatalogOut(ModelSelectionOut):
     items: list[ModelOptionOut]
     selectedAvailable: bool
+    source: Literal['personal', 'gateway'] = 'gateway'
+    providerImportEnabled: bool = False
+
+class ProviderOut(BaseModel):
+    id: str
+    provider: str
+    name: str
+    baseUrl: str
+    models: list[str]
+    remark: str = ''
+    website: str = ''
+
+class ProviderListOut(BaseModel):
+    enabled: bool
+    connections: list[ProviderOut]
+
+class ProviderCreatedOut(BaseModel):
+    connection: ProviderOut
+    verifiedMs: int
 
 class Items(BaseModel, Generic[T]):
     items: list[T]
@@ -194,6 +213,7 @@ class CitationOut(BaseModel):
     label: str
 
 class ConversationMessageOut(BaseModel):
+    truncated: bool = False
     role: str
     content: str
     references: list[CitationOut]
@@ -209,3 +229,19 @@ class MeOut(BaseModel):
     displayName: str
     capabilities: dict[str, bool]
     storage: dict[str, int] | None = None
+
+
+class NonNullPatch(BaseModel):
+    """PATCH may omit required DB columns, but may not explicitly null them."""
+    @model_validator(mode='before')
+    @classmethod
+    def reject_null(cls, data):
+        if isinstance(data, dict):
+            for name, value in data.items():
+                if value is None:
+                    # Field-only error, never include submitted contents.
+                    from pydantic import ValidationError
+                    raise ValidationError.from_exception_data(cls.__name__, [
+                        {'type': 'value_error', 'loc': (name,), 'input': None,
+                         'ctx': {'error': ValueError('不能为空')}}])
+        return data

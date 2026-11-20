@@ -194,6 +194,7 @@ export function createDemo(empty = false) {
   const reviewedCards: Model<"CardOut">[] = [];
   let grade: Model<"GradeOut"> | null = null;
   let gradeJob: { jobId: string; state: string } | null = null;
+  let hasQuiz = !empty;
   const conversations = new Map<string, Model<"ConversationOut">>();
   const polishJobs = new Map<number, Model<"GenerationOut">>();
   return {
@@ -214,8 +215,96 @@ export function createDemo(empty = false) {
         } satisfies Model<"MeOut">);
       if (path === "/projects" && method === "GET")
         return json({ items: projects, limit: 50, offset: 0 });
+      if (path === "/materials" && method === "GET")
+        return json({ items: files });
+      if (path === "/assistant/conversation") {
+        if (method === "DELETE") {
+          conversations.delete("assistant");
+          return new Response(null, { status: 204 });
+        }
+        return json(
+          conversations.get("assistant") || {
+            messages: [],
+            activeJob: null,
+            pendingQuestion: null,
+          },
+        );
+      }
+      if (path === "/assistant/chat-jobs") {
+        const history = conversations.get("assistant") || {
+          messages: [],
+          activeJob: null,
+          pendingQuestion: null,
+        };
+        history.messages.push(
+          {
+            role: "user",
+            content: body.content,
+            references: [],
+            createdAt: now,
+          },
+          {
+            role: "assistant",
+            content:
+              "**这是以太小助的本地演示回答。** 可以先用自己的话理解，再通过一个例子验证。",
+            references: [],
+            createdAt: now,
+          },
+        );
+        conversations.set("assistant", history);
+        const jobId = `demo-assistant-${++sequence}`;
+        jobs.set(jobId, {
+          jobId,
+          kind: "assistant",
+          subject: "assistant",
+          state: "done",
+          progress: { done: 1, total: 1 },
+          error: null,
+          updatedAt: now,
+        });
+        return json({ jobId, state: "queued" }, 202);
+      }
+      if (path === "/assistant/append") {
+        const node = Object.values(nodes)
+          .flat()
+          .find((n) => n.id === body.nodeId);
+        if (!node)
+          return json(
+            {
+              error: {
+                code: "NOT_FOUND",
+                message: "章节不存在",
+                retryable: false,
+              },
+            },
+            404,
+          );
+        const reply = [...(conversations.get("assistant")?.messages || [])]
+          .reverse()
+          .find((m) => m.role === "assistant");
+        if (node.contentVersion !== body.expectedVersion)
+          return json(
+            {
+              error: {
+                code: "CONFLICT",
+                message: "课程已更新",
+                retryable: false,
+              },
+            },
+            409,
+          );
+        if (reply) {
+          node.description += "\n\n## 助教补充\n\n" + reply.content;
+          node.contentVersion += 1;
+        }
+        return json({ contentVersion: node.contentVersion });
+      }
       if (path === "/models")
-        return json({ items: [], selectedModel: "", selectedAvailable: false });
+        return json({
+          items: [{ id: "demo-model", provider: "演示供应商" }],
+          selectedModel: "demo-model",
+          selectedAvailable: true,
+        });
       if (path === "/projects" && method === "POST") {
         const p = {
           id: ++sequence,
@@ -233,6 +322,59 @@ export function createDemo(empty = false) {
       const match = path.match(/^\/projects\/(\d+)\/([\w-]+)$/);
       const id = Number(match?.[1]);
       const resource = match?.[2];
+      const projectDelete = path.match(/^\/projects\/(\d+)$/);
+      if (method === "DELETE" && (projectDelete || resource === "roadmap")) {
+        const pid = projectDelete ? Number(projectDelete[1]) : id;
+        const index = projects.findIndex((p) => p.id === pid);
+        if (index < 0)
+          return json(
+            { error: { code: "NOT_FOUND", message: "学习计划不存在" } },
+            404,
+          );
+        const nodeIds = nodes
+          .filter((n) => n.projectId === pid)
+          .map((n) => n.id);
+        const removeWhere = <T>(
+          items: T[],
+          predicate: (item: T) => boolean,
+        ) => {
+          for (let i = items.length - 1; i >= 0; i--)
+            if (predicate(items[i])) items.splice(i, 1);
+        };
+        removeWhere(nodes, (n) => n.projectId === pid);
+        removeWhere(
+          notes,
+          (n) =>
+            n.projectId === pid &&
+            (!!projectDelete || nodeIds.includes(n.nodeId || 0)),
+        );
+        removeWhere(
+          tasks,
+          (n) =>
+            n.projectId === pid &&
+            (!!projectDelete || nodeIds.includes(n.nodeId || 0)),
+        );
+        removeWhere(
+          cards,
+          (c) =>
+            c.projectId === pid &&
+            (!!projectDelete || nodeIds.includes(c.nodeId || 0)),
+        );
+        removeWhere(reports, (r) => r.projectId === pid);
+        removeWhere(
+          reviewedCards,
+          (c) =>
+            c.projectId === pid &&
+            (!!projectDelete || nodeIds.includes(c.nodeId || 0)),
+        );
+        if (pid === 1) {
+          hasQuiz = false;
+          grade = null;
+          gradeJob = null;
+        }
+        if (projectDelete) projects.splice(index, 1);
+        return new Response(null, { status: 204 });
+      }
       if (match && !projects.some((p) => p.id === id))
         return json(
           {
@@ -350,7 +492,7 @@ export function createDemo(empty = false) {
       if (resource === "quizzes")
         return json({
           items:
-            id === 1 && !empty
+            id === 1 && hasQuiz
               ? [
                   {
                     id: 61,

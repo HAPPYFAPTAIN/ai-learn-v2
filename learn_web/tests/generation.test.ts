@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import { generationEstimate } from "../src/api/generation";
 import type { JobProgress } from "../src/api";
+import { jobFailure } from "../src/api/jobError";
 
 const start = Date.parse("2026-11-15T00:00:00Z");
 const job: JobProgress = {
@@ -15,6 +16,23 @@ const job: JobProgress = {
     estimatedModelMs: 20_000,
   },
 };
+it("explains failed job codes even when an older worker omits the message", () => {
+  for (const [code, message] of [
+    ["INSUFFICIENT_CREDITS", "官网积分不足"],
+    ["RESULT_UNCONFIRMED", "已停止自动重试"],
+    ["OUTPUT_TRUNCATED", "缩小章节范围"],
+    ["GATEWAY_REJECTED", "模型网关拒绝"],
+  ]) {
+    expect(
+      jobFailure({ ...job, state: "failed", progress: { errorCode: code } })
+        ?.message,
+    ).toContain(message);
+  }
+  expect(
+    jobFailure({ ...job, state: "failed", error: "具体校验失败" })?.message,
+  ).toBe("具体校验失败");
+  expect(jobFailure(job)).toBeNull();
+});
 it("estimates the same percentage after a refresh and caps late models below completion", () => {
   const halfway = generationEstimate(job, start + 10_000);
   expect(halfway.percent).toBe(49);
@@ -55,4 +73,15 @@ it("uses a finite fallback estimate and resets to the new attempt timestamp on r
   };
   expect(generationEstimate(retry, start).remaining).toBe("约 45 秒");
   expect(generationEstimate(retry, start).percent).toBe(8);
+});
+it("describes the generated content for lessons, quizzes and review cards", () => {
+  expect(generationEstimate({ ...job, kind: "lesson" }, start).stage).toContain(
+    "本节教材",
+  );
+  expect(generationEstimate({ ...job, kind: "quiz" }, start).stage).toContain(
+    "测验题",
+  );
+  expect(generationEstimate({ ...job, kind: "cards" }, start).stage).toContain(
+    "复习卡片",
+  );
 });

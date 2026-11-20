@@ -105,10 +105,22 @@ class DevTicketVerifier:
         return Principal(official_user_id=f"dev-{ticket}", display_name=ticket, ticket=ticket)
 
 
+def validate_dev_auth() -> None:
+    import os
+    if os.getenv('LEARN_DEV_AUTH') != '1':
+        return
+    origin = urlsplit(get_settings().public_origin)
+    if (origin.scheme != 'http' or origin.hostname not in {'127.0.0.1', 'localhost'}
+            or origin.username or origin.password or origin.path not in {'', '/'}
+            or origin.query or origin.fragment):
+        raise RuntimeError('LEARN_DEV_AUTH 仅允许 HTTP 本地回环地址')
+
+
 def _default_verifier() -> TicketVerifier:
     import os
 
     if os.getenv("LEARN_DEV_AUTH") == "1":
+        validate_dev_auth()
         return DevTicketVerifier()
     return HttpTicketVerifier()
 
@@ -137,5 +149,6 @@ def get_principal(request: Request) -> Principal:
         raise ApiError("ACCOUNT_CHANGED", "account changed; reopen from the official website")
     if official and request.headers.get('X-Learn-User', principal.official_user_id) != principal.official_user_id:
         raise ApiError('UNAUTHENTICATED', '工作空间身份不匹配')
+    request.state.account_id = principal.official_user_id
     request.state.authorized_entry_cookie = renewed
     return principal

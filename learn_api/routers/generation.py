@@ -6,16 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import Literal
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_api.schemas import GenerationOut
 from learn_core.db.models import Knode
 from learn_core.learning.generation import (
-    submit_generation, GenerationConflict, GenerationMissing,
+    submit_generation, GenerationConflict, GenerationMissing, GenerationBusy,
 )
 
 router = APIRouter(tags=["generation"])
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class LessonGenerate(BaseModel):
@@ -35,6 +34,8 @@ def _submit(session: Session, response: Response, **kwargs) -> dict:
         row = submit_generation(session, **kwargs)
     except GenerationMissing as exc:
         raise ApiError("NOT_FOUND", str(exc)) from exc
+    except GenerationBusy as exc:
+        raise ApiError("JOB_RUNNING", str(exc)) from exc
     except GenerationConflict as exc:
         raise ApiError("CONFLICT", str(exc)) from exc
     response.headers["Location"] = f"/official/learn-everything/api/v2/jobs/{row.job_id}"

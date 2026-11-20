@@ -16,7 +16,7 @@ from procrastinate import App, PsycopgConnector
 
 from learn_core.config import get_settings
 
-CHANNELS = ("llm", "cpu", "io")
+CHANNELS = ("llm", "chat", "cpu", "io")
 
 
 @dataclass(frozen=True)
@@ -30,7 +30,7 @@ class JobHandle:
 def build_app() -> App:
     settings = get_settings()
     return App(
-        connector=PsycopgConnector(conninfo=settings.procrastinate_dsn),
+        connector=PsycopgConnector(conninfo=settings.procrastinate_dsn, kwargs={"options": f"-c lock_timeout={settings.db_lock_timeout}"}),
         import_paths=["learn_core.jobs.tasks"],
     )
 

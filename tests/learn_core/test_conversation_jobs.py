@@ -82,7 +82,7 @@ def test_chat_persists_history_deduplicates_and_uses_chapter_and_selected_materi
 
 
 @db_test
-def test_chat_recovery_reuses_saved_input_after_chapter_edit(tenant, client, monkeypatch):
+def test_chat_recovery_never_replays_an_unknown_paid_request(tenant, client, monkeypatch):
     with tenant_context(tenant[0]), session_scope() as session:
         node = Knode(project_id=tenant[1], code='1', title='原章节', description='原教材内容')
         session.add(node); session.flush(); nid = node.id
@@ -101,9 +101,10 @@ def test_chat_recovery_reuses_saved_input_after_chapter_edit(tenant, client, mon
     with tenant_context(tenant[0]), session_scope() as session:
         session.get(Knode, nid).description = '后来修改的教材'
     conversations.run_answer(tenant=str(tenant[0]), job_id=jid)
-    assert len(calls) == 2 and calls[0] == calls[1]
-    assert '原教材内容' in calls[1][1]['messages'][0]['content']
-    assert len(client.get(f'/api/v2/projects/{tenant[1]}/conversation').json()['messages']) == 2
+    assert len(calls) == 1
+    assert client.get(f'/api/v2/jobs/{jid}').json()['progress']['errorCode'] == 'RESULT_UNCONFIRMED'
+    assert client.get(f'/api/v2/jobs/{jid}').json()['state'] == 'failed'
+    assert client.get(f'/api/v2/projects/{tenant[1]}/conversation').json()['messages'] == []
 
 
 @db_test
@@ -114,7 +115,7 @@ def test_chat_failure_does_not_append_partial_turn_and_records_error(tenant, cli
     jid=response.json()['jobId']
     conversations.run_answer(tenant=str(tenant[0]),job_id=jid)
     job=client.get(f'/api/v2/jobs/{jid}').json()
-    assert job['state']=='failed' and '402' in job['error'] and 'do-not-expose' not in job['error']
+    assert job['state']=='failed' and '官网积分不足' in job['error'] and 'do-not-expose' not in job['error']
     assert client.get(f'/api/v2/projects/{tenant[1]}/conversation').json()['messages']==[]
 
 

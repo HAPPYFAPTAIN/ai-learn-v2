@@ -12,9 +12,11 @@ on:
       - "deploy/learn-v2/**"
       - "deploy/learn-reaper.*"
       - "runtime/learn-v2-release-policy.json"
-      - "scripts/learn_v2_release.py"
+      - "scripts/learn_v2*"
       - "scripts/deployment/receive_learn_v2.py"
       - "tests/deployment/**"
+      - "scripts/check_learn_v2_memory.sh"
+      - "scripts/install_learn_v2_dependencies.sh"
       - "migrations/**"
       - "tests/learn_core/**"
       - "scripts/phase0/**"
@@ -23,6 +25,7 @@ on:
       - "scripts/ci-check.sh"
       - "scripts/learn_migrate.py"
       - "requirements-learn-*.txt"
+      - "requirements-learn-*.lock"
       - "requirements-learn-embed.txt"
       - "alembic.ini"
       - ".github/workflows/learn-core.yml"
@@ -82,6 +85,10 @@ jobs:
           SQL
       - name: Apply schema
         run: |
+          alembic upgrade 0008_model_providers
+          # Only this revision needs role-administration privileges; do not
+          # create tenant tables or SECURITY DEFINER functions as postgres.
+          LEARN_DATABASE_OWNER_URL=postgresql+psycopg://postgres:postgres@127.0.0.1:5432/learn_dev alembic upgrade 0009_runtime_timeouts
           alembic upgrade head
           python scripts/phase0/apply_queue_schema.py
       - name: Tenant isolation, Kotaemon tables, queue and vector gates

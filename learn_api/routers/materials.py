@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_api.schemas import Items, MaterialOut, UploadOut, MaterialPreviewOut, GenerationOut
 from learn_core.db.models import StoredFile
@@ -26,9 +26,9 @@ def _file(session, file_id):
 
 
 @router.post('/projects/{project_id}/materials', status_code=status.HTTP_202_ACCEPTED, response_model=UploadOut)
-async def upload_material(project_id: int, response: Response, file: UploadFile = File(...),
-                          index: bool = Form(default=True), session: Session = Depends(get_session)):
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+def upload_material(project_id: int, response: Response, session: SessionDep, file: UploadFile = File(...),
+                          index: bool = Form(default=True)):
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
     if not data or len(data) > MAX_UPLOAD_BYTES:
         raise ApiError('INVALID_ARGUMENT', '请选择非空且不超过 50 MB 的文件')
     name = Path((file.filename or '').replace('\\','/')).name
@@ -46,15 +46,21 @@ async def upload_material(project_id: int, response: Response, file: UploadFile 
 
 
 @router.get('/projects/{project_id}/materials', response_model=Items[MaterialOut])
-def list_materials(project_id: int, session: Session = Depends(get_session)):
+def list_materials(project_id: int, session: SessionDep):
     if project_service.get_project(session, project_id) is None:
         raise ApiError('NOT_FOUND', '学习计划不存在')
+    return list_account_materials(session)
+
+
+@router.get('/materials', response_model=Items[MaterialOut])
+def list_account_materials(session: SessionDep):
+    """Library ownership is the authenticated tenant, independent of any plan."""
     rows = session.scalars(select(StoredFile).where(StoredFile.kind == 'material').order_by(StoredFile.created_at.desc()))
     return {'items':[{'fileId':str(r.id), 'name':r.original_name, 'sizeBytes':r.size_bytes, 'sha256':r.sha256, 'createdAt':r.created_at} for r in rows]}
 
 
 @router.get('/materials/{file_id}/preview', response_model=MaterialPreviewOut)
-def preview(file_id: UUID, response: Response, session: Session = Depends(get_session)):
+def preview(file_id: UUID, response: Response, session: SessionDep):
     row = _file(session, file_id)
     response.headers['Cache-Control'] = 'no-store'
     chunks = list(session.scalars(text("SELECT text FROM rag_chunk WHERE index_id='material' AND source_id=:id ORDER BY split_part(chunk_id, ':', 2)::int LIMIT 101"), {'id':str(file_id)}))
@@ -64,7 +70,7 @@ def preview(file_id: UUID, response: Response, session: Session = Depends(get_se
 
 
 @router.get('/materials/{file_id}/download')
-def download(file_id: UUID, session: Session = Depends(get_session)):
+def download(file_id: UUID, session: SessionDep):
     row = _file(session, file_id)
     try:
         source = storage.open_file(row.storage_key)
@@ -81,14 +87,14 @@ def download(file_id: UUID, session: Session = Depends(get_session)):
 
 
 @router.post('/materials/{file_id}/index', response_model=GenerationOut, status_code=202)
-def reindex(file_id: UUID, session: Session = Depends(get_session)):
+def reindex(file_id: UUID, session: SessionDep):
     service.storage_lock(session)
     job = service.schedule_index(session, row=_file(session, file_id))
     return {'jobId':job.job_id, 'state':job.state}
 
 
 @router.delete('/materials/{file_id}', status_code=204)
-def delete(file_id: UUID, session: Session = Depends(get_session)):
+def delete(file_id: UUID, session: SessionDep):
     service.storage_lock(session)
     service.remove(session, row=_file(session, file_id))
     return Response(status_code=204)

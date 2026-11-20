@@ -5,6 +5,14 @@ export type Project = Model<"ProjectOut">;
 export type KNode = Model<"NodeOut">;
 export type JobProgress = Model<"JobOut">;
 export const endpoints = {
+  assistantHistory: (signal?: AbortSignal) =>
+    get("/api/v2/assistant/conversation", undefined, signal),
+  askAssistant: (body: Model<"AssistantQuestion">) =>
+    post("/api/v2/assistant/chat-jobs", body),
+  clearAssistant: () =>
+    request("/assistant/conversation", { method: "DELETE" }),
+  appendAssistant: (body: Model<"AssistantAppend">) =>
+    post("/api/v2/assistant/append", body),
   me: (signal?: AbortSignal) => get("/api/v2/me", undefined, signal),
   models: (signal?: AbortSignal) => get("/api/v2/models", undefined, signal),
   selectModel: (model: string) => patch("/api/v2/models/selection", { model }),
@@ -18,6 +26,10 @@ export const endpoints = {
     }),
   project: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}", { project_id: id }, signal),
+  deleteProject: (id: number) =>
+    request<void>(`/projects/${id}`, { method: "DELETE" }),
+  deleteRoadmap: (id: number) =>
+    request<void>(`/projects/${id}/roadmap`, { method: "DELETE" }),
   nodes: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}/nodes", { project_id: id }, signal),
   createNode: (id: number, body: Model<"NodeCreate">) =>
@@ -57,7 +69,13 @@ export const endpoints = {
   quizGradeJob: (id: number, signal?: AbortSignal) =>
     get("/api/v2/quizzes/{quiz_id}/grade-job", { quiz_id: id }, signal),
   materials: (id: number, signal?: AbortSignal) =>
-    get("/api/v2/projects/{project_id}/materials", { project_id: id }, signal),
+    id
+      ? get(
+          "/api/v2/projects/{project_id}/materials",
+          { project_id: id },
+          signal,
+        )
+      : get("/api/v2/materials", undefined, signal),
   upload: uploadMaterial,
   materialPreview: (id: string, signal?: AbortSignal) =>
     get("/api/v2/materials/{file_id}/preview", { file_id: id }, signal),
@@ -77,18 +95,18 @@ export const endpoints = {
     ),
   path: (id: number, body: Model<"PlanRequest">) =>
     post("/api/v2/projects/{project_id}/path", body, { project_id: id }),
+  recordMinutes: (id: number, nodeId?: number) =>
+    post(
+      "/api/v2/projects/{project_id}/progress",
+      { metric: "minutes", value: 1, nodeId },
+      { project_id: id },
+    ),
   summary: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}/summary", { project_id: id }, signal),
   reports: (id: number, signal?: AbortSignal) =>
     get("/api/v2/projects/{project_id}/reports", { project_id: id }, signal),
   buildReport: (id: number) =>
     request<Model<"ReportOut">>(`/projects/${id}/reports`, { method: "POST" }),
-  chat: (id: number, messages: Model<"ChatMessage">[]) =>
-    post(
-      "/api/v2/projects/{project_id}/chat",
-      { messages },
-      { project_id: id },
-    ),
   conversation: (
     id: number,
     signal?: AbortSignal,

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.learning import projects as project_service
 from learn_core.learning import quizzes as service
@@ -19,28 +19,27 @@ from learn_api.schemas import GenerationOut, GradeOut, Items, QuizBrief, QuizOut
 
 router = APIRouter(tags=["quizzes"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class QuestionIn(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
-    stem: str = Field(min_length=1)
-    answer: str = Field(min_length=1)
-    qtype: str = "short"
-    options: list = Field(default_factory=list)
-    explanation: str = ""
+    stem: str = Field(min_length=1, max_length=50000)
+    answer: str = Field(min_length=1, max_length=50000)
+    qtype: Literal["choice", "fill", "short", "practice"] = "short"
+    options: list[Annotated[str, Field(max_length=4000)]] = Field(default_factory=list, max_length=20)
+    explanation: str = Field(default="", max_length=50000)
     node_id: int | None = Field(default=None, alias="nodeId")
     difficulty: int = Field(default=3, ge=1, le=5)
 
 
 class QuizCreate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     title: str = Field(default="", max_length=200)
-    quiz_type: str = Field(default="mixed", alias="quizType")
-    node_ids: list[int] = Field(default_factory=list, alias="nodeIds")
-    questions: list[QuestionIn] = Field(min_length=1)
+    quiz_type: Literal["mixed", "choice", "fill", "short", "practice", "diagnostic", "review"] = Field(default="mixed", alias="quizType")
+    node_ids: list[int] = Field(default_factory=list, max_length=100, alias="nodeIds")
+    questions: list[QuestionIn] = Field(min_length=1, max_length=100)
 
 
 class GradeSubmit(BaseModel):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.db.models import Card
 from learn_core.learning import projects as project_service
@@ -22,22 +22,21 @@ from learn_api.schemas import CardOut, Items
 
 router = APIRouter(tags=["review"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class CardCreate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     front: str = Field(min_length=1, max_length=4000)
     back: str = Field(min_length=1, max_length=8000)
     node_id: int | None = Field(default=None, alias="nodeId")
     project_id: int | None = Field(default=None, alias="projectId")
-    card_type: str = Field(default="basic", alias="cardType")
+    card_type: Literal["basic", "cloze", "concept"] = Field(default="basic", alias="cardType")
     request_id: UUID | None = Field(default=None, alias="requestId")
 
 
 class ReviewRequest(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     rating: int = Field(ge=1, le=4)
     expected_reps: int = Field(ge=0, alias="expectedReps")

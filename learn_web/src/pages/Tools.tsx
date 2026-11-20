@@ -1,3 +1,4 @@
+import { jobFailure } from "../api/jobError";
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -7,7 +8,6 @@ import { watchJob } from "../api/jobs";
 import { useProject } from "../components/ProjectContext";
 import {
   AutoTextarea,
-  Empty,
   ErrorNotice,
   Icon,
   PageHeading,
@@ -78,9 +78,7 @@ export default function Tools() {
           </button>
         ))}
       </div>
-      {!id ? (
-        <Empty title="暂无学习目标" />
-      ) : tool === "polish" ? (
+      {tool === "polish" ? (
         <Polish key={id} id={id} />
       ) : (
         <>
@@ -88,6 +86,7 @@ export default function Tools() {
             <h2>选择练习内容</h2>
             <Select
               label="练习章节"
+              disabled={!id}
               value={chapter}
               options={[
                 { value: 0, label: "围绕当前学习目标" },
@@ -117,6 +116,7 @@ function Polish({ id }: { id: number }) {
   const latest = useQuery({
     queryKey: key("polish-job", id),
     queryFn: ({ signal }) => endpoints.polishJob(id, signal),
+    enabled: !!id,
   });
   const [draft, setDraft] = useState("");
   const [purpose, setPurpose] = useState("note");
@@ -190,18 +190,21 @@ function Polish({ id }: { id: number }) {
       <p className="muted">
         只改善表达，保留代码、链接、数字与原意。润色结果单独展示，由你决定是否采用。
       </p>
-      <QueryState query={latest} />
+      {!!id && <QueryState query={latest} />}
+      {!id && (
+        <p className="muted small">暂无学习计划，关联计划的润色暂不可用。</p>
+      )}
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          if (draft.trim() && !pending) send.mutate();
+          if (id && draft.trim() && !pending) send.mutate();
         }}
       >
         <Select
           label="润色用途"
           value={purpose}
           options={purposes}
-          disabled={pending}
+          disabled={pending || !id}
           onChange={setPurpose}
         />
         <label htmlFor="polish-source">原文</label>
@@ -209,7 +212,7 @@ function Polish({ id }: { id: number }) {
           id="polish-source"
           value={draft}
           maxLength={12000}
-          disabled={pending || latest.isPending}
+          disabled={!id || pending || latest.isPending}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="粘贴要润色的学习目标、笔记或问题…"
         />
@@ -217,7 +220,7 @@ function Polish({ id }: { id: number }) {
           <span className="muted small">{draft.length} / 12000 字</span>
           <button
             className="primary"
-            disabled={!draft.trim() || pending || latest.isPending}
+            disabled={!id || !draft.trim() || pending || latest.isPending}
           >
             {pending ? "正在润色…" : "开始润色"}
           </button>
@@ -230,17 +233,16 @@ function Polish({ id }: { id: number }) {
             {reconnecting ? " 正在恢复连接，可刷新后查看同一任务。" : ""}
           </p>
         )}
-        <ErrorNotice
-          error={
-            send.error ||
-            watchError ||
-            (job?.error ? new Error(job.error) : null)
-          }
-        />
+        <ErrorNotice error={send.error || watchError || jobFailure(job)} />
       </form>
       {result && (
         <section className="polish-result" aria-label="润色结果">
           <h3>润色结果</h3>
+          {job?.progress.truncated === true && (
+            <p role="status" className="muted">
+              回答可能不完整
+            </p>
+          )}
           <p className="material-text">{result}</p>
           {job?.progress.source !== draft && (
             <p className="muted small">

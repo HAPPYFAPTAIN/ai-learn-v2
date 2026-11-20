@@ -1,0 +1,8 @@
+[Unit]
+Description=AI Learn v2 database and document backup
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/ai-learn-v2/backup.env
+ExecStart=%h/data/ai-learn/standalone-v2/core-venv/bin/python %h/data/ai-learn/standalone-v2/src/scripts/learn_v2_backup.py
+UMask=0077
+MemoryMax=512M
