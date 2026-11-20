@@ -9,6 +9,7 @@ export type ModelConnection = {
   models: string[];
   remark?: string;
   website?: string;
+  revision?: string;
 };
 type PreviewState = {
   connections: ModelConnection[];

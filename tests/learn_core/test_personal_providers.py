@@ -176,3 +176,123 @@ def test_real_generation_uses_owned_key_without_gateway_fallback_or_db_lease(ten
         assert 'test-user-private-key' not in json.dumps(row.progress)
         usage = session.scalar(select(ModelCall).where(ModelCall.job_id == jid))
         assert usage.model == alias and usage.status == 'ok'
+
+
+@db_test
+def test_edit_keeps_key_revalidates_models_and_clears_removed_primary(tenant, personal, monkeypatch):
+    value = payload()
+    with tenant_context(tenant[0]), session_scope() as session:
+        original = providers.save(session, payload=value)
+        session.get(TenantSetting, tenant[0]).chat_model = original['models'][0]
+    seen = []
+    def call(credential, method, path, **kwargs):
+        assert get_engine().pool.checkedout() == 0
+        seen.append(credential.key)
+        return httpx.Response(200, json={'data': [{'id': 'replacement'}]})
+    monkeypatch.setattr(providers, 'call', call)
+    wire = {'revision': original['revision'], 'name': '已编辑', 'baseUrl': value.baseUrl,
+            'apiKey': '', 'models': ['replacement'], 'remark': '新备注'}
+    with client_for(tenant[0], 'owner') as client:
+        result = client.put(f'/api/v2/model-providers/{value.id}', json=wire)
+        assert result.status_code == 200, result.text
+        assert 'test-user-private-key' not in result.text
+        saved = result.json()['connection']
+        assert saved['id'] == value.id and saved['name'] == '已编辑'
+        assert saved['remark'] == '新备注' and saved['revision'] != original['revision']
+        assert client.get('/api/v2/models').json()['selectedModel'] == ''
+        assert client.get('/api/v2/model-providers').json()['connections'] == [saved]
+        # Stale windows never send the key or overwrite another edit.
+        assert client.put(f'/api/v2/model-providers/{value.id}', json=wire).status_code == 409
+    assert seen == ['test-user-private-key']
+    with client_for(uuid4(), 'foreign') as client:
+        assert client.put(f'/api/v2/model-providers/{value.id}', json=wire).status_code == 404
+    assert len(seen) == 1
+
+
+@db_test
+def test_edit_address_requires_new_key_and_failed_validation_keeps_original(tenant, personal, monkeypatch):
+    value = payload()
+    with tenant_context(tenant[0]), session_scope() as session:
+        original = providers.save(session, payload=value)
+    wire = {'revision': original['revision'], 'name': value.name,
+            'baseUrl': 'https://new.provider.test/v1', 'models': value.models}
+    sent = []
+    def call(credential, *args, **kwargs):
+        assert get_engine().pool.checkedout() == 0
+        sent.append(credential.key)
+        return httpx.Response(401, text='private upstream response')
+    monkeypatch.setattr(providers, 'call', call)
+    with client_for(tenant[0], 'owner') as client:
+        result = client.put(f'/api/v2/model-providers/{value.id}', json=wire)
+        assert result.status_code == 422 and '重新填写' in result.json()['error']['message']
+        assert not sent
+        wire['apiKey'] = 'replacement-secret'
+        result = client.put(f'/api/v2/model-providers/{value.id}', json=wire)
+        assert result.status_code == 422 and result.json()['error']['code'] == 'PROVIDER_KEY_INVALID'
+        assert 'replacement-secret' not in result.text and 'private upstream' not in result.text
+        assert client.get('/api/v2/model-providers').json()['connections'] == [original]
+    assert sent == ['replacement-secret']
+
+
+@db_test
+def test_edit_rotates_key_without_changing_model_identity(tenant, personal, monkeypatch):
+    value = payload()
+    with tenant_context(tenant[0]), session_scope() as session:
+        original = providers.save(session, payload=value)
+        session.get(TenantSetting, tenant[0]).chat_model = original['models'][0]
+    def call(credential, *args, **kwargs):
+        assert credential.key == 'new-secret'
+        return httpx.Response(200, json={'data': [{'id': 'qwen-test'}]})
+    monkeypatch.setattr(providers, 'call', call)
+    wire = {'revision': original['revision'], 'name': value.name, 'baseUrl': value.baseUrl,
+            'apiKey': 'new-secret', 'models': value.models}
+    with client_for(tenant[0], 'owner') as client:
+        result = client.put(f'/api/v2/model-providers/{value.id}', json=wire)
+        assert result.status_code == 200, result.text
+        assert 'new-secret' not in result.text
+        assert client.get('/api/v2/models').json()['selectedModel'] == original['models'][0]
+    with tenant_context(tenant[0]), session_scope() as session:
+        assert providers.resolve(session, original['models'][0]).key == 'new-secret'
+
+
+@db_test
+def test_edit_does_not_recreate_deleted_connection_after_verification(tenant, personal, monkeypatch):
+    value = payload()
+    with tenant_context(tenant[0]), session_scope() as session:
+        original = providers.save(session, payload=value)
+    def call(*args, **kwargs):
+        with tenant_context(tenant[0]), session_scope() as session:
+            providers.remove(session, value.id)
+        return httpx.Response(200, json={'data': [{'id': 'qwen-test'}]})
+    monkeypatch.setattr(providers, 'call', call)
+    wire = {'revision': original['revision'], 'name': value.name, 'baseUrl': value.baseUrl,
+            'models': value.models}
+    with client_for(tenant[0], 'owner') as client:
+        assert client.put(f'/api/v2/model-providers/{value.id}', json=wire).status_code == 404
+        assert client.get('/api/v2/model-providers').json()['connections'] == []
+
+
+@db_test
+def test_edit_rechecks_revision_after_network_and_rejects_duplicate_names(tenant, personal, monkeypatch):
+    value = payload()
+    with tenant_context(tenant[0]), session_scope() as session:
+        original = providers.save(session, payload=value)
+        other = providers.save(session, payload=providers.ProviderInput(
+            **(value.model_dump() | {'id': uuid4().hex[:12], 'name': '其他连接'})))
+    changed = []
+    def call(*args, **kwargs):
+        if not changed:
+            with tenant_context(tenant[0]), session_scope() as session:
+                changed.append(providers.update(session, payload=providers.ProviderInput(
+                    **(value.model_dump() | {'name': '其他窗口已保存'})), revision=original['revision']))
+        return httpx.Response(200, json={'data': [{'id': 'qwen-test'}]})
+    monkeypatch.setattr(providers, 'call', call)
+    wire = {'revision': original['revision'], 'name': '过期编辑', 'baseUrl': value.baseUrl,
+            'models': value.models}
+    with client_for(tenant[0], 'owner') as client:
+        assert client.put(f'/api/v2/model-providers/{value.id}', json=wire).status_code == 409
+        wire.update(revision=changed[0]['revision'], name=other['name'])
+        result = client.put(f'/api/v2/model-providers/{value.id}', json=wire)
+        assert result.status_code == 422 and '名称已存在' in result.json()['error']['message']
+        saved = client.get('/api/v2/model-providers').json()['connections']
+        assert next(c for c in saved if c['id'] == value.id)['name'] == '其他窗口已保存'

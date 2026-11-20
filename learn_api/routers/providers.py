@@ -54,3 +54,24 @@ def remove(provider_id: str, tenant_id=Depends(get_tenant_id)):
     with tenant_context(tenant_id), session_scope() as session:
         service.remove(session, provider_id)
     return Response(status_code=204)
+
+
+@router.put('/{provider_id}', response_model=ProviderCreatedOut)
+def edit(provider_id: str, payload: service.ProviderUpdate, tenant_id=Depends(get_tenant_id)):
+    personal_mode()
+    started = monotonic()
+    with tenant_context(tenant_id):
+        with session_scope() as session:
+            prepared = service.prepare_update(session, cid=provider_id, payload=payload)
+            try:
+                holder = acquire(session, tenant_id=tenant_id, lane='interactive', ttl=timedelta(seconds=120))
+            except LeaseUnavailable:
+                raise ApiError('TENANT_BUSY', '正在验证供应商或回答问题，请稍后再试。', retry_after_seconds=5) from None
+        try:
+            service.verify(prepared)
+            with session_scope() as session:
+                connection = service.update(session, payload=prepared, revision=payload.revision)
+        finally:
+            with session_scope() as session:
+                release(session, tenant_id=tenant_id, lane='interactive', holder=holder)
+    return {'connection': connection, 'verifiedMs': round((monotonic() - started) * 1000)}

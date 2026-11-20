@@ -6,6 +6,7 @@ lease and retry rules; checked public IPs are pinned for each upstream request.
 from __future__ import annotations
 
 import ipaddress
+import hashlib
 import json
 import re
 import socket
@@ -39,6 +40,16 @@ class ProviderInput(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     baseUrl: str = Field(min_length=1, max_length=500)
     apiKey: SecretStr = Field(min_length=1, max_length=4096)
+    models: list[str] = Field(min_length=1, max_length=100)
+    remark: str = Field(default='', max_length=200)
+    website: str = Field(default='', max_length=500)
+
+
+class ProviderUpdate(BaseModel):
+    revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+    name: str = Field(min_length=1, max_length=80)
+    baseUrl: str = Field(min_length=1, max_length=500)
+    apiKey: SecretStr = Field(default=SecretStr(''), max_length=4096)
     models: list[str] = Field(min_length=1, max_length=100)
     remark: str = Field(default='', max_length=200)
     website: str = Field(default='', max_length=500)
@@ -137,8 +148,16 @@ def verify(payload: ProviderInput, *, transport=None) -> None:
         raise ProviderError('INVALID_ARGUMENT', '供应商需要兼容 OpenAI 的 /models 和 /chat/completions 接口。') from None
 
 
+def connection_metadata(row: ModelProvider) -> dict:
+    # Hash ciphertext, never plaintext. Also detects a concurrent key replacement.
+    revision = hashlib.sha256(json.dumps(
+        [row.metadata_json, row.encrypted_key], sort_keys=True, ensure_ascii=True,
+    ).encode()).hexdigest()
+    return {**row.metadata_json, 'revision': revision}
+
+
 def connections(session: Session) -> list[dict]:
-    return [row.metadata_json for row in session.scalars(select(ModelProvider).order_by(ModelProvider.created_at))]
+    return [connection_metadata(row) for row in session.scalars(select(ModelProvider).order_by(ModelProvider.created_at))]
 
 
 def lock_connections(session: Session) -> None:
@@ -155,7 +174,7 @@ def save(session: Session, *, payload: ProviderInput) -> dict:
                 or [m.split('.', 2)[2] for m in existing.metadata_json['models']] != list(dict.fromkeys(m.strip() for m in payload.models))
                 or decrypt_key(existing.encrypted_key, existing.id) != payload.apiKey.get_secret_value().strip()):
             raise ProviderError('INVALID_ARGUMENT', '本次导入编号已使用，请关闭弹窗后重新添加。')
-        return existing.metadata_json
+        return connection_metadata(existing)
     rows = list(session.scalars(select(ModelProvider)))
     if len(rows) >= 20:
         raise ProviderError('INVALID_ARGUMENT', '每个账号最多保存 20 个供应商，请先移除不用的供应商。')
@@ -168,7 +187,49 @@ def save(session: Session, *, payload: ProviderInput) -> dict:
                         encrypted_key=encrypt_key(payload.apiKey.get_secret_value().strip(), payload.id))
     session.add(row)
     session.flush()
-    return metadata
+    return connection_metadata(row)
+
+
+def prepare_update(session: Session, *, cid: str, payload: ProviderUpdate) -> ProviderInput:
+    row = session.get(ModelProvider, cid)
+    if row is None:
+        raise ProviderError('NOT_FOUND', '供应商不存在或已移除。')
+    if connection_metadata(row)['revision'] != payload.revision:
+        raise ProviderError('CONFLICT', '供应商配置已更新，请关闭编辑窗口并刷新后重试。')
+    key = payload.apiKey.get_secret_value().strip()
+    if not key and payload.baseUrl.strip().rstrip('/') != row.metadata_json['baseUrl']:
+        raise ProviderError('INVALID_ARGUMENT', '更换 API 地址时，请重新填写该地址对应的 API Key。')
+    return ProviderInput(
+        **payload.model_dump(exclude={'revision', 'apiKey'}),
+        id=cid, provider=row.metadata_json['provider'],
+        apiKey=key or decrypt_key(row.encrypted_key, cid),
+    )
+
+
+def update(session: Session, *, payload: ProviderInput, revision: str) -> dict:
+    # Validation happened without a transaction. Recheck under the same per-tenant
+    # lock used by import/delete so a concurrent edit cannot overwrite newer data.
+    lock_connections(session)
+    row = session.get(ModelProvider, payload.id)
+    if row is None:
+        raise ProviderError('NOT_FOUND', '供应商不存在或已移除。')
+    if connection_metadata(row)['revision'] != revision:
+        raise ProviderError('CONFLICT', '供应商配置已更新，请关闭编辑窗口并刷新后重试。')
+    if session.scalar(select(ModelProvider.id).where(
+        ModelProvider.name == payload.name.strip(), ModelProvider.id != payload.id,
+    )):
+        raise ProviderError('INVALID_ARGUMENT', '供应商名称已存在，请使用不同名称。')
+    metadata = payload.model_dump(exclude={'apiKey'})
+    metadata.update(name=payload.name.strip(), baseUrl=payload.baseUrl.strip().rstrip('/'),
+                    models=[f'personal.{payload.id}.{mid}' for mid in dict.fromkeys(m.strip() for m in payload.models)])
+    setting = session.get(TenantSetting, current_tenant())
+    if setting and setting.chat_model in row.metadata_json['models'] and setting.chat_model not in metadata['models']:
+        setting.chat_model = ''
+    row.name = metadata['name']
+    row.metadata_json = metadata
+    row.encrypted_key = encrypt_key(payload.apiKey.get_secret_value().strip(), row.id)
+    session.flush()
+    return connection_metadata(row)
 
 
 def resolve(session: Session, model: str) -> Credential:

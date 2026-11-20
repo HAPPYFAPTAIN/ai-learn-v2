@@ -16,6 +16,7 @@ EXPECTED = {
     ('GET', '/api/v2/model-providers'),
     ('POST', '/api/v2/model-providers'),
     ('DELETE', '/api/v2/model-providers/{provider_id}'),
+    ('PUT', '/api/v2/model-providers/{provider_id}'),
     ('GET', '/api/v2/projects/{project_id}/polish-job'),
     ('POST', '/api/v2/projects/{project_id}/polish-jobs'),
     ("GET", "/api/v2/models"),

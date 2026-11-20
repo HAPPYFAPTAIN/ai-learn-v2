@@ -238,7 +238,8 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        put?: never;
+        /** Edit */
+        put: operations["edit_api_v2_model_providers__provider_id__put"];
         post?: never;
         /** Remove */
         delete: operations["remove_api_v2_model_providers__provider_id__delete"];
@@ -1565,6 +1566,35 @@ export interface components {
              * @default
              */
             remark?: string;
+            /** Revision */
+            revision: string;
+            /**
+             * Website
+             * @default
+             */
+            website?: string;
+        };
+        /** ProviderUpdate */
+        ProviderUpdate: {
+            /**
+             * Apikey
+             * Format: password
+             * @default
+             */
+            apiKey?: string;
+            /** Baseurl */
+            baseUrl: string;
+            /** Models */
+            models: string[];
+            /** Name */
+            name: string;
+            /**
+             * Remark
+             * @default
+             */
+            remark?: string;
+            /** Revision */
+            revision: string;
             /**
              * Website
              * @default
@@ -2203,6 +2233,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ProviderInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_api_v2_model_providers__provider_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderUpdate"];
             };
         };
         responses: {

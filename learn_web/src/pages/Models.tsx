@@ -67,6 +67,7 @@ function GatewayModels() {
   const [filter, setFilter] = useState("");
   const [provider, setProvider] = useState("");
   const [removing, setRemoving] = useState("");
+  const [editing, setEditing] = useState<ModelConnection>();
   const remove = useMutation({
     mutationFn: removePersonalProvider,
     onSuccess: () => {
@@ -219,7 +220,18 @@ function GatewayModels() {
                 {personalMode &&
                   provider &&
                   connections?.some((c) => c.id === provider) && (
-                    <div className="provider-removal">
+                    <div className="provider-removal form-footer">
+                      <button
+                        type="button"
+                        disabled={!personalEnabled || remove.isPending}
+                        onClick={() =>
+                          setEditing(
+                            connections?.find((c) => c.id === provider),
+                          )
+                        }
+                      >
+                        编辑当前供应商
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -308,6 +320,36 @@ function GatewayModels() {
           {message}
         </p>
       </section>
+      {editing && personalMode && (
+        <ProviderDialog
+          key={editing.id}
+          preset={
+            providerPresets.find((p) => p.id === editing.provider) ||
+            providerPresets.find((p) => p.id === "custom")!
+          }
+          connection={editing}
+          personalEnabled={personalEnabled}
+          onClose={() => setEditing(undefined)}
+          onAdded={() => {}}
+          onLocalAdded={() => {
+            setEditing(undefined);
+            setDraft("");
+            save.reset();
+            setMessage(
+              "供应商配置已保存。若原主模型已移除，请重新选择主模型。已有学习内容仍保留。",
+            );
+            void client.invalidateQueries({ queryKey: key("models") });
+            void client.invalidateQueries({
+              queryKey: key("personal-providers"),
+            });
+          }}
+          onDelete={() => {
+            setEditing(undefined);
+            setRemoving(editing.id);
+            remove.reset();
+          }}
+        />
+      )}
       {removing && (
         <section className="panel" role="region" aria-label="确认移除供应商">
           <h3>移除「{connections?.find((c) => c.id === removing)?.name}」？</h3>
