@@ -13,6 +13,8 @@ on:
       - "deploy/learn-reaper.*"
       - "runtime/learn-v2-release-policy.json"
       - "scripts/learn_v2_release.py"
+      - "scripts/deployment/receive_learn_v2.py"
+      - "tests/deployment/**"
       - "migrations/**"
       - "tests/learn_core/**"
       - "scripts/phase0/**"
@@ -25,11 +27,16 @@ on:
       - "alembic.ini"
       - ".github/workflows/learn-core.yml"
   workflow_dispatch:
+    inputs:
+      deploy_company:
+        description: "Deploy this tested main commit to the company server"
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   tenant-baseline:
     runs-on: ubuntu-24.04
@@ -102,6 +109,9 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: bash ../scripts/ci-check.sh web
+      - name: Exercise the company release receiver
+        working-directory: .
+        run: python -m unittest discover -s tests/deployment
       - name: Build and verify the v2 candidate
         working-directory: .
         run: |
@@ -109,3 +119,45 @@ jobs:
           mkdir -p output/learn-v2/extracted
           tar -xzf output/learn-v2/learn-v2-*.tar.gz -C output/learn-v2/extracted
           python scripts/learn_v2_release.py verify output/learn-v2/extracted
+      - uses: actions/upload-artifact@v4
+        with:
+          name: learn-v2-${{ github.sha }}
+          path: output/learn-v2/learn-v2-*.tar.gz
+          if-no-files-found: error
+          retention-days: 7
+
+  deploy-company:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.deploy_company
+    needs: [tenant-baseline, web-build]
+    runs-on: ubuntu-24.04
+    environment: learn-production
+    concurrency:
+      group: learn-v2-company-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: learn-v2-${{ github.sha }}
+          path: candidate
+      - name: Deliver the tested release
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ vars.LEARN_SSH_HOST }}
+          DEPLOY_PORT: ${{ vars.LEARN_SSH_PORT }}
+          DEPLOY_USER: ${{ vars.LEARN_SSH_USER }}
+          HOST_KEYS: ${{ secrets.LEARN_SSH_KNOWN_HOSTS }}
+          DEPLOY_KEY: ${{ secrets.LEARN_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          : "${DEPLOY_HOST:?}" "${DEPLOY_USER:?}" "${DEPLOY_PORT:?}" "${HOST_KEYS:?}" "${DEPLOY_KEY:?}"
+          umask 077
+          dir=$(mktemp -d)
+          trap 'rm -rf -- "$dir"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$dir/key"
+          printf '%s\n' "$HOST_KEYS" > "$dir/known_hosts"
+          file="candidate/learn-v2-${GITHUB_SHA:0:12}.tar.gz"
+          sum=$(sha256sum "$file" | cut -d' ' -f1)
+          ssh -T -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$dir/known_hosts" -o ConnectTimeout=15 \
+            -i "$dir/key" -p "$DEPLOY_PORT" -l "$DEPLOY_USER" -- "$DEPLOY_HOST" \
+            "deploy $GITHUB_SHA $sum" < "$file"
