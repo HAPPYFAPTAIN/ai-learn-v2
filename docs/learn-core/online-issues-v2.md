@@ -47,7 +47,7 @@
 - PDF/DOCX 子进程受 IO 服务的总内存 cgroup 约束，子进程优先成为 OOM 目标。不能把 1 GiB 子进程上限理解为额外可用内存。
 - 学习计时只在已打开且可见的课程页每满一分钟写一次，不在侧栏列表、后台标签页或全站逐秒写库。
 - 备份保留 14 天；资料采用硬链接快照，但修改、删除和新增文件仍需要磁盘余量。数据库和文件快照不是跨系统原子事务，上线前首次备份应暂停上传/删除。
-- 没有增加 Python/Node 二进制依赖；FastAPI 下限改为支持 `scope="function"` 的 0.121。已有个人 Key 改动独立保留，官网部署明确 `LEARN_MODEL_SOURCE=gateway`。
+- 没有增加 Python/Node 二进制依赖；FastAPI 下限改为支持 `scope="function"` 的 0.121。官网个人 Key 已获用户确认，API/worker 需明确 `LEARN_MODEL_SOURCE=personal`；切换步骤见 [官网操作单](personal-api-key-production.md)。
 
 ## 仍须服务器完成的事项
 

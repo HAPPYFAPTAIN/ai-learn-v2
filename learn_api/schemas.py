@@ -30,6 +30,7 @@ class ProviderOut(BaseModel):
     models: list[str]
     remark: str = ''
     website: str = ''
+    revision: str
 
 class ProviderListOut(BaseModel):
     enabled: bool

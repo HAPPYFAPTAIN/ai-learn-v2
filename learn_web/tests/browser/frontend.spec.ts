@@ -2393,6 +2393,7 @@ for (const width of [390, 1440]) {
             name: string;
             baseUrl: string;
             models: string[];
+            revision: string;
           }
         | undefined;
       let selectedModel = "";
@@ -2441,6 +2442,7 @@ for (const width of [390, 1440]) {
           name: input.name,
           baseUrl: input.baseUrl,
           models: [`personal.${input.id}.qwen-test`],
+          revision: "a".repeat(64),
         };
         return route.fulfill({ json: { connection, verifiedMs: 320 } });
       });
@@ -2448,7 +2450,24 @@ for (const width of [390, 1440]) {
         selectedModel = route.request().postDataJSON().model;
         return route.fulfill({ json: { selectedModel } });
       });
+      let edits = 0;
       await page.route("**/api/v2/model-providers/*", (route) => {
+        if (route.request().method() === "PUT") {
+          const input = route.request().postDataJSON();
+          expect(input.revision).toBe(connection!.revision);
+          expect(input.apiKey).toBe(edits === 0 ? "" : "rotated-test-key");
+          edits += 1;
+          connection = {
+            ...connection!,
+            name: input.name,
+            baseUrl: input.baseUrl,
+            models: input.models.map(
+              (id: string) => `personal.${connection!.id}.${id}`,
+            ),
+            revision: "b".repeat(64),
+          };
+          return route.fulfill({ json: { connection, verifiedMs: 150 } });
+        }
         expect(route.request().method()).toBe("DELETE");
         connection = undefined;
         selectedModel = "";
@@ -2513,8 +2532,57 @@ for (const width of [390, 1440]) {
       ).not.toContain("test-personal-key");
       await page.getByRole("button", { name: /我的个人供应商/ }).click();
       await page
-        .getByRole("button", { name: "移除当前供应商", exact: true })
+        .getByRole("button", { name: "编辑当前供应商", exact: true })
         .click();
+      const edit = page.getByRole("dialog", { name: "编辑供应商" });
+      await expect(edit).toBeVisible();
+      await expect(edit.getByLabel("API Key", { exact: true })).toHaveValue("");
+      await expect(edit.getByLabel("模型 ID", { exact: true })).toHaveValue(
+        "qwen-test",
+      );
+      await edit
+        .getByLabel("供应商名称", { exact: true })
+        .fill("修改后的供应商");
+      await page.screenshot({ path: testInfo.outputPath("personal-edit.png") });
+      await edit
+        .getByRole("button", { name: "验证并保存", exact: true })
+        .click();
+      await expect(edit).toHaveCount(0);
+      await expect(
+        page.getByRole("button", { name: /修改后的供应商/ }),
+      ).toBeVisible();
+      await expect(page.locator(".primary-model-summary")).toContainText(
+        "qwen-test",
+      );
+      await page
+        .getByRole("button", { name: "编辑当前供应商", exact: true })
+        .click();
+      await edit
+        .getByLabel("API 地址", { exact: true })
+        .fill("https://new.provider.test/v1");
+      await edit
+        .getByRole("button", { name: "验证并保存", exact: true })
+        .click();
+      await expect(edit.getByRole("alert")).toContainText("重新填写");
+      expect(edits).toBe(1);
+      await edit
+        .getByLabel("API Key", { exact: true })
+        .fill("rotated-test-key");
+      await edit
+        .getByRole("button", { name: "验证并保存", exact: true })
+        .click();
+      await expect(edit).toHaveCount(0);
+      expect(edits).toBe(2);
+      await page
+        .getByRole("button", { name: "编辑当前供应商", exact: true })
+        .click();
+      await page
+        .getByRole("button", { name: "删除供应商", exact: true })
+        .click();
+      await expect(edit).toHaveCount(0);
+      await expect(
+        page.getByRole("region", { name: "确认移除供应商" }),
+      ).toBeVisible();
       await page.getByRole("button", { name: "确认移除", exact: true }).click();
       await expect(page.locator(".primary-model-summary")).toContainText(
         "尚未设置主模型",

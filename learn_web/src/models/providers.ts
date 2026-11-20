@@ -22,6 +22,18 @@ export function removePersonalProvider(id: string) {
   });
 }
 
+export function updatePersonalProvider(
+  id: string,
+  body: Model<"ProviderUpdate">,
+  signal: AbortSignal,
+) {
+  return request<LocalProviderResult>(
+    `/model-providers/${encodeURIComponent(id)}`,
+    { method: "PUT", body: JSON.stringify(body) },
+    signal,
+  );
+}
+
 export function personalModelLabel(model: string) {
   return model.replace(/^personal\.[a-f0-9]{12}\./, "");
 }

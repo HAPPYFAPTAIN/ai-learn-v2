@@ -2,6 +2,10 @@
 
 本轮维护 React、FastAPI、PostgreSQL 任务 worker 和嵌入服务。使用经批准的 Linux 目标环境、数据库、文件目录和 HTTPS 入口。旧官网服务继续使用既有发布流程。2026-11-20 线上问题对应、资源变化与待验项目见 [online-issues-v2.md](online-issues-v2.md)。文档中的准备命令不代表已经在线上执行。
 
+## 本次模型配置决定
+
+2026-11-20 用户确认官网改为各账号导入自己的 API Key。目标配置为 API 与所有 worker 一致使用 `LEARN_MODEL_SOURCE=personal` 和同一服务端加密密钥；现网旧 gateway 配置不会随代码合并自动改变。切换、编辑/删除验收及回退见 [个人 Key 官网操作单](personal-api-key-production.md)。保留原网关配置供兼容回退，继续沿用官网身份与资格校验。
+
 ## 现有线上环境优先处理
 
 先获取服务器的 `ops/core.lock` / `ops/embed.lock`，核查 Linux 版本与哈希后分别收录根目录 `requirements-learn-core.lock` / `requirements-learn-embed.lock`，同时加入 `runtime/learn-v2-release-policy.json` 的文件清单。当前检出尚未取得这两个文件，不能在服务器用版本范围临时解析替代。
@@ -37,7 +41,7 @@ bash scripts/check_learn_v2_memory.sh
 
 打开[官网的 Learn Everything 产品页](https://8.130.144.193/official/products/learn-everything/)，登录具有学习产品资格的官网账号，点击 **打开学习工作台**。官网签发短票，浏览器在同源入口换取 `learn_entry` Cookie，再进入 `/official/learn-everything/app/`。书签应保存产品页。直接打开 `/official/learn-everything/`，缺少有效短票或会话时会返回 403。排查时记录路径、时间和状态码，勿复制含 ticket 的完整 URL。
 
-## 当前生产拓扑
+## 切换前生产拓扑与兼容服务
 
 2026-11-20 核对。首次部署源提交为 `8cbe4e441a60`。公司机使用现有官网 Nginx，在同一站点转发 React 静态资源和 FastAPI 请求。工作台通过 API 使用学习库，模型生成由后台 worker 处理，资料索引使用本机嵌入服务。下列端口均监听回环地址。
 
@@ -49,7 +53,7 @@ bash scripts/check_learn_v2_memory.sh
 | 文档嵌入 | `127.0.0.1:18090`，`LEARN_EMBED_URL` | 独立 embed 进程加载本机缓存的 384 维模型 |
 | 数据库与队列 | 独立 PostgreSQL 17，`127.0.0.1:15432/learn_v2`，扩展 `vector`、`pg_trgm` | `learn_app` 执行业务，`learn_owner` 迁移，Procrastinate 使用学习库 |
 
-官网账号服务和模型网关由 [AetherMind-Official-Site](https://github.com/AetherMindHarness/AetherMind-Official-Site) 维护。此次沿用了旧版学习服务对应的**网关产品密钥**。用户在官网选择有权使用的模型，无需填写个人供应商 Key。替换或轮换密钥时，向网关维护方确认学习产品范围和有效性，更新服务器上的 `conf/model-gateway.env` 并重启读取它的学习进程。Nginx 与学习 API 之间另用 `LEARN_INTERNAL_SECRET`；它与产品密钥、登录 Cookie 各有用途。各密钥仅存于服务器受限配置。
+官网账号服务和模型网关由 [AetherMind-Official-Site](https://github.com/AetherMindHarness/AetherMind-Official-Site) 维护。此次沿用了旧版学习服务对应的**网关产品密钥**。该描述对应切换前的 gateway 模式；切换后用户导入本人供应商 Key，学习后端直接调用供应商，官网网关不参与这些模型请求的积分结算。替换或轮换密钥时，向网关维护方确认学习产品范围和有效性，更新服务器上的 `conf/model-gateway.env` 并重启读取它的学习进程。Nginx 与学习 API 之间另用 `LEARN_INTERNAL_SECRET`；它与产品密钥、登录 Cookie 各有用途。各密钥仅存于服务器受限配置。
 
 ## 服务器布局
 
@@ -70,7 +74,7 @@ journalctl --user -u ai-learn-v2-api.service -n 50
 1. PR 触发 **Learn core (multi-tenant)** 的相关路径测试：PostgreSQL 17 + pgvector 租户/队列测试、前端和浏览器测试、接收脚本回归。前端 job 从同一检出构建并校验 v2 归档，作为 `learn-v2-<完整 SHA>` artifact 保留七天。PR 不连接公司机。
 2. PR 审阅并合入后，确认本次窗口内llm、chat、io 三个队列的在途任务已结束。进入 **Actions → Learn core (multi-tenant) → Run workflow**，选 `main`、勾选 `deploy_company`。本次运行重新验证所选提交，两个 job 成功才交付**本次已测试的归档**。未勾选只做验证。旧 `release.yml` 交付 Gradio 包。
 3. 发布 job 经 `learn-production` 环境使用专用 SSH 密钥上传归档。接收端核对提交、归档 SHA-256 及逐文件清单，比较运行依赖、迁移、队列初始化和部署模板。兼容时停止应用进程，原子交换源码，再启动 API、嵌入服务、三个 worker（llm、chat、io） 和 reaper timer。它检查两个健康端点、React 首页和 systemd 状态；健康检查失败尝试恢复前一份源码并重启。检查 Actions 日志中的活动提交及保留目录。
-4. 从官网产品页用有资格的测试账号打开工作台，检查登录、模型目录、学习记录、生成和资料索引。真实生成会产生网关用量。无票的受保护入口 403、未登录的学习 API 401 都不能验证已登录链路。
+4. 从官网产品页用有资格的测试账号打开工作台，检查登录、模型目录、学习记录、生成和资料索引。个人模式的真实生成会消耗本人供应商额度；gateway 兼容模式会产生网关用量。无票的受保护入口 403、未登录的学习 API 401 都不能验证已登录链路。
 
 ### 首次启用发布通道（合并后）
 
@@ -111,7 +115,7 @@ python scripts/learn_v2_release.py verify "$stage"
 
 ## 本轮业务验收
 
-检查端口 18080 和 18090 的 `/healthz`，确认三个 worker 运行、reaper timer 已启用。用两个测试账号分别创建路线，核对事件编号不同且调用成功。测试网关用 deepseek 实测三个不同章节，记录推理 token、输出 token、耗时和 finish_reason；有任意 `length` 先不要发布，报告实测数字。验证上传与索引、公式、代码高亮、导图和日夜主题，确认 CSP 已实际由 nginx 和 API 返回。进度推送期间核对 `pg_stat_activity` 没有长时间 idle in transaction。中断测试 worker，核对未知结果停止自动重发，并通过任务/网关事件 ID 对账。
+检查端口 18080 和 18090 的 `/healthz`，确认三个 worker 运行、reaper timer 已启用。用两个测试账号分别创建路线，核对事件编号不同且调用成功。使用已导入的个人 DeepSeek Key 实测三个不同章节，记录推理 token、输出 token、耗时和 finish_reason；有任意 `length` 先不要发布，报告实测数字。验证上传与索引、公式、代码高亮、导图和日夜主题，确认 CSP 已实际由 nginx 和 API 返回。进度推送期间核对 `pg_stat_activity` 没有长时间 idle in transaction。中断测试 worker，核对未知结果停止自动重发，并通过任务记录和供应商用量核对。
 
 本轮含迁移、依赖及服务模板变化，必须安排维护窗口。新 chat worker 并发 1、上限 512 MiB；在主机审查并安装更新的接收器后，后续常规代码发布才会同时管理 chat 进程。
 
@@ -122,7 +126,7 @@ python scripts/learn_v2_release.py verify "$stage"
 
 ## 模型超时
 
-官网 API 和 worker 环境明确设置 `LEARN_MODEL_SOURCE=gateway`，继续使用官网积分与共享模型目录。代码中此前的个人 API Key 模式保留供独立本地测试，不能仅更换前端就在线上启用表单；若另行审核启用，需要配置加密密钥并执行对应迁移，见 [个人 Key 接入及本轮问题修复](personal-api-key.md)。
+官网目标为 `LEARN_MODEL_SOURCE=personal`，API 与所有 worker 共享同一个 `LEARN_PROVIDER_ENCRYPTION_KEY`。按 [个人 Key 官网切换](personal-api-key-production.md) 完成后，`GET /models` 应返回 `source=personal`、`providerImportEnabled=true`，弹窗才会开放输入。旧部署可显式保留 gateway 作为兼容/回退模式。`LEARN_GATEWAY_READ_TIMEOUT` 的既有名称同时用于个人供应商请求，不代表这些请求仍经过网关。
 
 所有连接默认 `LEARN_DB_LOCK_TIMEOUT=10000`（毫秒），API service 另设 `LEARN_DB_STATEMENT_TIMEOUT=30000`；worker 默认 0，不共享 API 30 秒语句上限。连接池默认 5 + overflow 5，需结合所有实例核对 PostgreSQL 的 50 连接上限。
 

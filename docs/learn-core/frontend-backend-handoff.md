@@ -1,6 +1,7 @@
 # 前端与账号后端衔接说明
 
-> 2026-11-20 更新：React 增加常驻智能助手、侧栏排序和后端线上问题修复。个人 Key 接口保留用于独立本地实验，官网 API/worker 明确设置 `LEARN_MODEL_SOURCE=gateway`，继续沿用统一网关和现有官网鉴权。当前修复与上线前置项见 [线上问题交接](online-issues-v2.md)。
+> 2026-11-20 最新决定：官网用户各自导入、编辑、删除个人 API Key，沿用现有官网鉴权。API 与所有 worker 配置 `LEARN_MODEL_SOURCE=personal` 和同一加密密钥；操作及验收见 [官网切换说明](personal-api-key-production.md)，接口见 [个人 Key](personal-api-key.md)。下文网关专用约定保留供兼容模式参考。
+
 
 > 2026-11-18 后端接手更新：已集成 PR #10 并补齐创建 requestId、日报按日分页/北京时间日界和断网恢复。下文是前端各轮交付历史，其中“后端待提供幂等”等描述已由 [当前修复与接口记录](pr10-fix-verification.md) 更新；联调请以新记录和生成的 OpenAPI 为准。
 

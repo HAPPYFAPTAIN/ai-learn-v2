@@ -1808,6 +1808,10 @@
             "title": "Remark",
             "type": "string"
           },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
+          },
           "website": {
             "default": "",
             "title": "Website",
@@ -1819,9 +1823,68 @@
           "provider",
           "name",
           "baseUrl",
-          "models"
+          "models",
+          "revision"
         ],
         "title": "ProviderOut",
+        "type": "object"
+      },
+      "ProviderUpdate": {
+        "properties": {
+          "apiKey": {
+            "default": "",
+            "format": "password",
+            "maxLength": 4096,
+            "title": "Apikey",
+            "type": "string",
+            "writeOnly": true
+          },
+          "baseUrl": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Baseurl",
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Models",
+            "type": "array"
+          },
+          "name": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "remark": {
+            "default": "",
+            "maxLength": 200,
+            "title": "Remark",
+            "type": "string"
+          },
+          "revision": {
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Revision",
+            "type": "string"
+          },
+          "website": {
+            "default": "",
+            "maxLength": 500,
+            "title": "Website",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "name",
+          "baseUrl",
+          "models"
+        ],
+        "title": "ProviderUpdate",
         "type": "object"
       },
       "QuestionCreate": {
@@ -2985,6 +3048,56 @@
           }
         },
         "summary": "Remove",
+        "tags": [
+          "models"
+        ]
+      },
+      "put": {
+        "operationId": "edit_api_v2_model_providers__provider_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "provider_id",
+            "required": true,
+            "schema": {
+              "title": "Provider Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderCreatedOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Edit",
         "tags": [
           "models"
         ]

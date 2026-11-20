@@ -4,7 +4,11 @@ import Select from "./Select";
 import ProviderLogo from "./ProviderLogo";
 import { AutoTextarea, Icon } from "./ui";
 import { addLocalProvider, type LocalProviderResult } from "../models/local";
-import { addPersonalProvider } from "../models/providers";
+import {
+  addPersonalProvider,
+  personalModelLabel,
+  updatePersonalProvider,
+} from "../models/providers";
 import type { ProviderPreset } from "../models/presets";
 import {
   modelPreview,
@@ -16,6 +20,8 @@ type Props = {
   preset: ProviderPreset;
   localEnabled?: boolean;
   personalEnabled?: boolean;
+  connection?: ModelConnection;
+  onDelete?: () => void;
   onLocalAdded?: (result: LocalProviderResult) => void;
   onClose: () => void;
   onAdded: (connection: ModelConnection) => void;
@@ -27,16 +33,24 @@ export default function ProviderDialog({
   onAdded,
   localEnabled = false,
   personalEnabled = false,
+  connection,
+  onDelete,
   onLocalAdded,
 }: Props) {
   const { connections } = useModelPreview();
   const dialog = useRef<HTMLDialogElement>(null);
   const nameInput = useRef<HTMLInputElement>(null);
-  const [name, setName] = useState(preset.id === "custom" ? "" : preset.name);
-  const [remark, setRemark] = useState("");
-  const [website, setWebsite] = useState(preset.website);
-  const [baseUrl, setBaseUrl] = useState(preset.baseUrl);
-  const [models, setModels] = useState(preset.models.join("\n"));
+  const [name, setName] = useState(
+    connection?.name ?? (preset.id === "custom" ? "" : preset.name),
+  );
+  const [remark, setRemark] = useState(connection?.remark ?? "");
+  const [website, setWebsite] = useState(connection?.website ?? preset.website);
+  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? preset.baseUrl);
+  const [models, setModels] = useState(
+    connection
+      ? connection.models.map(personalModelLabel).join("\n")
+      : preset.models.join("\n"),
+  );
   const [error, setError] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
@@ -114,8 +128,16 @@ export default function ProviderDialog({
       return;
     }
     if (canImport) {
-      if (!apiKey.trim()) {
+      if (!apiKey.trim() && !connection) {
         setError("请填写 API Key。");
+        return;
+      }
+      if (
+        connection &&
+        !apiKey.trim() &&
+        url.href.replace(/\/$/, "") !== connection.baseUrl.replace(/\/$/, "")
+      ) {
+        setError("更换 API 地址时，请重新填写该地址对应的 API Key。");
         return;
       }
       const controller = new AbortController();
@@ -123,21 +145,29 @@ export default function ProviderDialog({
       setSaving(true);
       setError("");
       try {
-        const result = await (
-          personalEnabled ? addPersonalProvider : addLocalProvider
-        )(
-          {
-            id: importId,
-            provider: preset.id,
-            name: name.trim(),
-            remark: remark.trim(),
-            website: website.trim(),
-            baseUrl: url.href.replace(/\/$/, ""),
-            models: ids,
-            apiKey: apiKey.trim(),
-          },
-          controller.signal,
-        );
+        const input = {
+          id: importId,
+          provider: preset.id,
+          name: name.trim(),
+          remark: remark.trim(),
+          website: website.trim(),
+          baseUrl: url.href.replace(/\/$/, ""),
+          models: ids,
+          apiKey: apiKey.trim(),
+        };
+        const result = connection
+          ? await updatePersonalProvider(
+              connection.id,
+              {
+                ...input,
+                revision: connection.revision!,
+              },
+              controller.signal,
+            )
+          : await (personalEnabled ? addPersonalProvider : addLocalProvider)(
+              input,
+              controller.signal,
+            );
         if (!controller.signal.aborted) {
           setApiKey("");
           onLocalAdded?.(result);
@@ -221,7 +251,9 @@ export default function ProviderDialog({
             <span aria-hidden="true">←</span>
           </button>
           <div>
-            <h2 id="provider-dialog-title">添加新供应商</h2>
+            <h2 id="provider-dialog-title">
+              {connection ? "编辑供应商" : "添加新供应商"}
+            </h2>
             <p className="muted">
               {preset.id === "custom" ? "自定义配置" : preset.name}
             </p>
@@ -285,11 +317,13 @@ export default function ProviderDialog({
                 onChange={(event) => setApiKey(event.target.value)}
                 autoComplete="off"
                 maxLength={4096}
-                required={canImport}
+                required={canImport && !connection}
                 disabled={!canImport || saving}
                 placeholder={
                   canImport
-                    ? "粘贴该供应商的 API Key"
+                    ? connection
+                      ? "留空保留原 Key；填写后替换"
+                      : "粘贴该供应商的 API Key"
                     : __DEMO__
                       ? "演示模式无需填写真实 API Key"
                       : "API Key 由官网网关统一管理"
@@ -297,7 +331,9 @@ export default function ProviderDialog({
               />
               <p className="field-hint">
                 {personalEnabled
-                  ? "Key 按当前账号加密保存，不会回显；请求由服务端发送，使用你在供应商处的额度。"
+                  ? connection
+                    ? "已有 Key 不回显，留空保留。更换 API 地址必须重新填写对应 Key，验证通过后才保存。"
+                    : "Key 按当前账号加密保存，不会回显；请求由服务端发送，使用你在供应商处的额度。"
                   : localEnabled
                     ? "仅用于本机测试，Key 保留在本次服务内存中，重启后需重新添加。"
                     : __DEMO__
@@ -356,13 +392,20 @@ export default function ProviderDialog({
             </p>
           )}
           <p className="field-hint">
-            {canImport
-              ? "验证模型目录后添加，不发起付费生成请求。暂支持公开 HTTPS OpenAI 兼容服务。"
-              : __DEMO__
-                ? "本地交互演示 · 配置刷新后重置"
-                : "配置预览 · 不保存、不改变当前网关"}
+            {connection
+              ? "保存后，尚未开始的请求使用更新配置；移除原主模型后需重新选择。已发出的请求仍可能计费。"
+              : canImport
+                ? "验证模型目录后添加，不发起付费生成请求。暂支持公开 HTTPS OpenAI 兼容服务。"
+                : __DEMO__
+                  ? "本地交互演示 · 配置刷新后重置"
+                  : "配置预览 · 不保存、不改变当前网关"}
           </p>
           <div className="provider-form-actions">
+            {connection && onDelete && (
+              <button type="button" disabled={saving} onClick={onDelete}>
+                删除供应商
+              </button>
+            )}
             <button type="button" onClick={onClose}>
               取消
             </button>
@@ -374,7 +417,9 @@ export default function ProviderDialog({
               {saving
                 ? "正在验证…"
                 : canImport
-                  ? "验证并添加"
+                  ? connection
+                    ? "验证并保存"
+                    : "验证并添加"
                   : __DEMO__
                     ? "添加到演示列表"
                     : "由官网网关管理"}

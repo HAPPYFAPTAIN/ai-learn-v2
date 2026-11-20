@@ -1,7 +1,8 @@
 # 在线内测交接（2026-11-16）
 
+> 2026-11-20 最新决定：官网使用用户个人 Key，支持编辑和删除，API/worker 统一为 personal。原供应商预览与共享网关说明属于历史交付。正式切换步骤见 [个人 Key 官网操作单](personal-api-key-production.md)，其余基础设施仍按 [server-release.md](server-release.md) 准备。
+
 本文保留 11 月 16 日内测准备时的资源假设和验收清单。公司机现已部署新版，实际官网入口、服务位置、发布与回退流程见[公司机部署与发布](server-release.md)。下文“尚未提供测试机器”等描述均为当时状态。
-> 2026-11-20 更新：主题统一为官网青蓝色与深海蓝夜间主题，增加跨页面智能助手及线上问题修复。官网继续走网关，API/worker 明确 `LEARN_MODEL_SOURCE=gateway`；个人 Key 能力保留用于独立本地实验。下文绿色主题属于旧交付记录；最新部署步骤见 [server-release.md](server-release.md)，修复与待验项见 [online-issues-v2.md](online-issues-v2.md)。
 
 目标为 2–3 名受邀用户的完整学习试用。先整理源码和部署说明，用户尚未提供测试机器或域名；本文件不表示已部署或已验收。最终架构继续遵循《ai-learn 多租户架构改造规划》。旧官网 Gradio 服务、broker、发布策略与现有账号保持运行。
 
