@@ -1,5 +1,7 @@
 # 官网部署与回退
 
+本文适用于保留的旧 Gradio 服务。当前官网工作台运行 React/FastAPI v2，见[公司机部署与发布](learn-core/server-release.md)。
+
 ## 既有部署兼容
 
 部署布局继续使用独立不可变 release：`source/` 放主体和 Kotaemon，`platform/le_platform/` 放适配，`product/` 放运行锁和单元模板。Git checkout 仅为维护输入；运行中的用户进程不直接引用可变 checkout。

@@ -5,7 +5,8 @@
 | [LOCAL_DEVELOPMENT.md](LOCAL_DEVELOPMENT.md) | 官网定位、旧系统冻结、React 重写与 Mac 本地测试边界 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 官网运行层、账户隔离、源码与发布边界 |
 | [OFFICIAL_API.md](OFFICIAL_API.md) | 官网入口、授权、网关及空间接口契约 |
-| [OFFICIAL_DEPLOYMENT.md](OFFICIAL_DEPLOYMENT.md) | 固定运行时、候选构建、发布门禁与回退 |
+| [公司机 v2 部署与发布](learn-core/server-release.md) | 官网用户入口、依赖和产品密钥、Actions 发布、故障回退 |
+| [OFFICIAL_DEPLOYMENT.md](OFFICIAL_DEPLOYMENT.md) | 旧版 Gradio 固定运行时、候选构建、发布门禁与回退 |
 | [OFFICIAL_MAINTENANCE.md](OFFICIAL_MAINTENANCE.md) | 上游来源、升级、资源保留和首页样式回归 |
 | [AGENT_EXECUTION.md](AGENT_EXECUTION.md) | 共享 Agent 与官网工具执行边界 |
 | [PREVIEW_COMPONENTS.md](PREVIEW_COMPONENTS.md) | Linux 文档预览与浏览器资源 |

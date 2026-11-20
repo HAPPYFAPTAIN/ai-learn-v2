@@ -2,7 +2,7 @@
 
 Learn Everything 的独立官网适配仓库。上游来自 [HAPPYFAPTAIN/learn-everything](https://github.com/HAPPYFAPTAIN/learn-everything)，完整保留上游 Git 历史；Kotaemon 以固定子模块管理。上游提交、子模块与官网适配来源见 [INTEGRATION.json](INTEGRATION.json)。
 
-本仓库负责学习页面、学习业务和 Linux 官网运行适配；官网账号服务继续负责登录/资格/短票，统一模型网关继续负责模型权限和积分。当前适配面向 Ubuntu 24.04、Python 3.11、Gradio 4.44.1。创建仓库和通过 CI 不等于已切换生产服务。
+本仓库负责学习页面、学习业务和 Linux 官网运行适配；官网账号服务继续负责登录/资格/短票，统一模型网关继续负责模型权限和积分。公司机当前运行 React/FastAPI v2。用户从[官网学习产品页](https://8.130.144.193/official/products/learn-everything/)登录后打开工作台。服务端沿用学习产品的网关密钥，用户无需填写供应商 API Key。生产拓扑、发布流程和回退命令见[公司机部署与发布](docs/learn-core/server-release.md)。下文 Gradio 4.44.1 的工具用于维护保留的旧版。
 
 ## 获取与开发
 
@@ -36,7 +36,7 @@ python3.11 -m venv .venv
 ## 接入与发布
 
 - [接口契约](docs/OFFICIAL_API.md)：接口所有方、请求响应、资格/身份、模型与存储边界。
-- [部署与回退](docs/OFFICIAL_DEPLOYMENT.md)：依赖、候选包、服务器检出、正式切换、验证与回退。
+- [旧版 Gradio 部署与回退](docs/OFFICIAL_DEPLOYMENT.md)：依赖、候选包、服务器检出、正式切换、验证与回退。
 - [来源与升级](docs/OFFICIAL_MAINTENANCE.md)：与官网单仓副本关系、上游更新、页面异常根因及检查。
 - [上游架构](docs/ARCHITECTURE.md)、[原账户接入设计](docs/ACCOUNT_INTEGRATION.md)：桌面主体与原接口预留；官网模式以本仓库的接口契约为准。
 
