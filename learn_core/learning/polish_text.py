@@ -68,3 +68,10 @@ def validate_output(source: str, output: str, spans: list[tuple[str, str]], kind
     if kind == 'question' and any(m in source for m in '?？') and not any(m in restored for m in '?？'):
         raise ValueError('润色结果未保留原问题，原文已保留')
     return source if restored == source.strip() else restored
+
+
+def restore_partial_output(output: str, spans) -> str:
+    for token, value in spans:
+        output = output.replace(token, value)
+    # A token itself may be cut mid-stream. Do not show implementation markers.
+    return re.sub(r'⟦KEEP_[^⟧]*(?:⟧|$)', '', output).strip()

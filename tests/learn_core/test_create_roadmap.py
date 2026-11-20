@@ -51,6 +51,7 @@ def test_model_not_configured_rolls_back_project_and_queue(tenant):
     with TestClient(app) as client:
         response = client.post('/api/v2/projects', json={'title': '不能留下半份计划', 'generateRoadmap': True})
         assert response.status_code == 409, response.text
+        assert response.json()['error']['code'] == 'MODEL_NOT_SELECTED'
     with tenant_context(tenant[0]), session_scope() as session:
         assert session.scalar(select(func.count()).select_from(Project)) == 1
         assert session.scalar(select(func.count()).select_from(JobProgress)) == 0

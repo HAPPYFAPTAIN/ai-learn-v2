@@ -97,6 +97,20 @@ class TenantSetting(SQLModel, table=True):
     updated_at: datetime = Field(sa_column=ts_column())
 
 
+class ModelProvider(SQLModel, table=True):
+    """Tenant-owned connection metadata; API credentials are ciphertext only."""
+
+    __tablename__ = "model_provider"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_model_provider_name"),)
+
+    id: str = Field(sa_column=Column(String(12), primary_key=True))
+    tenant_id: UUID = Field(sa_column=tenant_column())
+    name: str = Field(sa_column=Column(String(80), nullable=False))
+    metadata_json: dict = Field(sa_column=Column(JSONB, nullable=False))
+    encrypted_key: str = Field(repr=False, sa_column=Column(Text, nullable=False))
+    created_at: datetime = Field(sa_column=ts_column())
+
+
 class CreationRequest(SQLModel, table=True):
     """Immutable creation receipt; retained until tenant deletion, including tombstones."""
 

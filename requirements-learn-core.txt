@@ -7,9 +7,11 @@ pgvector>=0.3.6
 pydantic-settings>=2.6
 # Transactional enqueues use the 3.11 SQL v1 schema, removed in 3.12.
 procrastinate==3.11.0
-fastapi>=0.115
+fastapi>=0.121
 uvicorn>=0.32
 httpx>=0.28
+# Same version as runtime/requirements-linux-py311.lock (existing runtime).
+cryptography==46.0.2
 pytest>=8.3
 python-multipart>=0.0.20
 # Same pure-Python scheduler version as the existing Linux runtime.

@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endpoints, type KNode } from "../api";
 import { key } from "../query";
 import { useProject } from "../components/ProjectContext";
+import { useStudyMinutes } from "../components/useStudyMinutes";
 import { generationStorageKey } from "../api/generation";
 import GenerationAction from "../components/GenerationAction";
 import ProjectCards from "../components/ProjectCards";
@@ -31,6 +32,7 @@ export default function Workbench() {
   const [params] = useSearchParams();
   const chapter = params.get("chapter");
   const current = nodes.data?.items.find((n) => String(n.id) === chapter);
+  useStudyMinutes(id, current?.id);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     if (!nodes.data) return;

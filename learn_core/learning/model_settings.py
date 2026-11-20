@@ -10,6 +10,17 @@ def selected_model(session: Session) -> str:
     return setting.chat_model if setting else ''
 
 
+def require_model(session: Session) -> str:
+    from learn_core.config import get_settings
+    from learn_core.llm.providers import ModelNotConfigured, resolve
+    model = selected_model(session)
+    if not model:
+        raise ModelNotConfigured(code='MODEL_NOT_SELECTED', message='请先到「模型设置」选择主模型')
+    if get_settings().model_source == 'personal' or model.startswith('personal.'):
+        resolve(session, model)
+    return model
+
+
 def save_model(session: Session, *, model: str) -> None:
     from sqlalchemy import func
     stmt = insert(TenantSetting).values(tenant_id=current_tenant(), chat_model=model)

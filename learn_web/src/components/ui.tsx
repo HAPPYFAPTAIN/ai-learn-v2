@@ -71,6 +71,8 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
     moon: <path d="M21 13A9 9 0 0 1 11 3a9 9 0 1 0 10 10Z" />,
     check: <path d="m5 12 4 4L19 6" />,
     menu: <path d="M4 6h16M4 12h16M4 18h16" />,
+    "chevron-left": <path d="m15 6-6 6 6 6" />,
+    "chevron-right": <path d="m9 6 6 6-6 6" />,
   };
   return (
     <svg
@@ -139,6 +141,8 @@ const errorMessages: Record<string, string> = {
   NOT_FOUND: "内容不存在或当前账号无法访问。",
   JOB_RUNNING: "已有任务正在进行，请等待完成。",
   CONFLICT: "内容已更新，请刷新后重试。",
+  MODEL_NOT_SELECTED: "请先到「模型设置」选择主模型",
+  MODEL_NOT_CONFIGURED: "请先导入 API Key，并在模型设置中选择主模型。",
 };
 export function ErrorNotice({
   error,
@@ -150,7 +154,9 @@ export function ErrorNotice({
   if (!error) return null;
   const text =
     error instanceof ApiError
-      ? errorMessages[error.code] || error.message
+      ? ["CONFLICT", "JOB_RUNNING", "MODEL_NOT_SELECTED"].includes(error.code)
+        ? error.message || errorMessages[error.code]
+        : errorMessages[error.code] || error.message
       : error instanceof Error
         ? error.message
         : "操作未完成，请重试。";
@@ -162,6 +168,14 @@ export function ErrorNotice({
           ? ` 建议 ${error.retryAfterSeconds} 秒后重试。`
           : ""}
       </p>
+      {error instanceof ApiError &&
+        ["MODEL_NOT_CONFIGURED", "MODEL_NOT_SELECTED"].includes(error.code) && (
+          <Link className="button" to="/models">
+            {error.code === "MODEL_NOT_CONFIGURED"
+              ? "导入 API Key"
+              : "前往模型设置"}
+          </Link>
+        )}
       {retry && <button onClick={retry}>重新加载</button>}
     </div>
   );

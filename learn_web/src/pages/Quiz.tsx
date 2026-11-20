@@ -1,3 +1,5 @@
+import { jobFailure } from "../api/jobError";
+import { useAssistantPageContext } from "../components/AssistantContext";
 import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -130,6 +132,13 @@ function QuizSheet({ id }: { id: number }) {
     !!current.error ||
     !!result.error;
   const questions = quiz.data?.questions || [];
+  const [focusedQuestion, setFocusedQuestion] = useState<number>();
+  const assistantQuestion =
+    questions.find((q) => q.id === focusedQuestion) || questions[0];
+  useAssistantPageContext({
+    questionId: assistantQuestion?.id,
+    title: assistantQuestion?.stem,
+  });
   const answerFor = (questionId: number) =>
     result.data?.results.find((r) => r.questionId === questionId)?.userAnswer ??
     answers[questionId] ??
@@ -188,6 +197,8 @@ function QuizSheet({ id }: { id: number }) {
                 <div
                   key={q.id}
                   className="quiz-question"
+                  onFocusCapture={() => setFocusedQuestion(q.id)}
+                  onClick={() => setFocusedQuestion(q.id)}
                   id={`quiz-question-${id}-${q.id}`}
                   tabIndex={-1}
                 >
@@ -256,9 +267,7 @@ function QuizSheet({ id }: { id: number }) {
               </p>
             )}
             <ErrorNotice error={submit.error} />
-            <ErrorNotice
-              error={jobError || (job?.error ? new Error(job.error) : null)}
-            />
+            <ErrorNotice error={jobError || jobFailure(job)} />
             {pending && (
               <p role="status">
                 {state === "queued"

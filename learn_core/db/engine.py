@@ -36,6 +36,10 @@ def get_engine() -> Engine:
         settings = get_settings()
         _engine = create_engine(
             settings.database_url,
+            connect_args={"options": (
+                f"-c lock_timeout={settings.db_lock_timeout} "
+                f"-c statement_timeout={settings.db_statement_timeout}"
+            )},
             pool_pre_ping=True,
             pool_size=settings.db_pool_size,
             max_overflow=settings.db_max_overflow,

@@ -2,6 +2,7 @@
 Description=AI Learn v2 embedding service
 
 [Service]
+MemoryMax=1G
 User=learn-v2
 Group=learn-v2
 WorkingDirectory=/opt/ai-learn-v2/current

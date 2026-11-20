@@ -37,7 +37,9 @@ def test_semantic_grade_duplicate_submit_restore_and_no_recharge(tenant, monkeyp
     answers = {str(ids[0]): " a ", str(ids[1]): "用名称引用、存储数据"}
     jid = enqueue(tenant, quiz_id, answers)
     # First submission owns the in-flight answers, including another tab's retry.
-    assert enqueue(tenant, quiz_id, {str(ids[0]): "B"}) == jid
+    with pytest.raises(generation.GenerationBusy):
+        enqueue(tenant, quiz_id, {str(ids[0]): "B"})
+    assert enqueue(tenant, quiz_id, answers) == jid
     mock_gateway(monkeypatch, json.dumps([{"questionId": ids[1], "correct": True, "feedback": "覆盖了命名和存储两个要点。"}]))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     assert read_job(tenant, jid)[0] == "done", read_job(tenant, jid)

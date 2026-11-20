@@ -100,7 +100,7 @@ def test_project_deletion_clears_learning_records_and_cancels_jobs(tenant):
 
 
 @db_test
-def test_source_queue_and_progress_are_invisible_until_commit_and_rollback_together(tenant):
+def test_generation_queue_and_progress_are_invisible_until_commit_and_rollback_together(tenant):
     async def rollback_request():
         with tenant_context(tenant[0]), session_scope() as session:
             yield session
@@ -113,7 +113,7 @@ def test_source_queue_and_progress_are_invisible_until_commit_and_rollback_toget
     app.dependency_overrides[get_tenant_id] = lambda: tenant[0]
     app.dependency_overrides[get_session] = rollback_request
     with TestClient(app) as client:
-        response = client.post(f"/api/v2/projects/{tenant[1]}/sources", json={"sourceId": "same", "text": "document"})
+        response = client.post(f"/api/v2/projects/{tenant[1]}/roadmap-jobs")
         assert response.status_code == 202, response.text
         job_id = response.json()["jobId"]
     with tenant_context(tenant[0]), session_scope() as session:

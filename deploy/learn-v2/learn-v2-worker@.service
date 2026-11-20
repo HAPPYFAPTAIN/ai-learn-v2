@@ -4,6 +4,7 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
+MemoryMax=512M
 User=learn-v2
 Group=learn-v2
 WorkingDirectory=/opt/ai-learn-v2/current

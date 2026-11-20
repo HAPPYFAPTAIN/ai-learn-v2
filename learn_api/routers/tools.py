@@ -2,7 +2,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_api.schemas import GenerationOut
 from learn_core.learning import polish
@@ -18,7 +18,7 @@ class PolishCreate(BaseModel):
 
 
 @router.get('/{project_id}/polish-job',response_model=GenerationOut | None)
-def latest(project_id:int,session:Session=Depends(get_session)):
+def latest(project_id:int,session: SessionDep):
     try:
         row = polish.latest(session,project_id=project_id)
         return {'jobId':row.job_id,'state':row.state} if row else None
@@ -27,7 +27,7 @@ def latest(project_id:int,session:Session=Depends(get_session)):
 
 
 @router.post('/{project_id}/polish-jobs',response_model=GenerationOut,status_code=202)
-def submit(project_id:int,payload:PolishCreate,session:Session=Depends(get_session)):
+def submit(project_id:int,payload:PolishCreate,session: SessionDep):
     try:
         row = polish.submit(session,project_id=project_id,source=payload.source,purpose=payload.purpose,request_id=str(payload.request_id))
         return {'jobId':row.job_id,'state':row.state}

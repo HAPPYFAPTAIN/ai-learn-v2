@@ -1,4 +1,4 @@
-import Markdown from "react-markdown";
+import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -37,7 +37,30 @@ export default function RichText({
             { trust: false, strict: "ignore", maxExpand: 1000, maxSize: 20 },
           ],
         ]}
+        urlTransform={(url, key) =>
+          key === "src" && url.startsWith("data:image/")
+            ? url
+            : defaultUrlTransform(url)
+        }
         components={{
+          img: ({ src, alt }) => {
+            const value = typeof src === "string" ? src : "";
+            let allowed = value.startsWith("data:image/");
+            try {
+              allowed ||=
+                new URL(value, window.location.href).origin ===
+                window.location.origin;
+            } catch {
+              /* invalid sources are blocked */
+            }
+            return value && allowed ? (
+              <img src={value} alt={alt || ""} loading="lazy" />
+            ) : (
+              <span className="muted">
+                [外部图片已屏蔽] {alt} {value}
+              </span>
+            );
+          },
           pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
           section: ({ node, children, ...props }) =>
             node?.properties["data-exercise-answers"] ? (

@@ -4,6 +4,58 @@
  */
 
 export interface paths {
+    "/api/v2/assistant/append": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Append */
+        post: operations["append_api_v2_assistant_append_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/assistant/chat-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask */
+        post: operations["ask_api_v2_assistant_chat_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/assistant/conversation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History */
+        get: operations["history_api_v2_assistant_conversation_get"];
+        put?: never;
+        post?: never;
+        /** Clear */
+        delete: operations["clear_api_v2_assistant_conversation_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/cards": {
         parameters: {
             query?: never;
@@ -47,6 +99,26 @@ export interface paths {
         };
         /** Job Events */
         get: operations["job_events_api_v2_jobs__job_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/materials": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Account Materials
+         * @description Library ownership is the authenticated tenant, independent of any plan.
+         */
+        get: operations["list_account_materials_api_v2_materials_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -135,6 +207,41 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/model-providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Providers */
+        get: operations["providers_api_v2_model_providers_get"];
+        put?: never;
+        /** Add */
+        post: operations["add_api_v2_model_providers_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v2/model-providers/{provider_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove */
+        delete: operations["remove_api_v2_model_providers__provider_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -309,23 +416,6 @@ export interface paths {
         get: operations["list_cards_api_v2_projects__project_id__cards_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/projects/{project_id}/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Chat */
-        post: operations["chat_api_v2_projects__project_id__chat_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -542,6 +632,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v2/projects/{project_id}/roadmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Roadmap */
+        delete: operations["delete_roadmap_api_v2_projects__project_id__roadmap_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v2/projects/{project_id}/roadmap-jobs": {
         parameters: {
             query?: never;
@@ -553,23 +660,6 @@ export interface paths {
         put?: never;
         /** Generate Roadmap */
         post: operations["generate_roadmap_api_v2_projects__project_id__roadmap_jobs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v2/projects/{project_id}/sources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create Source */
-        post: operations["create_source_api_v2_projects__project_id__sources_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -825,6 +915,41 @@ export interface components {
              */
             qtype?: "mixed" | "choice" | "fill" | "short" | "practice";
         };
+        /** AssistantAppend */
+        AssistantAppend: {
+            /** Expectedversion */
+            expectedVersion: number;
+            /** Nodeid */
+            nodeId: number;
+        };
+        /** AssistantContext */
+        AssistantContext: {
+            /** Cardid */
+            cardId?: number | null;
+            /**
+             * Page
+             * @default 学习首页
+             * @enum {string}
+             */
+            page?: "学习首页" | "学习路线" | "学习工作台" | "间隔复习" | "查漏测验" | "学习看板" | "知识问答" | "资料库" | "学习工具" | "模型设置";
+            /** Questionid */
+            questionId?: number | null;
+        };
+        /** AssistantQuestion */
+        AssistantQuestion: {
+            /** Content */
+            content: string;
+            context?: components["schemas"]["AssistantContext"];
+            /** Nodeid */
+            nodeId?: number | null;
+            /** Projectid */
+            projectId?: number | null;
+            /**
+             * Requestid
+             * Format: uuid
+             */
+            requestId: string;
+        };
         /** Body_upload_material_api_v2_projects__project_id__materials_post */
         Body_upload_material_api_v2_projects__project_id__materials_post: {
             /** File */
@@ -842,8 +967,9 @@ export interface components {
             /**
              * Cardtype
              * @default basic
+             * @enum {string}
              */
-            cardType?: string;
+            cardType?: "basic" | "cloze" | "concept";
             /** Front */
             front: string;
             /** Nodeid */
@@ -880,46 +1006,6 @@ export interface components {
             /** Suspended */
             suspended: boolean;
         };
-        /** ChatMessage */
-        ChatMessage: {
-            /** Content */
-            content: string;
-            /** Role */
-            role: string;
-        };
-        /** ChatOut */
-        ChatOut: {
-            /** Content */
-            content: string;
-            /** Eventid */
-            eventId: string;
-            /** Model */
-            model: string;
-            /** Usage */
-            usage: {
-                [key: string]: unknown;
-            };
-        };
-        /** ChatRequest */
-        ChatRequest: {
-            /**
-             * Background
-             * @default false
-             */
-            background?: boolean;
-            /** Messages */
-            messages: components["schemas"]["ChatMessage"][];
-            /**
-             * Model
-             * @default
-             */
-            model?: string;
-            /**
-             * Purpose
-             * @default chat
-             */
-            purpose?: string;
-        };
         /** CitationOut */
         CitationOut: {
             /** Excerpt */
@@ -941,6 +1027,11 @@ export interface components {
             references: components["schemas"]["CitationOut"][];
             /** Role */
             role: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated?: boolean;
         };
         /** ConversationOut */
         ConversationOut: {
@@ -1091,10 +1182,21 @@ export interface components {
         ModelCatalogOut: {
             /** Items */
             items: components["schemas"]["ModelOptionOut"][];
+            /**
+             * Providerimportenabled
+             * @default false
+             */
+            providerImportEnabled?: boolean;
             /** Selectedavailable */
             selectedAvailable: boolean;
             /** Selectedmodel */
             selectedModel: string;
+            /**
+             * Source
+             * @default gateway
+             * @enum {string}
+             */
+            source?: "personal" | "gateway";
         };
         /** ModelOptionOut */
         ModelOptionOut: {
@@ -1397,13 +1499,77 @@ export interface components {
             /** Goal */
             goal?: string | null;
             /** Status */
-            status?: string | null;
+            status?: ("active" | "paused" | "completed" | "archived") | null;
             /** Title */
             title?: string | null;
             /** Topic */
             topic?: string | null;
             /** Weeklyhours */
             weeklyHours?: number | null;
+        };
+        /** ProviderCreatedOut */
+        ProviderCreatedOut: {
+            connection: components["schemas"]["ProviderOut"];
+            /** Verifiedms */
+            verifiedMs: number;
+        };
+        /** ProviderInput */
+        ProviderInput: {
+            /**
+             * Apikey
+             * Format: password
+             */
+            apiKey: string;
+            /** Baseurl */
+            baseUrl: string;
+            /** Id */
+            id: string;
+            /** Models */
+            models: string[];
+            /** Name */
+            name: string;
+            /** Provider */
+            provider: string;
+            /**
+             * Remark
+             * @default
+             */
+            remark?: string;
+            /**
+             * Website
+             * @default
+             */
+            website?: string;
+        };
+        /** ProviderListOut */
+        ProviderListOut: {
+            /** Connections */
+            connections: components["schemas"]["ProviderOut"][];
+            /** Enabled */
+            enabled: boolean;
+        };
+        /** ProviderOut */
+        ProviderOut: {
+            /** Baseurl */
+            baseUrl: string;
+            /** Id */
+            id: string;
+            /** Models */
+            models: string[];
+            /** Name */
+            name: string;
+            /** Provider */
+            provider: string;
+            /**
+             * Remark
+             * @default
+             */
+            remark?: string;
+            /**
+             * Website
+             * @default
+             */
+            website?: string;
         };
         /** QuestionCreate */
         QuestionCreate: {
@@ -1447,12 +1613,13 @@ export interface components {
             /** Nodeid */
             nodeId?: number | null;
             /** Options */
-            options?: unknown[];
+            options?: string[];
             /**
              * Qtype
              * @default short
+             * @enum {string}
              */
-            qtype?: string;
+            qtype?: "choice" | "fill" | "short" | "practice";
             /** Stem */
             stem: string;
         };
@@ -1492,8 +1659,9 @@ export interface components {
             /**
              * Quiztype
              * @default mixed
+             * @enum {string}
              */
-            quizType?: string;
+            quizType?: "mixed" | "choice" | "fill" | "short" | "practice" | "diagnostic" | "review";
             /**
              * Title
              * @default
@@ -1544,18 +1712,6 @@ export interface components {
             limit?: number;
             /** Query */
             query: string;
-        };
-        /** SourceCreate */
-        SourceCreate: {
-            /**
-             * Indexid
-             * @default material
-             */
-            indexId?: string;
-            /** Sourceid */
-            sourceId: string;
-            /** Text */
-            text: string;
         };
         /** SummaryOut */
         SummaryOut: {
@@ -1656,6 +1812,110 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    append_api_v2_assistant_append_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantAppend"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ask_api_v2_assistant_chat_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssistantQuestion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    history_api_v2_assistant_conversation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationOut"];
+                };
+            };
+        };
+    };
+    clear_api_v2_assistant_conversation_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     create_card_api_v2_cards_post: {
         parameters: {
             query?: never;
@@ -1747,6 +2007,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_account_materials_api_v2_materials_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Items_MaterialOut_"];
                 };
             };
         };
@@ -1889,6 +2169,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MeOut"];
+                };
+            };
+        };
+    };
+    providers_api_v2_model_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderListOut"];
+                };
+            };
+        };
+    };
+    add_api_v2_model_providers_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderInput"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProviderCreatedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_api_v2_model_providers__provider_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                provider_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -2353,41 +2715,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Items_CardOut_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    chat_api_v2_projects__project_id__chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ChatOut"];
                 };
             };
             /** @description Validation Error */
@@ -3010,6 +3337,35 @@ export interface operations {
             };
         };
     };
+    delete_roadmap_api_v2_projects__project_id__roadmap_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     generate_roadmap_api_v2_projects__project_id__roadmap_jobs_post: {
         parameters: {
             query?: never;
@@ -3028,43 +3384,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GenerationOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_source_api_v2_projects__project_id__sources_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SourceCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            202: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
                 };
             };
             /** @description Validation Error */

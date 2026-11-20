@@ -59,7 +59,12 @@ export function generationEstimate(job: JobProgress, now = Date.now()) {
   return {
     percent,
     remaining,
-    stage: "正在规划章节与学习顺序",
+    stage:
+      {
+        lesson: "正在编写本节教材与自测练习",
+        quiz: "正在生成测验题与答案",
+        cards: "正在生成复习卡片",
+      }[job.kind] || "正在规划章节与学习顺序",
     estimated: true,
   };
 }

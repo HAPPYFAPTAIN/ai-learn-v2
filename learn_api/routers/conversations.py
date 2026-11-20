@@ -3,7 +3,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_api.schemas import ConversationOut, GenerationOut
 from learn_core.learning import conversations as service
@@ -21,7 +21,7 @@ class QuestionCreate(BaseModel):
 
 
 @router.get('/{project_id}/conversation',response_model=ConversationOut)
-def history(project_id:int,mode:Literal['chat','coach']='chat',session:Session=Depends(get_session)):
+def history(project_id:int,session: SessionDep,mode:Literal['chat','coach']='chat'):
     try:
         return service.history(session,project_id=project_id,mode=mode)
     except service.ConversationMissing as exc:
@@ -29,7 +29,7 @@ def history(project_id:int,mode:Literal['chat','coach']='chat',session:Session=D
 
 
 @router.post('/{project_id}/chat-jobs',response_model=GenerationOut,status_code=202)
-def submit(project_id:int,payload:QuestionCreate,session:Session=Depends(get_session)):
+def submit(project_id:int,payload:QuestionCreate,session: SessionDep):
     if not payload.content.strip():
         raise ApiError('INVALID_ARGUMENT','请输入问题')
     try:

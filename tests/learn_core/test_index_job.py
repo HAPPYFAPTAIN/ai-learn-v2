@@ -91,46 +91,6 @@ def test_index_source_is_tenant_isolated():
     assert rows == 0
 
 
-def test_submit_source_returns_202_and_hides_enqueue_details(monkeypatch):
-    reset_engine()
-    calls: list[dict] = []
-    monkeypatch.setattr(
-        "learn_core.jobs.enqueue.enqueue_index",
-        lambda session, **kw: calls.append(kw) or "42",
-    )
-
-    stable_user = f"src-{uuid.uuid4().hex[:8]}"
-
-    class Verifier:
-        def verify(self, ticket: str) -> Principal:
-            return Principal(official_user_id=stable_user)
-
-    set_verifier(Verifier())
-    app = create_app()
-    with TestClient(app, raise_server_exceptions=False) as client:
-        project = client.post(
-            "/api/v2/projects",
-            json={"title": "资料"},
-            headers={"X-Learn-Ticket": "t1"},
-        )
-        assert project.status_code == 201, project.text
-        pid = project.json()["id"]
-
-        resp = client.post(
-            f"/api/v2/projects/{pid}/sources",
-            json={"sourceId": "paper-1", "text": "第一段。\n\n第二段。"},
-            headers={"X-Learn-Ticket": "t1"},
-        )
-        assert resp.status_code == 202, resp.text
-        job_id = resp.json()["jobId"]
-        assert job_id.startswith("idx-")
-        assert resp.headers["Location"].endswith(f"/jobs/{job_id}")
-
-        status = client.get(f"/api/v2/jobs/{job_id}", headers={"X-Learn-Ticket": "t1"})
-    assert status.status_code == 200
-    assert status.json()["state"] == "queued"
-
-    assert len(calls) == 1
-    assert calls[0]["source_id"] == "paper-1"
-    assert calls[0]["job_id"] == job_id
-    reset_engine()
+def test_raw_text_source_route_is_retired():
+    spec = create_app().openapi()
+    assert '/api/v2/projects/{project_id}/sources' not in spec['paths']

@@ -20,7 +20,7 @@ BASE = Path.home() / "data/ai-learn/standalone-v2"
 LIMIT = 512 * 1024**2
 TIMER = "ai-learn-v2-reaper.timer"
 SERVICES = ["ai-learn-v2-" + name + ".service" for name in
-            ("embed", "api", "worker@llm", "worker@io")]
+            ("embed", "api", "worker@llm", "worker@chat", "worker@io")]
 # Queue DDL, interpreter environments and host integration require a coordinated release.
 GUARDED = ("requirements-learn-core.txt", "requirements-learn-embed.txt", "alembic.ini",
            "migrations", "scripts/phase0/apply_queue_schema.py", "deploy")

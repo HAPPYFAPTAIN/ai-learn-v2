@@ -9,51 +9,50 @@ from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.learning import notes as service
 from learn_core.learning import projects as project_service
 from learn_core.learning.creation import create_once
 
-from learn_api.schemas import Items, NoteOut, TaskOut
+from learn_api.schemas import NonNullPatch, Items, NoteOut, TaskOut
 
 router = APIRouter(tags=["notes"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class NoteCreate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     node_id: int = Field(alias="nodeId")
-    content: str = Field(min_length=1)
-    selection: str = ""
+    content: str = Field(min_length=1, max_length=50000)
+    selection: str = Field(default="", max_length=50000)
     request_id: UUID | None = Field(default=None, alias="requestId")
 
 
-class NoteUpdate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+class NoteUpdate(NonNullPatch):
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
-    content: str | None = Field(default=None, min_length=1)
-    selection: str | None = None
+    content: str | None = Field(default=None, min_length=1, max_length=50000)
+    selection: str | None = Field(default=None, max_length=50000)
 
 
 class TaskCreate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     title: str = Field(min_length=1, max_length=200)
-    description: str = ""
+    description: str = Field(default="", max_length=50000)
     task_type: str = Field(default="practice", alias="taskType")
     node_id: int | None = Field(default=None, alias="nodeId")
 
 
-class TaskUpdate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+class TaskUpdate(NonNullPatch):
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     title: str | None = Field(default=None, min_length=1, max_length=200)
-    description: str | None = None
+    description: str | None = Field(default=None, max_length=50000)
     status: str | None = None
-    output: str | None = None
+    output: str | None = Field(default=None, max_length=50000)
 
 
 def _note(note) -> dict:

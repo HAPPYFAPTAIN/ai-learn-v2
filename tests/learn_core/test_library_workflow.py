@@ -117,8 +117,8 @@ def test_quota_queue_failure_and_invalid_extension_leave_no_files_or_jobs(tenant
     assert client.post(f'/api/v2/projects/{tenant[1]}/materials', files={'file':('a.exe',b'12')}).status_code == 422
     def fail(*args,**kwargs): raise RuntimeError('simulated queue failure')
     monkeypatch.setattr(materials, 'defer', fail)
-    with pytest.raises(RuntimeError):
-        client.post(f'/api/v2/projects/{tenant[1]}/materials', files={'file':('a.txt',b'12')})
+    response = client.post(f'/api/v2/projects/{tenant[1]}/materials', files={'file':('a.txt',b'12')})
+    assert response.status_code == 500
     with tenant_context(tenant[0]), session_scope() as session:
         assert not list(session.scalars(select(StoredFile)))
         assert not list(session.scalars(select(JobProgress)))

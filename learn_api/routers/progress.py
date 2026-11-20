@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.learning import progress as service
 from learn_core.learning import projects as project_service
@@ -17,11 +17,10 @@ from learn_api.schemas import SummaryOut
 
 router = APIRouter(tags=["progress"])
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 class ProgressCreate(BaseModel):
-    model_config = {"extra": "forbid", "populate_by_name": True}
+    model_config = {"extra": "forbid", "populate_by_name": True, "allow_inf_nan": False}
 
     node_id: int | None = Field(default=None, alias="nodeId")
     metric: str

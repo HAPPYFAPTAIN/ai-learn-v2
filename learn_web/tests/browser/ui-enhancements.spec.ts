@@ -30,6 +30,44 @@ async function selectParagraph(page: Page) {
   });
 }
 
+test("dashboard keeps one trend when reports arrive before summary", async ({
+  page,
+}) => {
+  await mock(page);
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v2/projects/2/summary", async (route) => {
+    await waiting;
+    await route.fallback();
+  });
+  await page.goto("/dashboard");
+  await expect(
+    page.getByRole("region", { name: "学习趋势", exact: true }),
+  ).toHaveCount(1);
+  await page.getByRole("combobox", { name: "当前学习计划" }).click();
+  await page.getByRole("option", { name: "读懂设计的基本语言" }).click();
+  await expect(
+    page.getByRole("heading", { name: "读懂设计的基本语言 · 阶段学习报告" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "学习趋势", exact: true }),
+  ).toHaveCount(1);
+  release();
+  await expect(
+    page.getByRole("heading", { name: "章节完成进度", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "学习趋势", exact: true }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByText("此时间范围暂无学习记录，整理今日报告后即可查看趋势。", {
+      exact: true,
+    }),
+  ).toHaveCount(1);
+});
+
 for (const width of [390, 1440])
   for (const theme of ["light", "dark"]) {
     test(`learning charts switch metrics and date ranges at ${width}px / ${theme}`, async ({

@@ -1,7 +1,7 @@
 import { Input } from "../components/fields";
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endpoints } from "../api";
 import { key } from "../query";
 import { useProject } from "../components/ProjectContext";
@@ -20,6 +20,13 @@ export default function Home() {
     document.getElementById("goal")?.scrollIntoView({ block: "start" });
     document.getElementById("goal-text")?.focus({ preventScroll: true });
   }, [hash]);
+  const models = useQuery({
+    queryKey: key("models"),
+    queryFn: ({ signal }) => endpoints.models(signal),
+    enabled: !__DEMO__,
+  });
+  const missingModel =
+    !__DEMO__ && models.isSuccess && !models.data.selectedModel;
   const client = useQueryClient();
   const [goal, setGoal] = useState("");
   const [hours, setHours] = useState(5);
@@ -49,7 +56,8 @@ export default function Home() {
       ),
     onSuccess: openProject,
   });
-  const blocked = create.isPending || uncertainWrite(create.error);
+  const blocked =
+    create.isPending || uncertainWrite(create.error) || missingModel;
   async function checkCreated() {
     if (!intent.current) return "本次创建尚未提交。";
     const result = await endpoints.projectCreation(intent.current.requestId);
@@ -117,7 +125,7 @@ export default function Home() {
             placeholder="比如：我想从零学习 Python，能独立写一个整理文件的小工具…"
             value={goal}
             onChange={(e) => setGoal(e.target.value)}
-            maxLength={8000}
+            maxLength={5000}
             disabled={blocked}
             required
           />
@@ -147,6 +155,14 @@ export default function Home() {
               ? "演示模式仅创建示例计划，不调用模型。"
               : "创建后自动进入工作台并用当前主模型生成学习路线，将消耗模型额度。"}
           </p>
+          {missingModel && (
+            <p role="alert">
+              请先到「模型设置」选择主模型。{" "}
+              <Link className="button" to="/models">
+                前往模型设置
+              </Link>
+            </p>
+          )}
           <ErrorNotice error={create.error} />
           <WriteRecovery
             error={create.error}

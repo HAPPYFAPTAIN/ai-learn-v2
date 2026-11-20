@@ -16,6 +16,8 @@
 | [local-ui-preview.md](learn-core/local-ui-preview.md) | 仅检查本地 React UI：上传进度、看板图表与课文批注 |
 | [frontend-backend-handoff.md](learn-core/frontend-backend-handoff.md) | React 前端与账号后端交接、当前接口契约和联调顺序 |
 | [ai-platform-backend-handoff.md](learn-core/ai-platform-backend-handoff.md) | 账号后端与 AI 平台接入、产品密钥和供应商 Key 的边界、网关联调 |
+| [personal-api-key.md](learn-core/personal-api-key.md) | 个人 Key 独立本地实验、加密配置及接口；官网仍使用统一网关 |
+| [online-issues-v2.md](learn-core/online-issues-v2.md) | v2 线上问题 1–11 修复、侧栏与常驻助手、资源影响及待完成的服务器验收 |
 | [CHAT_AUTO_LANGUAGE.md](CHAT_AUTO_LANGUAGE.md) | 对话语言策略 |
 | [CHAT_RETRIEVAL_STATUS.md](CHAT_RETRIEVAL_STATUS.md) | 检索状态反馈 |
 | [LEARNING_AGENT.md](LEARNING_AGENT.md) | 学习业务基础设计 |

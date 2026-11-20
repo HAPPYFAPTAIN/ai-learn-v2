@@ -1,3 +1,4 @@
+import { jobFailure } from "../api/jobError";
 import { SearchField } from "../components/fields";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -94,7 +95,6 @@ function LibraryContent() {
   const files = useQuery({
     queryKey: key("materials", id),
     queryFn: ({ signal }) => endpoints.materials(id, signal),
-    enabled: !!id,
   });
   const visibleFiles = (files.data?.items || [])
     .filter(
@@ -165,7 +165,7 @@ function LibraryContent() {
     },
   });
   function startUpload(file: File) {
-    if (upload.isPending) return;
+    if (!id || upload.isPending) return;
     const controller = new AbortController();
     uploadController.current = controller;
     lastFile.current = file;
@@ -189,268 +189,269 @@ function LibraryContent() {
         title="资料库"
         description="把有用的知识整理在一起，方便随时查阅。"
       />
-      {!id ? (
-        <Empty title="暂无学习目标" />
-      ) : (
-        <>
-          <section className="panel">
-            <div className="section-title spread">
-              <div>
-                <h2>我的资料</h2>
-                <p className="muted">
-                  当前账号共享的学习资料，支持 TXT、Markdown、PDF 和
-                  DOCX，单个文件最多 50 MB；每批最多 10 份、共 100 MB。
-                </p>
-              </div>
-              <button
-                className="primary"
-                disabled={
-                  upload.isPending || active || batchBusy || batchUploading
-                }
-                onClick={() => input.current?.click()}
-              >
-                <Icon name="plus" />
-                {upload.isPending ? "上传中…" : "上传资料"}
-              </button>
+      <>
+        <section className="panel">
+          <div className="section-title spread">
+            <div>
+              <h2>我的资料</h2>
+              <p className="muted">
+                当前账号共享的学习资料，支持 TXT、Markdown、PDF 和
+                DOCX，单个文件最多 50 MB；每批最多 10 份、共 100 MB。
+              </p>
             </div>
-            <input
-              className="sr-only"
-              ref={input}
-              type="file"
-              multiple
-              accept=".txt,.md,.pdf,.docx"
-              aria-label="选择上传资料"
+            <button
+              className="primary"
               disabled={
-                upload.isPending || active || batchBusy || batchUploading
+                !id || upload.isPending || active || batchBusy || batchUploading
               }
-              onChange={(e) => {
-                const chosen = Array.from(e.target.files || []);
-                e.target.value = "";
-                if (!chosen.length) return;
-                const error = validateUpload(chosen);
-                if (error) {
-                  setValidation(error);
-                  return;
-                }
-                setValidation("");
-                if (chosen.length === 1) startUpload(chosen[0]);
-                else setBatchFiles(chosen);
+              onClick={() => input.current?.click()}
+            >
+              <Icon name="plus" />
+              {upload.isPending ? "上传中…" : "上传资料"}
+            </button>
+          </div>
+          <input
+            className="sr-only"
+            ref={input}
+            type="file"
+            multiple
+            accept=".txt,.md,.pdf,.docx"
+            aria-label="选择上传资料"
+            disabled={
+              !id || upload.isPending || active || batchBusy || batchUploading
+            }
+            onChange={(e) => {
+              const chosen = Array.from(e.target.files || []);
+              e.target.value = "";
+              if (!chosen.length) return;
+              const error = validateUpload(chosen);
+              if (error) {
+                setValidation(error);
+                return;
+              }
+              setValidation("");
+              if (chosen.length === 1) startUpload(chosen[0]);
+              else setBatchFiles(chosen);
+            }}
+          />
+          {!id && (
+            <p className="muted small">
+              暂无学习计划，暂不能上传新资料。已有资料仍可查看、下载和管理。
+            </p>
+          )}
+          <ErrorNotice error={validation ? new Error(validation) : null} />
+          {transfer && (
+            <UploadStatus
+              value={transfer}
+              pending={upload.isPending}
+              onCancel={() => uploadController.current?.abort()}
+              onRetry={() => {
+                if (lastFile.current) startUpload(lastFile.current);
               }}
             />
-            <ErrorNotice error={validation ? new Error(validation) : null} />
-            {transfer && (
-              <UploadStatus
-                value={transfer}
-                pending={upload.isPending}
-                onCancel={() => uploadController.current?.abort()}
-                onRetry={() => {
-                  if (lastFile.current) startUpload(lastFile.current);
-                }}
+          )}
+          <ErrorNotice error={download.error || reindex.error} />
+          {job && <JobStatus id={job} done={done} />}
+          <div className="library-toolbar">
+            <SearchField
+              label="搜索资料"
+              placeholder="搜索资料名称"
+              value={filter}
+              onChange={setFilter}
+            />
+            <div className="library-filters">
+              <Select
+                label="资料类型"
+                value={fileType}
+                onChange={setFileType}
+                options={[
+                  { value: "all", label: "全部类型" },
+                  { value: "pdf", label: "PDF" },
+                  { value: "md", label: "Markdown" },
+                  { value: "txt", label: "TXT" },
+                  { value: "docx", label: "DOCX" },
+                ]}
               />
-            )}
-            <ErrorNotice error={download.error || reindex.error} />
-            {job && <JobStatus id={job} done={done} />}
-            <div className="library-toolbar">
-              <SearchField
-                label="搜索资料"
-                placeholder="搜索资料名称"
-                value={filter}
-                onChange={setFilter}
+              <Select
+                label="资料排序"
+                value={sort}
+                onChange={setSort}
+                options={[
+                  { value: "newest", label: "最新添加" },
+                  { value: "oldest", label: "最早添加" },
+                  { value: "name", label: "名称顺序" },
+                  { value: "size", label: "文件大小" },
+                ]}
               />
-              <div className="library-filters">
-                <Select
-                  label="资料类型"
-                  value={fileType}
-                  onChange={setFileType}
-                  options={[
-                    { value: "all", label: "全部类型" },
-                    { value: "pdf", label: "PDF" },
-                    { value: "md", label: "Markdown" },
-                    { value: "txt", label: "TXT" },
-                    { value: "docx", label: "DOCX" },
-                  ]}
-                />
-                <Select
-                  label="资料排序"
-                  value={sort}
-                  onChange={setSort}
-                  options={[
-                    { value: "newest", label: "最新添加" },
-                    { value: "oldest", label: "最早添加" },
-                    { value: "name", label: "名称顺序" },
-                    { value: "size", label: "文件大小" },
-                  ]}
-                />
-              </div>
             </div>
-            {files.data && (
-              <p className="muted small library-result-count" role="status">
-                显示 {visibleFiles.length} / {files.data.items.length} 份资料
-              </p>
-            )}
-            <QueryState query={files} />
-            {files.data && (
-              <MaterialBatchActions
-                files={files.data.items}
-                visible={visibleFiles}
-                selected={selected}
-                onSelectionChange={setSelected}
-                onBusy={setBatchBusy}
+          </div>
+          {files.data && (
+            <p className="muted small library-result-count" role="status">
+              显示 {visibleFiles.length} / {files.data.items.length} 份资料
+            </p>
+          )}
+          <QueryState query={files} />
+          {files.data && (
+            <MaterialBatchActions
+              files={files.data.items}
+              visible={visibleFiles}
+              selected={selected}
+              onSelectionChange={setSelected}
+              onBusy={setBatchBusy}
+            />
+          )}
+          {files.data &&
+            (!files.data.items.length ? (
+              <Empty
+                title="资料库还是空的"
+                description="上传学习资料，慢慢建立自己的知识库。"
+                action={false}
               />
-            )}
-            {files.data &&
-              (!files.data.items.length ? (
-                <Empty
-                  title="资料库还是空的"
-                  description="上传学习资料，慢慢建立自己的知识库。"
-                  action={false}
-                />
-              ) : (
-                <div className="file-list">
-                  <div className="file-list-head">
-                    <span>资料名称</span>
-                    <span>文件大小</span>
-                    <span>添加时间</span>
-                  </div>
-                  {visibleFiles.map((f) => (
-                    <div className="file-row library-file-row" key={f.fileId}>
-                      <div className="file-name">
-                        <input
-                          type="checkbox"
-                          aria-label={`选择资料：${f.name}`}
-                          disabled={batchBusy}
-                          checked={selected.has(f.fileId)}
-                          onChange={(event) => {
-                            const checked = event.target.checked;
-                            setSelected((previous) => {
-                              const next = new Set(previous);
-                              if (checked) next.add(f.fileId);
-                              else next.delete(f.fileId);
-                              return next;
-                            });
-                          }}
-                        />
-                        <span className="file-icon">
-                          <Icon name="book" />
-                        </span>
-                        <div>
-                          <strong>{f.name || "未命名资料"}</strong>
-                          <small>
-                            {f.name.split(".").pop()?.toUpperCase() || "FILE"}
-                          </small>
-                        </div>
-                      </div>
-                      <span className="muted">{formatBytes(f.sizeBytes)}</span>
-                      <span className="muted">
-                        {new Date(f.createdAt).toLocaleDateString("zh-CN")}
+            ) : (
+              <div className="file-list">
+                <div className="file-list-head">
+                  <span>资料名称</span>
+                  <span>文件大小</span>
+                  <span>添加时间</span>
+                </div>
+                {visibleFiles.map((f) => (
+                  <div className="file-row library-file-row" key={f.fileId}>
+                    <div className="file-name">
+                      <input
+                        type="checkbox"
+                        aria-label={`选择资料：${f.name}`}
+                        disabled={batchBusy}
+                        checked={selected.has(f.fileId)}
+                        onChange={(event) => {
+                          const checked = event.target.checked;
+                          setSelected((previous) => {
+                            const next = new Set(previous);
+                            if (checked) next.add(f.fileId);
+                            else next.delete(f.fileId);
+                            return next;
+                          });
+                        }}
+                      />
+                      <span className="file-icon">
+                        <Icon name="book" />
                       </span>
-                      <div
-                        className="file-actions"
-                        aria-label={`${f.name}的操作`}
-                      >
-                        <button
-                          onClick={() => {
-                            download.reset();
-                            setPreview(f);
-                          }}
-                        >
-                          查看
-                        </button>
-                        <button
-                          disabled={download.isPending}
-                          onClick={() => download.mutate(f)}
-                        >
-                          下载
-                        </button>
-                        <button
-                          disabled={active || reindex.isPending || batchBusy}
-                          onClick={() => reindex.mutate(f.fileId)}
-                        >
-                          重新索引
-                        </button>
-                        <button
-                          disabled={batchBusy}
-                          onClick={() => {
-                            remove.reset();
-                            setDeleting(f);
-                          }}
-                        >
-                          删除
-                        </button>
+                      <div>
+                        <strong>{f.name || "未命名资料"}</strong>
+                        <small>
+                          {f.name.split(".").pop()?.toUpperCase() || "FILE"}
+                        </small>
                       </div>
                     </div>
-                  ))}
-                  {!visibleFiles.length && (
-                    <div className="empty-inline">
-                      <p>没有找到匹配的资料。</p>
+                    <span className="muted">{formatBytes(f.sizeBytes)}</span>
+                    <span className="muted">
+                      {new Date(f.createdAt).toLocaleDateString("zh-CN")}
+                    </span>
+                    <div
+                      className="file-actions"
+                      aria-label={`${f.name}的操作`}
+                    >
                       <button
-                        type="button"
                         onClick={() => {
-                          setFilter("");
-                          setFileType("all");
+                          download.reset();
+                          setPreview(f);
                         }}
                       >
-                        清除筛选
+                        查看
+                      </button>
+                      <button
+                        disabled={download.isPending}
+                        onClick={() => download.mutate(f)}
+                      >
+                        下载
+                      </button>
+                      <button
+                        disabled={active || reindex.isPending || batchBusy}
+                        onClick={() => reindex.mutate(f.fileId)}
+                      >
+                        重新索引
+                      </button>
+                      <button
+                        disabled={batchBusy}
+                        onClick={() => {
+                          remove.reset();
+                          setDeleting(f);
+                        }}
+                      >
+                        删除
                       </button>
                     </div>
-                  )}
-                </div>
-              ))}
-          </section>
-          {batchFiles && (
-            <MaterialBatchUpload
-              files={batchFiles}
-              projectId={id}
-              jobKey={jobKey}
-              onBusy={setBatchUploading}
-              onClose={() => {
-                setBatchFiles(undefined);
-                const recover = sessionStorage.getItem(jobKey);
-                if (recover) {
-                  setJob(recover);
-                  setActive(true);
-                }
-              }}
-            />
-          )}
-          {preview && (
-            <MaterialPreview
-              key={preview.fileId}
-              file={preview}
-              onClose={() => setPreview(undefined)}
-            />
-          )}
-          {deleting && (
-            <Dialog
-              title="删除资料"
-              onClose={() => {
-                if (!remove.isPending) setDeleting(undefined);
-              }}
-            >
-              <p>
-                确认删除「{deleting.name}
-                」？资料会从当前账号的资料库和检索结果中移除。
-              </p>
-              <ErrorNotice error={remove.error} />
-              <div className="file-actions">
-                <button
-                  disabled={remove.isPending}
-                  onClick={() => setDeleting(undefined)}
-                >
-                  取消
-                </button>
-                <button
-                  className="primary"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(deleting.fileId)}
-                >
-                  {remove.isPending ? "正在删除…" : "确认删除"}
-                </button>
+                  </div>
+                ))}
+                {!visibleFiles.length && (
+                  <div className="empty-inline">
+                    <p>没有找到匹配的资料。</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilter("");
+                        setFileType("all");
+                      }}
+                    >
+                      清除筛选
+                    </button>
+                  </div>
+                )}
               </div>
-            </Dialog>
-          )}
-        </>
-      )}
+            ))}
+        </section>
+        {batchFiles && (
+          <MaterialBatchUpload
+            files={batchFiles}
+            projectId={id}
+            jobKey={jobKey}
+            onBusy={setBatchUploading}
+            onClose={() => {
+              setBatchFiles(undefined);
+              const recover = sessionStorage.getItem(jobKey);
+              if (recover) {
+                setJob(recover);
+                setActive(true);
+              }
+            }}
+          />
+        )}
+        {preview && (
+          <MaterialPreview
+            key={preview.fileId}
+            file={preview}
+            onClose={() => setPreview(undefined)}
+          />
+        )}
+        {deleting && (
+          <Dialog
+            title="删除资料"
+            onClose={() => {
+              if (!remove.isPending) setDeleting(undefined);
+            }}
+          >
+            <p>
+              确认删除「{deleting.name}
+              」？资料会从当前账号的资料库和检索结果中移除。
+            </p>
+            <ErrorNotice error={remove.error} />
+            <div className="file-actions">
+              <button
+                disabled={remove.isPending}
+                onClick={() => setDeleting(undefined)}
+              >
+                取消
+              </button>
+              <button
+                className="primary"
+                disabled={remove.isPending}
+                onClick={() => remove.mutate(deleting.fileId)}
+              >
+                {remove.isPending ? "正在删除…" : "确认删除"}
+              </button>
+            </div>
+          </Dialog>
+        )}
+      </>
     </>
   );
 }
@@ -577,9 +578,7 @@ function JobStatus({ id, done }: { id: string; done: () => void }) {
       {total > 0 && (
         <progress aria-label="索引进度" max={total} value={doneCount} />
       )}
-      <ErrorNotice
-        error={error || (job?.error ? new Error(job.error) : null)}
-      />
+      <ErrorNotice error={error || jobFailure(job)} />
     </div>
   );
 }

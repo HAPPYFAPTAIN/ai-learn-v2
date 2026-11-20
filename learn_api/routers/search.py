@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_core.config import get_settings
 from learn_core.rag.embedding import EmbeddingClient, EmbeddingError
 from learn_core.rag.store import hybrid_search
@@ -28,7 +28,6 @@ class SearchRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.post("/search")

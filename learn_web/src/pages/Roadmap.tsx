@@ -6,6 +6,7 @@ import { endpoints } from "../api";
 import { key } from "../query";
 import { useProject } from "../components/ProjectContext";
 import GenerationAction from "../components/GenerationAction";
+import DeleteLearningButton from "../components/DeleteLearningButton";
 import { roadmapOutline, downloadRoadmap } from "../components/roadmapContent";
 import {
   Empty,
@@ -66,6 +67,17 @@ export default function Roadmap() {
                     <span className="badge">
                       {nodes.data.items.length} 个章节
                     </span>
+                    {project && !!nodes.data.items.length && (
+                      <DeleteLearningButton
+                        project={project}
+                        scope="roadmap"
+                        onDeleted={() => {
+                          plan.reset();
+                          setMapProject(undefined);
+                          setExportError(undefined);
+                        }}
+                      />
+                    )}
                     <button
                       type="button"
                       disabled={!nodes.data.items.length}
@@ -102,7 +114,7 @@ export default function Roadmap() {
                   </Suspense>
                 )}
                 <GenerationAction
-                  key={id}
+                  key={`${id}:${!!nodes.data.items.length}`}
                   projectId={id}
                   hideCompleted
                   ready={!!nodes.data.items.length}

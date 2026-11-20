@@ -1,3 +1,4 @@
+import { jobFailure } from "../api/jobError";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -11,7 +12,6 @@ import { useDraftGuard } from "../components/DraftProtection";
 import WriteRecovery, { uncertainWrite } from "../components/WriteRecovery";
 import {
   AutoTextarea,
-  Empty,
   ErrorNotice,
   Icon,
   PageHeading,
@@ -27,7 +27,7 @@ export default function Chat() {
         title="知识问答"
         description="结合课程与参考资料，把不理解的地方问清楚。"
       />
-      {id ? <ChatRoom key={id} id={id} /> : <Empty title="暂无学习目标" />}
+      <ChatRoom key={id} id={id} />
     </>
   );
 }
@@ -46,10 +46,12 @@ export function ChatRoom({
   const history = useQuery({
     queryKey: key(`conversation-${mode}`, id),
     queryFn: ({ signal }) => endpoints.conversation(id, signal, mode),
+    enabled: !!id,
   });
   const files = useQuery({
     queryKey: key("materials", id),
     queryFn: ({ signal }) => endpoints.materials(id, signal),
+    enabled: !!id,
   });
   const [draft, setDraft] = useState("");
   const [useMaterials, setUseMaterials] = useState(true);
@@ -135,9 +137,9 @@ export function ChatRoom({
   const messages = history.data?.messages || [];
   return (
     <section className="panel chat-panel">
-      <QueryState query={history} />
+      {!!id && <QueryState query={history} />}
       <div className="chat-log" aria-live="polite" aria-busy={pending}>
-        {history.data && !messages.length && !pending && (
+        {(!id || history.data) && !messages.length && !pending && (
           <div className="chat-welcome">
             <div className="empty-icon">
               <Icon name="chat" size={28} />
@@ -163,7 +165,7 @@ export function ChatRoom({
                     "我该如何检验自己是否理解了？",
                   ]
               ).map((t) => (
-                <button key={t} onClick={() => setDraft(t)}>
+                <button key={t} disabled={!id} onClick={() => setDraft(t)}>
                   {t}
                 </button>
               ))}
@@ -178,6 +180,11 @@ export function ChatRoom({
             <Suspense fallback={<p>{m.content}</p>}>
               <Markdown>{m.content}</Markdown>
             </Suspense>
+            {m.truncated && (
+              <p role="status" className="muted">
+                回答可能不完整
+              </p>
+            )}
             {!!m.references.length && (
               <div className="file-actions" aria-label="回答参考资料">
                 {m.references.map((ref, j) => (
@@ -209,18 +216,19 @@ export function ChatRoom({
             本次向量检索暂不可用，已使用文字检索查找资料。
           </p>
         )}
-        <ErrorNotice
-          error={watchError || (job?.error ? new Error(job.error) : null)}
-        />
+        <ErrorNotice error={watchError || jobFailure(job)} />
       </div>
       <form
         className="chat-composer"
         onSubmit={(e) => {
           e.preventDefault();
-          if (draft.trim() && !pending && !uncertainWrite(send.error))
+          if (id && draft.trim() && !pending && !uncertainWrite(send.error))
             send.mutate();
         }}
       >
+        {!id && (
+          <p className="muted small">暂无学习计划，关联课程的问答暂不可用。</p>
+        )}
         <label htmlFor="question" className="sr-only">
           {coach ? "向教练反馈" : "向助教提问"}
         </label>
@@ -236,7 +244,7 @@ export function ChatRoom({
           <input
             type="checkbox"
             checked={useMaterials}
-            disabled={pending}
+            disabled={pending || !id}
             onChange={(e) => setUseMaterials(e.target.checked)}
           />
           结合资料库回答

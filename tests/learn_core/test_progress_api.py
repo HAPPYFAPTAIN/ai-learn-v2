@@ -81,7 +81,8 @@ def test_summary_aggregates_nodes_and_minutes(client):
     assert summary["studyMinutes"] == 60.0
 
     listed = client.get(f"/api/v2/projects/{pid}/progress", headers=headers).json()
-    assert len(listed["items"]) == 2
+    assert len(listed["items"]) == 4
+    assert sum(r['metric'] == 'mastery' for r in listed['items']) == 2
 
 
 def test_unknown_metric_is_rejected(client):

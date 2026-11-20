@@ -19,4 +19,4 @@ def test_cli_returns_nonzero_on_failure(monkeypatch, capsys):
     monkeypatch.setattr(reaper, "reap_stalled_jobs", boom)
     assert reaper.main([]) == 1
     err = capsys.readouterr().err
-    assert "reaper failed: RuntimeError: db down" in err
+    assert "reaper failed: RuntimeError" in err

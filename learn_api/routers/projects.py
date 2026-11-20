@@ -2,42 +2,44 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from learn_api.deps import get_session
+from learn_api.deps import SessionDep
 from learn_api.errors import ApiError
 from learn_core.db.models import Project
 from learn_core.learning import projects as service
 from learn_core.learning.creation import create_once, lookup_creation
 
-from learn_api.schemas import ProjectCreated, ProjectList, ProjectOut
+from learn_api.schemas import NonNullPatch, ProjectCreated, ProjectList, ProjectOut
 from learn_core.learning.generation import submit_generation, GenerationConflict
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 class ProjectCreate(BaseModel):
+    model_config = {"allow_inf_nan": False}
     title: str = Field(min_length=1, max_length=200)
-    topic: str = ""
-    background: str = ""
-    goal: str = ""
+    topic: str = Field(default="", max_length=200)
+    background: str = Field(default="", max_length=5000)
+    goal: str = Field(default="", max_length=5000)
     weekly_hours: float = Field(default=10.0, gt=0, le=168, alias="weeklyHours")
     generate_roadmap: bool = Field(default=False, alias="generateRoadmap")
     request_id: UUID | None = Field(default=None, alias="requestId")
 
 
-class ProjectUpdate(BaseModel):
+class ProjectUpdate(NonNullPatch):
+    model_config = {"allow_inf_nan": False}
     title: str | None = Field(default=None, min_length=1, max_length=200)
-    topic: str | None = None
-    background: str | None = None
-    goal: str | None = None
+    topic: str | None = Field(default=None, max_length=200)
+    background: str | None = Field(default=None, max_length=5000)
+    goal: str | None = Field(default=None, max_length=5000)
     weekly_hours: float | None = Field(default=None, gt=0, le=168, alias="weeklyHours")
-    status: str | None = None
+    status: Literal["active", "paused", "completed", "archived"] | None = None
 
 
 def _serialize(project: Project) -> dict:
@@ -54,7 +56,6 @@ def _serialize(project: Project) -> dict:
     }
 
 
-SessionDep = Annotated[Session, Depends(get_session)]
 
 
 @router.get("", response_model=ProjectList)
@@ -120,4 +121,17 @@ def update_project(project_id: int, payload: ProjectUpdate, session: SessionDep)
 def delete_project(project_id: int, session: SessionDep) -> Response:
     if not service.delete_project(session, project_id):
         raise ApiError("NOT_FOUND", "project not found")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/{project_id}/roadmap", status_code=status.HTTP_204_NO_CONTENT)
+def delete_roadmap(project_id: int, session: SessionDep) -> Response:
+    from learn_core.learning.nodes import delete_roadmap as clear_roadmap
+
+    try:
+        found = clear_roadmap(session, project_id)
+    except GenerationConflict as exc:
+        raise ApiError("JOB_RUNNING", str(exc)) from exc
+    if not found:
+        raise ApiError("NOT_FOUND", "学习计划不存在")
     return Response(status_code=status.HTTP_204_NO_CONTENT)

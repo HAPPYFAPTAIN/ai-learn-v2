@@ -35,7 +35,7 @@ def upgrade():
       WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)""")
     op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON creation_request TO learn_app, learn_ops")
     op.execute("GRANT USAGE, SELECT ON SEQUENCE creation_request_id_seq TO learn_app, learn_ops")
-    op.execute("CREATE INDEX ix_daily_report_latest ON le_daily_report (tenant_id, project_id, report_date DESC, id DESC)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_daily_report_latest ON le_daily_report (tenant_id, project_id, report_date DESC, id DESC)")
 
 
 def downgrade():

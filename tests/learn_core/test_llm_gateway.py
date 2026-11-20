@@ -13,7 +13,7 @@ import pytest
 from sqlalchemy import text
 
 from learn_core.db.engine import reset_engine, session_scope
-from learn_core.db.models import Tenant
+from learn_core.db.models import Tenant, TenantSetting
 from learn_core.llm.gateway import GatewayClient, GatewayError
 from learn_core.llm.lease import LeaseUnavailable, acquire, release
 from learn_core.tenancy.context import tenant_context
@@ -38,6 +38,8 @@ def _tenant(official_id: str):
         session.add(tenant)
         session.flush()
         tenant_id = tenant.id
+    with tenant_context(tenant_id), session_scope() as session:
+        session.add(TenantSetting(tenant_id=tenant_id, chat_model="doubao-pro"))
     yield tenant_id
     with session_scope() as session:
         session.execute(text("DELETE FROM tenant WHERE id = :tid"), {"tid": tenant_id})
@@ -108,10 +110,8 @@ def test_chat_records_model_call_and_forwards_event_id():
 
     with _tenant(f"gw-{suffix}") as tid, tenant_context(tid):
         with _gateway(handler) as client:
-            with session_scope() as session:
-                result = client.chat(
-                    session,
-                    tenant_id=tid,
+            result = client.chat_detached(
+                    job_id="test-detached",
                     event_id="ln-j1-1-1",
                     messages=[{"role": "user", "content": "你好"}],
                     purpose="chat",
@@ -138,11 +138,9 @@ def test_gateway_error_is_recorded_and_lease_released():
 
     with _tenant(f"gw-err-{suffix}") as tid, tenant_context(tid):
         with _gateway(handler) as client:
-            with session_scope() as session:
-                with pytest.raises(GatewayError) as excinfo:
-                    client.chat(
-                        session,
-                        tenant_id=tid,
+            with pytest.raises(GatewayError) as excinfo:
+                    client.chat_detached(
+                        job_id="test-error", purpose="chat",
                         event_id="ln-j2-1-1",
                         messages=[{"role": "user", "content": "hi"}],
                     )

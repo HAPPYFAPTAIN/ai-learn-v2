@@ -31,7 +31,13 @@ export default function GenerationProgress({
       <div
         className="generation-progress-track"
         role="progressbar"
-        aria-label="学习路线生成进度"
+        aria-label={
+          {
+            lesson: "学习内容生成进度",
+            quiz: "测验生成进度",
+            cards: "复习卡生成进度",
+          }[job.kind] || "学习路线生成进度"
+        }
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={value.percent}

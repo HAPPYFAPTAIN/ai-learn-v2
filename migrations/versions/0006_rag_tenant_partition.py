@@ -192,3 +192,17 @@ def downgrade() -> None:
         )
         """
     )
+
+    for table in ('rag_chunk', 'rag_embedding'):
+        op.execute(f'ALTER TABLE {table} ENABLE ROW LEVEL SECURITY')
+        op.execute(f'ALTER TABLE {table} FORCE ROW LEVEL SECURITY')
+        op.execute(f"""CREATE POLICY tenant_isolation ON {table}
+          USING (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)
+          WITH CHECK (tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid)""")
+        op.execute(f'ALTER TABLE {table} ADD CONSTRAINT {table}_tenant_id_fkey FOREIGN KEY (tenant_id) REFERENCES tenant(id) ON DELETE CASCADE')
+        op.execute(f'GRANT SELECT, INSERT, UPDATE, DELETE ON {table} TO learn_app, learn_ops')
+    op.execute('CREATE INDEX ix_rag_chunk_source_id ON rag_chunk (source_id)')
+    op.execute('CREATE INDEX ix_rag_embedding_source_id ON rag_embedding (source_id)')
+    op.execute('CREATE INDEX ix_rag_chunk_tsv ON rag_chunk USING gin (tsv)')
+    op.execute('CREATE INDEX ix_rag_embedding_hnsw ON rag_embedding USING hnsw (embedding vector_cosine_ops)')
+    op.execute('CREATE INDEX ix_rag_embedding_tenant_source ON rag_embedding (tenant_id, source_id)')

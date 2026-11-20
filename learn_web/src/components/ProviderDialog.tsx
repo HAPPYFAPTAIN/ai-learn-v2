@@ -4,6 +4,7 @@ import Select from "./Select";
 import ProviderLogo from "./ProviderLogo";
 import { AutoTextarea, Icon } from "./ui";
 import { addLocalProvider, type LocalProviderResult } from "../models/local";
+import { addPersonalProvider } from "../models/providers";
 import type { ProviderPreset } from "../models/presets";
 import {
   modelPreview,
@@ -14,6 +15,7 @@ import {
 type Props = {
   preset: ProviderPreset;
   localEnabled?: boolean;
+  personalEnabled?: boolean;
   onLocalAdded?: (result: LocalProviderResult) => void;
   onClose: () => void;
   onAdded: (connection: ModelConnection) => void;
@@ -24,6 +26,7 @@ export default function ProviderDialog({
   onClose,
   onAdded,
   localEnabled = false,
+  personalEnabled = false,
   onLocalAdded,
 }: Props) {
   const { connections } = useModelPreview();
@@ -37,6 +40,12 @@ export default function ProviderDialog({
   const [error, setError] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const canImport = localEnabled || personalEnabled;
+  const [importId] = useState(() =>
+    Array.from(crypto.getRandomValues(new Uint8Array(6)), (n) =>
+      n.toString(16).padStart(2, "0"),
+    ).join(""),
+  );
   const inFlight = useRef<AbortController | null>(null);
   const currentProfile =
     preset.profiles.find((p) => p.value === baseUrl)?.value || "__custom__";
@@ -58,7 +67,7 @@ export default function ProviderDialog({
 
   async function add(event: FormEvent) {
     event.preventDefault();
-    if ((!__DEMO__ && !localEnabled) || inFlight.current) return;
+    if ((!__DEMO__ && !canImport) || inFlight.current) return;
     let url: URL;
     try {
       url = new URL(baseUrl.trim());
@@ -104,7 +113,7 @@ export default function ProviderDialog({
       setError("这个供应商名称已存在，请添加一个不同的备注名称。");
       return;
     }
-    if (localEnabled) {
+    if (canImport) {
       if (!apiKey.trim()) {
         setError("请填写 API Key。");
         return;
@@ -114,8 +123,11 @@ export default function ProviderDialog({
       setSaving(true);
       setError("");
       try {
-        const result = await addLocalProvider(
+        const result = await (
+          personalEnabled ? addPersonalProvider : addLocalProvider
+        )(
           {
+            id: importId,
             provider: preset.id,
             name: name.trim(),
             remark: remark.trim(),
@@ -273,10 +285,10 @@ export default function ProviderDialog({
                 onChange={(event) => setApiKey(event.target.value)}
                 autoComplete="off"
                 maxLength={4096}
-                required={localEnabled}
-                disabled={!localEnabled || saving}
+                required={canImport}
+                disabled={!canImport || saving}
                 placeholder={
-                  localEnabled
+                  canImport
                     ? "粘贴该供应商的 API Key"
                     : __DEMO__
                       ? "演示模式无需填写真实 API Key"
@@ -284,11 +296,13 @@ export default function ProviderDialog({
                 }
               />
               <p className="field-hint">
-                {localEnabled
-                  ? "仅用于本机测试，Key 保留在本次服务内存中，重启后需重新添加。"
-                  : __DEMO__
-                    ? "本页仅演示配置流程，请勿填写真实密钥。"
-                    : "当前学习使用官网网关，无需在此填写个人密钥。"}
+                {personalEnabled
+                  ? "Key 按当前账号加密保存，不会回显；请求由服务端发送，使用你在供应商处的额度。"
+                  : localEnabled
+                    ? "仅用于本机测试，Key 保留在本次服务内存中，重启后需重新添加。"
+                    : __DEMO__
+                      ? "本页仅演示配置流程，请勿填写真实密钥。"
+                      : "当前学习使用官网网关，无需在此填写个人密钥。"}
               </p>
             </div>
             {preset.profiles.length > 1 && (
@@ -342,7 +356,7 @@ export default function ProviderDialog({
             </p>
           )}
           <p className="field-hint">
-            {localEnabled
+            {canImport
               ? "验证模型目录后添加，不发起付费生成请求。暂支持公开 HTTPS OpenAI 兼容服务。"
               : __DEMO__
                 ? "本地交互演示 · 配置刷新后重置"
@@ -354,12 +368,12 @@ export default function ProviderDialog({
             </button>
             <button
               className="primary"
-              disabled={saving || (!__DEMO__ && !localEnabled)}
+              disabled={saving || (!__DEMO__ && !canImport)}
             >
               <Icon name="plus" size={18} />
               {saving
                 ? "正在验证…"
-                : localEnabled
+                : canImport
                   ? "验证并添加"
                   : __DEMO__
                     ? "添加到演示列表"

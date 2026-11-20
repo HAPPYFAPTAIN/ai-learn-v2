@@ -5,17 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <title>AI Learn · 我的学习空间</title>
-    <script>
-      try {
-        document.documentElement.dataset.theme =
-          localStorage.getItem("learn.theme") ||
-          (matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light");
-      } catch {
-        document.documentElement.dataset.theme = "light";
-      }
-    </script>
+    <script src="%BASE_URL%theme-init.js"></script>
   </head>
   <body>
     <a class="skip-link" href="#main-content">跳到主要内容</a>

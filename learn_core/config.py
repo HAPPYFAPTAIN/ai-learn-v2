@@ -7,8 +7,9 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,8 +28,10 @@ class Settings(BaseSettings):
     )
 
     # 连接池：每个 API 进程 10 个，溢出 5 个。
-    db_pool_size: int = 10
-    db_max_overflow: int = 5
+    db_pool_size: int = Field(default=5, ge=1, le=20)
+    db_max_overflow: int = Field(default=5, ge=0, le=20)
+    db_lock_timeout: int = Field(default=10000, ge=1, le=600000)
+    db_statement_timeout: int = Field(default=0, ge=0, le=3600000)
     db_pool_recycle: int = 1800
 
     # 官网内部密钥：nginx 转发时注入，API 先校验它再复核短票。
@@ -48,6 +51,10 @@ class Settings(BaseSettings):
     # 官网模型网关
     gateway_url: str = "http://127.0.0.1:18040/v1"
     gateway_product_key: str = ""
+    # Personal keys are opt-in per account; gateway deployments can explicitly
+    # retain their existing catalog with LEARN_MODEL_SOURCE=gateway.
+    model_source: Literal["personal", "gateway"] = "personal"
+    provider_encryption_key: SecretStr = SecretStr("")
     gateway_read_timeout: float = Field(default=120, gt=0, le=600)
     gateway_concurrency: int = 16
     tenant_interactive_leases: int = 2
