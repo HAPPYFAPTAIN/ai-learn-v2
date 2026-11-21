@@ -12,6 +12,7 @@ import { useProject } from "../components/ProjectContext";
 import { useStudyMinutes } from "../components/useStudyMinutes";
 import { generationStorageKey } from "../api/generation";
 import GenerationAction from "../components/GenerationAction";
+import AssessmentGenerator from "../components/AssessmentGenerator";
 import ProjectCards from "../components/ProjectCards";
 import LessonAnnotations from "../components/LessonAnnotations";
 import ReadingTools from "../components/ReadingTools";
@@ -70,11 +71,6 @@ export default function Workbench() {
           <span aria-hidden="true">←</span> 返回学习计划
         </Link>
       )}
-      {chapter && (
-        <Link className="study-back" to={`/study?project=${id}`}>
-          <span aria-hidden="true">←</span> 返回章节目录
-        </Link>
-      )}
       <div className="page-heading study-heading">
         <h1 ref={heading} tabIndex={-1} className="study-title">
           {chapter ? current?.title || "章节学习" : "学习工作台"}
@@ -111,7 +107,11 @@ export default function Workbench() {
           {nodes.data &&
             (chapter ? (
               current ? (
-                <Lesson key={current.id} node={current} />
+                <Lesson
+                  key={current.id}
+                  node={current}
+                  next={nodes.data.items[nodes.data.items.indexOf(current) + 1]}
+                />
               ) : (
                 <Empty
                   title="找不到该章节"
@@ -190,7 +190,7 @@ export default function Workbench() {
   );
 }
 
-function Lesson({ node }: { node: KNode }) {
+function Lesson({ node, next }: { node: KNode; next?: KNode }) {
   const confirmDiscard = useConfirmDiscard();
   const { id } = useProject();
   const client = useQueryClient();
@@ -237,20 +237,21 @@ function Lesson({ node }: { node: KNode }) {
       <div role="tabpanel" id="lesson-tabpanel" aria-labelledby={`tab-${tab}`}>
         {tab === "内容" && (
           <>
-            <div className="content-actions lesson-export">
-              <button
-                type="button"
-                onClick={() =>
-                  saveMarkdown(
-                    lessonMarkdown(node),
-                    `${node.code}-${node.title}`,
-                  )
-                }
-              >
-                导出本节课文
-              </button>
-            </div>
-            <ReadingTools>
+            <ReadingTools
+              actions={
+                <button
+                  type="button"
+                  onClick={() =>
+                    saveMarkdown(
+                      lessonMarkdown(node),
+                      `${node.code}-${node.title}`,
+                    )
+                  }
+                >
+                  导出本节课文
+                </button>
+              }
+            >
               <LessonAnnotations
                 key={`${node.id}:${node.contentVersion}`}
                 projectId={id}
@@ -268,29 +269,59 @@ function Lesson({ node }: { node: KNode }) {
               nodeId={node.id}
               ready={node.contentVersion > 0 && node.description.length >= 100}
             />
-            <button
-              className="primary"
-              disabled={progress.isPending || node.status === "done"}
-              onClick={() => progress.mutate()}
-            >
-              {node.status === "done"
-                ? "已完成学习"
-                : progress.isPending
-                  ? "正在保存…"
-                  : "标记为已学完"}
-            </button>
+            <div className="content-actions lesson-completion">
+              <button
+                className="primary"
+                disabled={progress.isPending || node.status === "done"}
+                onClick={() => progress.mutate()}
+              >
+                {node.status === "done"
+                  ? "已完成学习"
+                  : progress.isPending
+                    ? "正在保存…"
+                    : "标记为已学完"}
+              </button>
+              {(node.status === "done" || progress.isSuccess) &&
+                (next ? (
+                  <Link
+                    className="button primary"
+                    to={`/study?project=${id}&chapter=${next.id}`}
+                  >
+                    前往下一节 <Icon name="arrow" size={16} />
+                  </Link>
+                ) : (
+                  <Link className="button" to={`/study?project=${id}`}>
+                    已完成最后一节，返回目录
+                  </Link>
+                ))}
+              <Link
+                className="button study-ask"
+                to={`/chat?project=${id}&chapter=${node.id}`}
+              >
+                向助教提问 <Icon name="chat" size={16} />
+              </Link>
+            </div>
             <ErrorNotice error={progress.error} />
-            <Link
-              className="button study-ask"
-              to={`/chat?project=${id}&chapter=${node.id}`}
-            >
-              向助教提问 <Icon name="chat" size={16} />
-            </Link>
           </>
         )}
         {tab === "笔记" && <NotesManager node={node} />}
         {tab === "练习" && (
           <>
+            <div className="section-title spread">
+              <h2>本节练习</h2>
+              <AssessmentGenerator
+                projectId={id}
+                kind="quiz"
+                nodeId={node.id}
+                practice
+              />
+            </div>
+            <p className="muted small">
+              生成的练习保存在查漏测验，可作答、查看批改并再次回顾。
+            </p>
+            <Link className="button" to={`/quiz?project=${id}`}>
+              查看已有测验与练习
+            </Link>
             <QueryState query={tasks} />
             {tasks.data?.items
               .filter((t) => t.nodeId === node.id)
@@ -308,7 +339,9 @@ function Lesson({ node }: { node: KNode }) {
               ))}
             {tasks.data &&
               !tasks.data.items.some((t) => t.nodeId === node.id) && (
-                <p className="muted">本章节暂无练习。</p>
+                <p className="muted">
+                  本章节暂无学习任务。新生成的练习请通过“查看已有测验与练习”打开。
+                </p>
               )}
             <ErrorNotice error={completeTask.error} />
           </>

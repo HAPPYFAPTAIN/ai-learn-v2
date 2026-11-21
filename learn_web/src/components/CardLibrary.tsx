@@ -260,44 +260,52 @@ export default function CardLibrary({
                 create.mutate();
             }}
           >
-            <Select
-              label="关联章节"
-              value={node}
-              onChange={setNode}
-              disabled={create.isPending}
-              options={[
-                { value: "none", label: "不关联章节" },
-                ...(nodes.data?.items || []).map((n) => ({
-                  value: String(n.id),
-                  label: `${n.code} ${n.title}`,
-                })),
-              ]}
-            />
-            <label htmlFor="manual-card-front">卡片问题</label>
-            <AutoTextarea
-              id="manual-card-front"
-              disabled={create.isPending}
-              required
-              maxLength={4000}
-              value={front}
-              onChange={(e) => setFront(e.target.value)}
-            />
-            <label htmlFor="manual-card-back">卡片答案</label>
-            <AutoTextarea
-              id="manual-card-back"
-              disabled={create.isPending}
-              required
-              maxLength={8000}
-              value={back}
-              onChange={(e) => setBack(e.target.value)}
-            />
+            <div className="form-field">
+              <label htmlFor="manual-card-node">关联章节</label>
+              <Select
+                id="manual-card-node"
+                label="关联章节"
+                value={node}
+                onChange={setNode}
+                disabled={create.isPending}
+                options={[
+                  { value: "none", label: "不关联章节" },
+                  ...(nodes.data?.items || []).map((n) => ({
+                    value: String(n.id),
+                    label: `${n.code} ${n.title}`,
+                  })),
+                ]}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="manual-card-front">卡片问题</label>
+              <AutoTextarea
+                id="manual-card-front"
+                disabled={create.isPending}
+                required
+                maxLength={4000}
+                value={front}
+                onChange={(e) => setFront(e.target.value)}
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="manual-card-back">卡片答案</label>
+              <AutoTextarea
+                id="manual-card-back"
+                disabled={create.isPending}
+                required
+                maxLength={8000}
+                value={back}
+                onChange={(e) => setBack(e.target.value)}
+              />
+            </div>
             <ErrorNotice error={create.error} />
             <WriteRecovery
               error={create.error}
               onCheck={checkSaved}
               onAllowRetry={() => create.reset()}
             />
-            <div className="content-actions">
+            <div className="content-actions form-footer">
               <button type="button" disabled={create.isPending} onClick={close}>
                 取消
               </button>

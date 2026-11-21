@@ -29,12 +29,16 @@ export default function Quiz() {
       <PageHeading
         title="查漏测验"
         description="不是为了分数，而是发现下一步值得巩固的地方。"
+        action={
+          id ? (
+            <AssessmentGenerator key={id} projectId={id} kind="quiz" />
+          ) : undefined
+        }
       />
       {!id ? (
         <Empty title="暂无学习目标" />
       ) : (
         <>
-          <AssessmentGenerator key={id} projectId={id} kind="quiz" />
           <QueryState query={list} />
           {list.data && (
             <>

@@ -369,6 +369,10 @@ p + p {
   min-width: 0;
 }
 .topbar {
+  position: sticky;
+  top: 0;
+  z-index: 24;
+  flex-shrink: 0;
   height: 77px;
   padding: 0 48px;
   border-bottom: 1px solid var(--le-line);
@@ -524,6 +528,9 @@ footer {
 .page-heading .muted {
   margin-top: 12px;
   font-size: 13px;
+}
+.page-heading > .primary {
+  flex-shrink: 0;
 }
 .panel {
   background: var(--le-surface);
@@ -713,6 +720,9 @@ footer {
 .project-card:hover {
   transform: translateY(-3px);
   border-color: var(--le-primary);
+}
+.provider-removal {
+  margin-bottom: 20px;
 }
 .project-card-link {
   display: block;
@@ -1625,7 +1635,15 @@ footer {
   align-items: flex-start;
 }
 .study-ask {
-  margin-left: 12px;
+  margin-left: 0;
+}
+.lesson-completion {
+  margin-top: 20px;
+}
+.topbar .topbar-study-back {
+  margin: 0;
+  flex-shrink: 0;
+  font-size: 13px;
 }
 .library-file-row .file-actions {
   grid-column: 1 / -1;
@@ -1639,6 +1657,32 @@ footer {
   padding: 16px;
   background: #06172080;
   backdrop-filter: blur(3px);
+}
+.provider-dialog-backdrop[hidden] {
+  display: none;
+}
+.provider-dialog-backdrop .provider-dialog:focus {
+  outline: none;
+}
+.provider-dialog-backdrop .provider-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.provider-dialog-backdrop form,
+.assessment-generator {
+  display: grid;
+  gap: 18px;
+}
+.form-field {
+  display: grid;
+  gap: 8px;
+}
+.form-field > label {
+  font-weight: 600;
+}
+.provider-dialog-backdrop .form-footer {
+  margin-top: 6px;
 }
 .provider-dialog-backdrop .provider-dialog {
   display: flex;
@@ -2785,16 +2829,18 @@ input[type="checkbox"]:checked::before {
   margin-bottom: 0;
 }
 .assessment-generator {
-  margin-bottom: 1.5rem;
+  min-width: 0;
 }
 .assessment-scope {
   border: 1px solid var(--le-line);
   border-radius: 12px;
   padding: 1rem;
   margin: 1rem 0;
-  max-height: 260px;
-  overflow-y: auto;
   min-width: 0;
+}
+.assessment-scope-list {
+  max-height: 240px;
+  overflow-y: auto;
 }
 .assessment-scope label {
   display: flex;
@@ -2976,10 +3022,6 @@ input[type="checkbox"]:checked::before {
   font-weight: 650;
   font-size: 20px;
 }
-.lesson-export {
-  justify-content: end;
-  margin-bottom: 16px;
-}
 .reading-body,
 .lesson-reading {
   position: relative;
@@ -2988,16 +3030,80 @@ input[type="checkbox"]:checked::before {
   font-size: var(--reading-size, 18px);
   line-height: 1.85;
 }
-.reading-toolbar label {
-  min-width: 140px;
+.reading-tools .reading-toolbar {
+  align-items: center;
+  margin-top: 0;
+  margin-bottom: 18px;
+  gap: 12px;
+}
+.reading-toolbar .reading-size {
+  min-width: 120px;
+  margin: 0;
+  gap: 4px;
+}
+.reading-size > span {
+  display: flex;
+  justify-content: space-between;
 }
 .reading-toolbar input[type="range"] {
   accent-color: var(--le-primary);
   padding: 0;
-  width: 140px;
+  width: 120px;
   min-height: 24px;
   border: 0;
   box-shadow: none;
+}
+.reading-actions {
+  margin-inline-start: auto;
+}
+.learning-diagram {
+  margin: 24px 0;
+  padding: 18px;
+  border: 1px solid var(--le-line);
+  border-radius: 12px;
+  background: var(--le-surface-soft);
+}
+.learning-diagram figcaption {
+  font-weight: 650;
+}
+.learning-diagram-scroll {
+  overflow-x: auto;
+  margin: 12px 0;
+  color: var(--le-primary);
+}
+.learning-diagram svg {
+  display: block;
+  height: auto;
+  margin-inline: auto;
+}
+.diagram-edge {
+  stroke: var(--le-primary);
+  stroke-width: 2;
+  fill: none;
+}
+.diagram-node rect {
+  fill: var(--le-surface);
+  stroke: var(--le-control-border-hover);
+}
+.diagram-node text {
+  fill: var(--le-ink);
+  font-size: 16px;
+}
+@media (max-width: 600px) {
+  .topbar-study-back + .topbar-actions .ui-select-trigger {
+    max-width: 100px;
+  }
+  .topbar .topbar-study-back {
+    font-size: 12px;
+  }
+  .topbar:has(.topbar-study-back) {
+    gap: 6px;
+  }
+  .reading-actions,
+  .library-actions {
+    width: 100%;
+    margin-inline-start: 0;
+  }
 }
 .lesson-outline {
   border: 1px solid var(--le-line);

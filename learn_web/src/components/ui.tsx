@@ -62,6 +62,12 @@ export function Icon({ name, size = 20 }: { name: string; size?: number }) {
     ),
     arrow: <path d="M4 12h16m-6-6 6 6-6 6" />,
     plus: <path d="M12 4v16M4 12h16" />,
+    search: (
+      <>
+        <circle cx="10.5" cy="10.5" r="6.5" />
+        <path d="m16 16 4 4" />
+      </>
+    ),
     sun: (
       <>
         <circle cx="12" cy="12" r="4" />

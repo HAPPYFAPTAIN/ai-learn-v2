@@ -617,3 +617,342 @@ test("batch upload rejects invalid selections and session changes stop the remai
   ).toBeVisible();
   expect(count).toBe(1);
 });
+
+for (const width of [390, 1440]) {
+  for (const theme of ["light", "dark"]) {
+    test(`learning flow prioritizes studying and stable dialogs at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (value) => localStorage.setItem("learn.theme", value),
+        theme,
+      );
+      await mock(page);
+      let deletes = 0;
+      page.on("request", (request) => {
+        if (request.method() === "DELETE") deletes++;
+      });
+      await page.goto("/study");
+      const trigger = page.getByRole("button", {
+        name: "删除学习计划：Python 从入门到实践",
+        exact: true,
+      });
+      await trigger.click();
+      const dialog = page.getByRole("dialog", {
+        name: "删除学习计划",
+        exact: true,
+      });
+      await expect(dialog).toBeVisible();
+      expect(
+        await dialog.evaluate((element) => element.closest(".project-card")),
+      ).toBeNull();
+      const first = (await dialog.boundingBox())!;
+      await page.mouse.move(width - 10, 20);
+      await expect
+        .poll(async () => Math.round((await dialog.boundingBox())!.width))
+        .toBe(Math.round(first.width));
+      expect(first.x).toBeGreaterThanOrEqual(0);
+      expect(first.x + first.width).toBeLessThanOrEqual(width);
+      await page.screenshot({
+        path: testInfo.outputPath("delete-confirmation.png"),
+      });
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+      await expect(trigger).toBeFocused();
+      expect(deletes).toBe(0);
+
+      await page.goto("/study?project=1&chapter=12");
+      await expect(
+        page.getByRole("link", { name: "前往下一节", exact: true }),
+      ).toHaveCount(0);
+      await page
+        .getByRole("button", { name: "标记为已学完", exact: true })
+        .click();
+      const next = page.getByRole("link", { name: "前往下一节", exact: true });
+      await expect(next).toHaveAttribute("href", "/study?project=1&chapter=13");
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      const back = page.getByRole("link", {
+        name: "返回章节目录",
+        exact: true,
+      });
+      await expect(back).toBeInViewport();
+      await next.click();
+      await expect(page).toHaveURL(/chapter=13/);
+      await page
+        .getByRole("button", { name: "标记为已学完", exact: true })
+        .click();
+      await expect(
+        page.getByRole("link", {
+          name: "已完成最后一节，返回目录",
+          exact: true,
+        }),
+      ).toBeVisible();
+
+      await page.goto("/review");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(page.locator(".review-panel")).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath("review-first.png"),
+        fullPage: true,
+      });
+      await page
+        .getByRole("button", { name: "新建复习卡", exact: true })
+        .click();
+      const cardDialog = page.getByRole("dialog", {
+        name: "创建复习卡",
+        exact: true,
+      });
+      await expect(cardDialog).toBeVisible();
+      await cardDialog.getByLabel("生成数量").fill("3");
+      await page.keyboard.press("Escape");
+      await page
+        .getByRole("button", { name: "新建复习卡", exact: true })
+        .click();
+      await expect(cardDialog.getByLabel("生成数量")).toHaveValue("3");
+      await page.screenshot({
+        path: testInfo.outputPath("card-generator.png"),
+      });
+      await page.keyboard.press("Escape");
+      await page
+        .getByRole("button", { name: "手动添加复习卡", exact: true })
+        .click();
+      await page.screenshot({
+        path: testInfo.outputPath("manual-card-spacing.png"),
+      });
+      await page.keyboard.press("Escape");
+      await page.goto("/quiz");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      await expect(
+        page.getByRole("heading", { name: "我的测验", exact: true }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath("quiz-first.png"),
+        fullPage: true,
+      });
+      await page.getByRole("button", { name: "新建测验", exact: true }).click();
+      await expect(
+        page.getByRole("dialog", { name: "创建新测验", exact: true }),
+      ).toBeVisible();
+      await page.screenshot({
+        path: testInfo.outputPath("quiz-generator.png"),
+      });
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    });
+
+    test(`lesson diagrams and compact reading controls at ${width}px in ${theme}`, async ({
+      page,
+    }, testInfo) => {
+      await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (value) => localStorage.setItem("learn.theme", value),
+        theme,
+      );
+      await mock(page);
+      await page.route("**/api/v2/projects/1/nodes", async (route) => {
+        const response = await createDemo().handle(route.request().url(), {});
+        const data = await response.json();
+        data.items[0].description =
+          '## 从数数到进位\n\n理解十进制的组成。\n\n```learning-diagram\n{"title":"0到20的数位结构","nodes":[{"id":"zero","label":"0：一个也没有"},{"id":"one","label":"1到9：逐个计数"},{"id":"ten","label":"10：十个一合成一个十"},{"id":"twenty","label":"20：两个十"}],"edges":[["zero","one"],["one","ten"],["ten","twenty"]]}\n```\n\n' +
+          "理解个位与十位之间的关系。\n\n".repeat(30);
+        await route.fulfill({ json: data });
+      });
+      await page.goto("/study?project=1&chapter=11");
+      const diagram = page.getByRole("img", {
+        name: "0到20的数位结构",
+        exact: true,
+      });
+      await expect(diagram).toBeVisible();
+      // Keep knowledge diagrams at their intended reading size on wide screens.
+      // Stretching this narrow chain to the whole lesson makes its text enormous.
+      const diagramBox = (await diagram.boundingBox())!;
+      expect(diagramBox.width).toBeLessThanOrEqual(400);
+      await expect(page.locator(".learning-diagram .diagram-node")).toHaveCount(
+        4,
+      );
+      await expect(page.locator(".learning-diagram")).not.toContainText(
+        '"nodes"',
+      );
+      await page.screenshot({ path: testInfo.outputPath("reading-tools.png") });
+      await page.locator(".learning-diagram").scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: testInfo.outputPath("knowledge-diagram.png"),
+      });
+      await page.getByText("文字版知识关系", { exact: true }).click();
+      await expect(page.locator(".learning-diagram li").first()).toContainText(
+        "0：一个也没有 → 1到9：逐个计数",
+      );
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+      await expect(
+        page.getByRole("link", { name: "返回章节目录", exact: true }),
+      ).toBeInViewport();
+      const backBox = (await page
+        .getByRole("link", { name: "返回章节目录", exact: true })
+        .boundingBox())!;
+      expect(backBox.y).toBeGreaterThanOrEqual(0);
+      expect(backBox.y).toBeLessThan(77);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth,
+        ),
+      ).toBe(true);
+    });
+  }
+}
+
+test("lesson practice generation is explicit and opens the generated quiz", async ({
+  page,
+}) => {
+  await mock(page);
+  let calls = 0;
+  await page.route("**/api/v2/projects/1/quiz-jobs", async (route) => {
+    calls++;
+    expect(route.request().postDataJSON()).toEqual({
+      nodeIds: [12],
+      count: 5,
+      qtype: "practice",
+    });
+    await route.fulfill({
+      status: 202,
+      json: { jobId: "practice-ui", state: "queued" },
+    });
+  });
+  await page.route("**/api/v2/jobs/practice-ui", (route) =>
+    route.fulfill({
+      json: {
+        jobId: "practice-ui",
+        state: "done",
+        progress: { count: 5, quizId: 61 },
+      },
+    }),
+  );
+  await page.goto("/study?project=1&chapter=12");
+  await page.getByRole("tab", { name: "练习", exact: true }).click();
+  await page.getByRole("button", { name: "生成本节练习", exact: true }).click();
+  const dialog = page.getByRole("dialog", {
+    name: "生成本节练习",
+    exact: true,
+  });
+  await expect(dialog.getByRole("checkbox", { name: /A2 变量/ })).toBeChecked();
+  expect(calls).toBe(0);
+  await dialog.getByRole("button", { name: "生成练习", exact: true }).click();
+  await dialog.getByRole("link", { name: "开始作答", exact: true }).click();
+  await expect(page).toHaveURL(/quiz\?project=1&quiz=61/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "提交答案", exact: true }),
+  ).toBeVisible();
+  expect(calls).toBe(1);
+});
+
+test("resource search only constructs an external keyword link", async ({
+  page,
+}) => {
+  await mock(page);
+  const outside: string[] = [];
+  page.on("request", (request) => {
+    if (!request.url().startsWith("http://127.0.0.1:"))
+      outside.push(request.url());
+  });
+  await page.goto("/library");
+  await page.getByRole("button", { name: "联网查资料", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "联网查资料", exact: true });
+  await expect(
+    dialog.getByRole("button", { name: "搜索资料", exact: true }),
+  ).toBeDisabled();
+  await dialog
+    .getByRole("searchbox", { name: "搜索关键词", exact: true })
+    .fill("微积分 & PDF");
+  let link = dialog.getByRole("link", { name: "搜索资料", exact: true });
+  await expect(link).toHaveAttribute("target", "_blank");
+  expect(
+    new URL((await link.getAttribute("href"))!).searchParams.get("q"),
+  ).toBe("微积分 & PDF");
+  await dialog.getByRole("combobox", { name: "搜索引擎", exact: true }).click();
+  await page.getByRole("option", { name: "百度", exact: true }).click();
+  link = dialog.getByRole("link", { name: "搜索资料", exact: true });
+  const url = new URL((await link.getAttribute("href"))!);
+  expect(url.hostname).toBe("www.baidu.com");
+  expect([...url.searchParams.keys()]).toEqual(["wd"]);
+  expect(url.searchParams.get("wd")).toBe("微积分 & PDF");
+  expect(outside).toEqual([]);
+});
+
+test("closing a generator keeps tracking the task and refreshes the quiz list", async ({
+  page,
+}) => {
+  await mock(page);
+  let generated = false;
+  let calls = 0;
+  let release!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v2/projects/1/quizzes", (route) =>
+    route.fulfill({
+      json: {
+        items: generated
+          ? [
+              {
+                id: 61,
+                title: "关闭窗口后保存的测验",
+                createdAt: new Date().toISOString(),
+              },
+            ]
+          : [],
+      },
+    }),
+  );
+  await page.route("**/api/v2/projects/1/quiz-jobs", (route) => {
+    calls++;
+    return route.fulfill({
+      status: 202,
+      json: { jobId: "dialog-background", state: "queued" },
+    });
+  });
+  await page.route("**/api/v2/jobs/dialog-background", (route) =>
+    route.fulfill({
+      json: { jobId: "dialog-background", state: "running", progress: {} },
+    }),
+  );
+  await page.route(
+    "**/api/v2/jobs/dialog-background/events?*",
+    async (route) => {
+      await waiting;
+      generated = true;
+      await route.fulfill({
+        contentType: "text/event-stream",
+        body: `event: progress\ndata: ${JSON.stringify({
+          jobId: "dialog-background",
+          state: "done",
+          progress: { quizId: 61, count: 5 },
+        })}\n\n`,
+      });
+    },
+  );
+  await page.goto("/quiz");
+  await page.getByRole("button", { name: "新建测验", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "创建新测验", exact: true });
+  await dialog.getByRole("checkbox", { name: /A1 认识 Python/ }).check();
+  await dialog.getByRole("button", { name: "生成测验", exact: true }).click();
+  await expect(
+    dialog.getByText("正在生成学习内容", { exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  release();
+  await expect(
+    page.getByRole("button", { name: /关闭窗口后保存的测验/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "新建测验", exact: true }).click();
+  await expect(
+    dialog.getByRole("checkbox", { name: /A1 认识 Python/ }),
+  ).toBeChecked();
+  await expect(dialog.getByText("生成已完成", { exact: true })).toBeVisible();
+  expect(calls).toBe(1);
+});
