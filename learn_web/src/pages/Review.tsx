@@ -49,7 +49,12 @@ export default function Review() {
         description="在恰好的时间温习，让记忆更牢固。涵盖当前账号全部学习计划。"
         action={
           id ? (
-            <AssessmentGenerator key={id} projectId={id} kind="cards" />
+            <AssessmentGenerator
+              key={id}
+              projectId={id}
+              kind="cards"
+              prominent
+            />
           ) : undefined
         }
       />

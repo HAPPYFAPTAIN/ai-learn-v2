@@ -2792,9 +2792,54 @@ progress::-moz-progress-bar {
 }
 .generation-action {
   margin: 1rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 16px;
+}
+.generation-action > :not(button) {
+  align-self: stretch;
+}
+.generation-action > button {
+  max-width: 100%;
+  white-space: normal;
 }
 .generation-action > .inline-label {
-  margin: 0.8rem 0;
+  margin: 0;
+}
+.generation-action > .job-status {
+  margin-bottom: 0;
+}
+.quiz-submit-area {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-top: 20px;
+}
+.quiz-submit-area > :not(button) {
+  align-self: stretch;
+}
+.quiz-submit-area > .notice {
+  margin: 0;
+}
+.page-heading > .assessment-create-prominent {
+  min-height: 52px;
+  min-width: 180px;
+  padding: 13px 24px;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 650;
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--le-primary) 18%, transparent);
+}
+@media (max-width: 600px) {
+  .page-heading:has(> .assessment-create-prominent) {
+    flex-wrap: wrap;
+  }
+  .page-heading > .assessment-create-prominent {
+    width: 100%;
+    min-width: 0;
+  }
 }
 input[type="checkbox"] {
   appearance: none;

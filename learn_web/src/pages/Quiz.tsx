@@ -259,32 +259,34 @@ function QuizSheet({ id }: { id: number }) {
                 </div>
               ))}
             </fieldset>
-            <button
-              className="primary"
-              disabled={blocked || !quiz.data.questions.length}
-            >
-              {pending ? "批改中…" : result.data ? "已提交" : "提交答案"}
-            </button>
-            {warning && (
-              <p role="alert" className="notice">
-                {warning}
-              </p>
-            )}
-            <ErrorNotice error={submit.error} />
-            <ErrorNotice error={jobError || jobFailure(job)} />
-            {pending && (
-              <p role="status">
-                {state === "queued"
-                  ? "答案已保存，等待批改。"
-                  : "正在批改答案，可离开此页后回来查看。"}
-                {reconnecting && "正在重新连接…"}
-              </p>
-            )}
-            {!pending && !result.data && (
-              <p className="muted small">
-                选择题直接判分；填空、简答和实操题按需由主模型批改，将消耗模型额度。
-              </p>
-            )}
+            <div className="quiz-submit-area">
+              <button
+                className="primary"
+                disabled={blocked || !quiz.data.questions.length}
+              >
+                {pending ? "批改中…" : result.data ? "已提交" : "提交答案"}
+              </button>
+              {warning && (
+                <p role="alert" className="notice">
+                  {warning}
+                </p>
+              )}
+              <ErrorNotice error={submit.error} />
+              <ErrorNotice error={jobError || jobFailure(job)} />
+              {pending && (
+                <p role="status">
+                  {state === "queued"
+                    ? "答案已保存，等待批改。"
+                    : "正在批改答案，可离开此页后回来查看。"}
+                  {reconnecting && "正在重新连接…"}
+                </p>
+              )}
+              {!pending && !result.data && (
+                <p className="muted small">
+                  选择题直接判分；填空、简答和实操题按需由主模型批改，将消耗模型额度。
+                </p>
+              )}
+            </div>
           </form>
           {result.data && (
             <div className="quiz-results" role="status">
