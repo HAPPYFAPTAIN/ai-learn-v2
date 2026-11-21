@@ -8,6 +8,7 @@ import {
 } from "react";
 
 const MindMap = lazy(() => import("./MindMap"));
+const LearningDiagram = lazy(() => import("./LearningDiagram"));
 
 function plainText(value: ReactNode): string {
   return Children.toArray(value)
@@ -35,6 +36,12 @@ export default function CodeBlock({ children }: { children?: ReactNode }) {
   const copied = copyResult.source === source ? copyResult.message : "";
   const showMap = mapSource === source;
   const isMap = language === "markmap" || language === "mindmap";
+  if (language === "learning-diagram")
+    return (
+      <Suspense fallback={<p role="status">正在加载知识结构图…</p>}>
+        <LearningDiagram source={source} />
+      </Suspense>
+    );
   async function copy() {
     try {
       await navigator.clipboard.writeText(source);

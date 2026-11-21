@@ -19,6 +19,7 @@
 | [personal-api-key.md](learn-core/personal-api-key.md) | 个人 Key 按账号加密存储、编辑、删除及接口 |
 | [个人 Key 官网切换](learn-core/personal-api-key-production.md) | 运维从共享网关切换个人 Key、密钥配置、服务重启、验收与回退 |
 | [online-issues-v2.md](learn-core/online-issues-v2.md) | v2 线上问题 1–11 修复、侧栏与常驻助手、资源影响及待完成的服务器验收 |
+| [学习交互与布局修复（11 月 21 日）](learn-core/learning-ui-20261121.md) | 删除弹窗闪动、章节导航、结构图、练习、复习与测验弹窗、资料检索入口及验证范围 |
 | [CHAT_AUTO_LANGUAGE.md](CHAT_AUTO_LANGUAGE.md) | 对话语言策略 |
 | [CHAT_RETRIEVAL_STATUS.md](CHAT_RETRIEVAL_STATUS.md) | 检索状态反馈 |
 | [LEARNING_AGENT.md](LEARNING_AGENT.md) | 学习业务基础设计 |

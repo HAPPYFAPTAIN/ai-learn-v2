@@ -47,12 +47,16 @@ export default function Review() {
       <PageHeading
         title="间隔复习"
         description="在恰好的时间温习，让记忆更牢固。涵盖当前账号全部学习计划。"
+        action={
+          id ? (
+            <AssessmentGenerator key={id} projectId={id} kind="cards" />
+          ) : undefined
+        }
       />
       {!projects.length ? (
         <Empty title="暂无学习目标" />
       ) : (
         <>
-          <AssessmentGenerator key={id} projectId={id} kind="cards" />
           {rate.data && (
             <p className="notice" role="status">
               复习记录已保存，下次复习：

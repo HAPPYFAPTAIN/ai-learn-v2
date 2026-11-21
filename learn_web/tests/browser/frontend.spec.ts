@@ -2154,6 +2154,7 @@ for (const width of [390, 1440]) {
       return route.fulfill({ json: card() });
     });
     await page.goto("/quiz");
+    await page.getByRole("button", { name: "新建测验", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "生成测验", exact: true }),
     ).toBeDisabled();
@@ -2164,6 +2165,7 @@ for (const width of [390, 1440]) {
     expect(bounds?.height).toBeLessThanOrEqual(20);
     await page.getByLabel("生成数量").fill("1");
     await page.getByRole("button", { name: "生成测验", exact: true }).click();
+    await page.getByRole("button", { name: "完成", exact: true }).click();
     await page.getByRole("button", { name: /新生成的章节测验/ }).click();
     await expect(page.getByText("参考答案：print")).toHaveCount(0);
     await page
@@ -2185,10 +2187,12 @@ for (const width of [390, 1440]) {
     expect(gradeCalls).toBe(1);
     expect(quizCalls).toBe(1);
     await page.goto("/review");
+    await page.getByRole("button", { name: "新建复习卡", exact: true }).click();
     await page.getByRole("combobox", { name: "复习章节" }).click();
     await page.getByRole("option", { name: /A1 认识 Python/ }).click();
     await page.getByLabel("生成数量").fill("1");
     await page.getByRole("button", { name: "生成复习卡", exact: true }).click();
+    await page.getByRole("button", { name: "完成", exact: true }).click();
     await expect(page.locator(".review-panel")).toContainText(
       "新卡片：变量用途是什么？",
     );

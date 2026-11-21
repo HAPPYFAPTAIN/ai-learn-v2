@@ -9,7 +9,13 @@ import {
 import { Input, SearchField } from "./fields";
 import { matchingRanges, readingIndex } from "./quoteRange";
 import RangePaint from "./RangePaint";
-export default function ReadingTools({ children }: { children: ReactNode }) {
+export default function ReadingTools({
+  children,
+  actions,
+}: {
+  children: ReactNode;
+  actions?: ReactNode;
+}) {
   const body = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(() => {
     const saved = Number(localStorage.getItem("learn.reading.size"));
@@ -117,8 +123,10 @@ export default function ReadingTools({ children }: { children: ReactNode }) {
             下一处
           </button>
         </div>
-        <label htmlFor={id}>
-          字号{" "}
+        <label htmlFor={id} className="reading-size">
+          <span>
+            字号 <output htmlFor={id}>{size}px</output>
+          </span>
           <Input
             id={id}
             type="range"
@@ -133,8 +141,10 @@ export default function ReadingTools({ children }: { children: ReactNode }) {
             }}
             aria-label="课文字号"
           />
-          {size}px
         </label>
+        {actions && (
+          <div className="content-actions reading-actions">{actions}</div>
+        )}
       </div>
       {search.trim() && (
         <p role="status" className="muted small">

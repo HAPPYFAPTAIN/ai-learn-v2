@@ -12,6 +12,7 @@ import Dialog from "../components/Dialog";
 import MaterialPreview from "../components/MaterialPreview";
 import MaterialBatchActions from "../components/MaterialBatchActions";
 import MaterialBatchUpload from "../components/MaterialBatchUpload";
+import ResourceSearch from "../components/ResourceSearch";
 import { validateUpload } from "../components/uploadValidation";
 import Select from "../components/Select";
 import { saveBlob } from "../components/download";
@@ -199,16 +200,23 @@ function LibraryContent() {
                 DOCX，单个文件最多 50 MB；每批最多 10 份、共 100 MB。
               </p>
             </div>
-            <button
-              className="primary"
-              disabled={
-                !id || upload.isPending || active || batchBusy || batchUploading
-              }
-              onClick={() => input.current?.click()}
-            >
-              <Icon name="plus" />
-              {upload.isPending ? "上传中…" : "上传资料"}
-            </button>
+            <div className="content-actions library-actions">
+              <ResourceSearch />
+              <button
+                className="primary"
+                disabled={
+                  !id ||
+                  upload.isPending ||
+                  active ||
+                  batchBusy ||
+                  batchUploading
+                }
+                onClick={() => input.current?.click()}
+              >
+                <Icon name="plus" />
+                {upload.isPending ? "上传中…" : "上传资料"}
+              </button>
+            </div>
           </div>
           <input
             className="sr-only"

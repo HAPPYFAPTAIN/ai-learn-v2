@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 const stack: HTMLDivElement[] = [];
 let originalOverflow = "";
@@ -8,11 +9,13 @@ export default function Dialog({
   onClose,
   children,
   dismissible = true,
+  open = true,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   dismissible?: boolean;
+  open?: boolean;
 }) {
   const id = useId();
   const panel = useRef<HTMLDivElement>(null);
@@ -21,6 +24,7 @@ export default function Dialog({
     if (dismissible) onClose();
   };
   useEffect(() => {
+    if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     if (!stack.length) originalOverflow = document.body.style.overflow;
     const root = panel.current!;
@@ -74,18 +78,21 @@ export default function Dialog({
       document.removeEventListener("keydown", key);
       if (wasTop && previous?.isConnected) previous.focus();
     };
-  }, []);
-  return (
+  }, [open]);
+  // Escape transformed/hovered cards: a fixed descendant otherwise uses the
+  // card as its containing block in Safari and flashes as hover changes.
+  return createPortal(
     <div
       className="provider-dialog-backdrop"
+      hidden={!open}
       onClick={(e) => {
         if (dismissible && e.target === e.currentTarget) onClose();
       }}
     >
       <div
         className="provider-dialog"
-        role="dialog"
-        aria-modal="true"
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? true : undefined}
         aria-labelledby={id}
         tabIndex={-1}
         ref={panel}
@@ -102,6 +109,7 @@ export default function Dialog({
         </header>
         <div className="provider-dialog-body">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

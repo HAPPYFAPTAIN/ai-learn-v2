@@ -6,6 +6,7 @@ import { watchJob } from "../api/jobs";
 import { key } from "../query";
 import { ErrorNotice } from "./ui";
 import { generationStorageKey } from "../api/generation";
+import { Link } from "react-router-dom";
 import GenerationProgress from "./GenerationProgress";
 
 export default function GenerationAction({
@@ -16,6 +17,7 @@ export default function GenerationAction({
   initialJobId,
   onComplete,
   hideCompleted = false,
+  buttonLabel,
 }: {
   projectId: number;
   nodeId?: number;
@@ -23,6 +25,7 @@ export default function GenerationAction({
   initialJobId?: string;
   onComplete?: () => void;
   hideCompleted?: boolean;
+  buttonLabel?: string;
   assessment?: {
     kind: "quiz" | "cards";
     nodeIds: number[];
@@ -138,15 +141,16 @@ export default function GenerationAction({
           >
             {pending
               ? "生成处理中…"
-              : assessment
-                ? assessment.kind === "quiz"
-                  ? "生成测验"
-                  : "生成复习卡"
-                : nodeId
-                  ? ready
-                    ? "重新生成本节教材"
-                    : "生成本节教材"
-                  : "AI 生成学习路线"}
+              : buttonLabel ||
+                (assessment
+                  ? assessment.kind === "quiz"
+                    ? "生成测验"
+                    : "生成复习卡"
+                  : nodeId
+                    ? ready
+                      ? "重新生成本节教材"
+                      : "生成本节教材"
+                    : "AI 生成学习路线")}
           </button>
         </>
       )}
@@ -182,12 +186,24 @@ export default function GenerationAction({
           )}
           <ErrorNotice error={jobFailure(job)} />
           {job.state === "done" && assessment && (
-            <p>
-              已保存 {Number(job.progress.count || 0)}{" "}
-              {assessment.kind === "quiz"
-                ? "道题，可在下方选择新测验作答。"
-                : "张卡片，可在下方开始复习。"}
-            </p>
+            <>
+              <p>
+                已保存 {Number(job.progress.count || 0)}{" "}
+                {assessment.kind === "quiz"
+                  ? "道题，关闭窗口后可选择新测验作答。"
+                  : "张卡片，关闭窗口后即可开始复习。"}
+              </p>
+              {assessment.kind === "quiz" &&
+                Number(job.progress.quizId) > 0 && (
+                  <Link
+                    className="button primary"
+                    onClick={onComplete}
+                    to={`/quiz?project=${projectId}&quiz=${Number(job.progress.quizId)}`}
+                  >
+                    开始作答
+                  </Link>
+                )}
+            </>
           )}
         </div>
       )}

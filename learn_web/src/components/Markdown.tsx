@@ -29,7 +29,7 @@ export default function RichText({
             {
               detect: false,
               ignoreMissing: true,
-              plainText: ["markmap", "mindmap"],
+              plainText: ["markmap", "mindmap", "learning-diagram"],
             },
           ],
           [

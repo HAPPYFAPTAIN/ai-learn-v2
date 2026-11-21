@@ -184,12 +184,22 @@ export default function App() {
                 >
                   <Icon name="chevron-right" />
                 </button>
-                <div className="breadcrumb">
-                  我的学习空间 <span>/</span>{" "}
-                  <strong>
-                    {nav.find(([p]) => p === location.pathname)?.[2] || "学习"}
-                  </strong>
-                </div>
+                {location.pathname === "/study" && params.has("chapter") ? (
+                  <Link
+                    className="study-back topbar-study-back"
+                    to={`/study?project=${value.id}`}
+                  >
+                    <span aria-hidden="true">←</span> 返回章节目录
+                  </Link>
+                ) : (
+                  <div className="breadcrumb">
+                    我的学习空间 <span>/</span>{" "}
+                    <strong>
+                      {nav.find(([p]) => p === location.pathname)?.[2] ||
+                        "学习"}
+                    </strong>
+                  </div>
+                )}
                 <div className="topbar-actions">
                   <ProjectPicker
                     projects={value.projects}
