@@ -767,6 +767,10 @@ for (const width of [390, 1440]) {
         exact: true,
       });
       await expect(diagram).toBeVisible();
+      // Keep knowledge diagrams at their intended reading size on wide screens.
+      // Stretching this narrow chain to the whole lesson makes its text enormous.
+      const diagramBox = (await diagram.boundingBox())!;
+      expect(diagramBox.width).toBeLessThanOrEqual(400);
       await expect(page.locator(".learning-diagram .diagram-node")).toHaveCount(
         4,
       );

@@ -20,7 +20,7 @@ export default function LearningDiagram({ source }: { source: string }) {
         >
           <svg
             viewBox={`0 0 ${diagram.width} ${diagram.height}`}
-            style={{ minWidth: diagram.width }}
+            style={{ width: diagram.width, minWidth: diagram.width }}
             role="img"
             aria-label={diagram.title}
           >

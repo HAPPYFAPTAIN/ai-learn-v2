@@ -3073,8 +3073,8 @@ input[type="checkbox"]:checked::before {
 }
 .learning-diagram svg {
   display: block;
-  width: 100%;
   height: auto;
+  margin-inline: auto;
 }
 .diagram-edge {
   stroke: var(--le-primary);
