@@ -4,7 +4,7 @@ import { endpoints } from "../api";
 import { key } from "../query";
 import Select from "./Select";
 import { Input } from "./fields";
-import { QueryState } from "./ui";
+import { Icon, QueryState } from "./ui";
 import GenerationAction from "./GenerationAction";
 import Dialog from "./Dialog";
 
@@ -13,11 +13,13 @@ export default function AssessmentGenerator({
   kind,
   nodeId,
   practice = false,
+  prominent = false,
 }: {
   projectId: number;
   kind: "quiz" | "cards";
   nodeId?: number;
   practice?: boolean;
+  prominent?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const nodes = useQuery({
@@ -35,7 +37,12 @@ export default function AssessmentGenerator({
   );
   return (
     <>
-      <button type="button" className="primary" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className={`primary${prominent ? " assessment-create-prominent" : ""}`}
+        onClick={() => setOpen(true)}
+      >
+        {prominent && <Icon name="plus" size={22} />}
         {practice
           ? "生成本节练习"
           : kind === "quiz"
