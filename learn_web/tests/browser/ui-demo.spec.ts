@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { navigate } from "./navigation";
 
 test("local UI preview simulates upload bytes and indexing without an API", async ({
   page,
@@ -28,9 +29,12 @@ test("local UI preview shows sample charts and keeps annotations while navigatin
 }) => {
   await page.goto("/dashboard");
   await expect(page.locator(".chart-bar")).toHaveCount(7);
-  await page.getByRole("link", { name: "学习工作台", exact: true }).click();
+  await navigate(page, "学习工作台");
   await page.getByRole("link", { name: /Python 从入门到实践/ }).click();
-  await page.getByRole("link", { name: /认识 Python 与第一个程序/ }).click();
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: /认识 Python 与第一个程序/ })
+    .click();
   const paragraph = page.locator(".lesson-reading .prose > p").first();
   await expect(paragraph).toBeVisible();
   await paragraph.scrollIntoViewIfNeeded();
@@ -49,7 +53,10 @@ test("local UI preview shows sample charts and keeps annotations while navigatin
     "本地UI批注测试",
   );
   await page.getByRole("link", { name: /返回章节目录/ }).click();
-  await page.getByRole("link", { name: /认识 Python 与第一个程序/ }).click();
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: /认识 Python 与第一个程序/ })
+    .click();
   await page.getByRole("button", { name: "查看本章批注" }).click();
   await expect(page.locator(".annotation-card")).toContainText(
     "本地UI批注测试",

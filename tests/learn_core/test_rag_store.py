@@ -120,3 +120,33 @@ def test_upsert_and_hybrid_search_are_tenant_scoped():
                     text("SELECT count(*) FROM rag_chunk WHERE source_id = 'd1'")
                 ).scalar()
             assert remaining == 0
+
+
+def test_text_only_fallback_has_no_vector_path_or_irrelevant_results(monkeypatch):
+    suffix = uuid.uuid4().hex[:8]
+    with _tenant(f"rag-text-a-{suffix}") as ta, _tenant(f"rag-text-b-{suffix}") as tb:
+        with tenant_context(ta):
+            with session_scope() as session:
+                upsert_chunks(
+                    session,
+                    index_id="course:text",
+                    source_id="text-source",
+                    chunks=["分子动力学模拟需要先做能量最小化。"],
+                    vectors=[fake_vector("分子动力学模拟需要先做能量最小化。")],
+                )
+                monkeypatch.setattr(
+                    "learn_core.rag.store._vector_literal",
+                    lambda _: pytest.fail("全文降级不应转换或查询向量"),
+                )
+                hits = hybrid_search(
+                    session, index_id="course:text", query="能量最小化", query_vector=None,
+                )
+                assert len(hits) == 1 and hits[0].source_id == "text-source"
+                assert hybrid_search(
+                    session, index_id="course:text", query="完全不存在的词语", query_vector=None,
+                ) == []
+        with tenant_context(tb):
+            with session_scope() as session:
+                assert hybrid_search(
+                    session, index_id="course:text", query="能量最小化", query_vector=None,
+                ) == []

@@ -17,21 +17,37 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from learn_embed.model import DIM, MODEL_NAME, get_embedder
+from learn_core.config import get_settings
+from learn_embed.constants import DIM, MODEL_NAME
+from learn_embed.gate import EmbeddingBusy, EmbeddingGate
 
 MAX_BATCH = 64
 MAX_CHARS = 8_000
 
 
-def error(code: str, message: str, status: int = 400) -> JSONResponse:
+def error(
+    code: str,
+    message: str,
+    status: int = 400,
+    *,
+    retryable: bool = False,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
     return JSONResponse(
         status_code=status,
-        content={"error": {"code": code, "message": message, "retryable": False}},
+        content={"error": {"code": code, "message": message, "retryable": retryable}},
+        headers=headers,
     )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from learn_embed.model import get_embedder
+
+    settings = get_settings()
+    app.state.embedding_gate = EmbeddingGate(
+        settings.embed_concurrency, settings.embed_queue_size
+    )
     app.state.embedder = await asyncio.to_thread(get_embedder)
     yield
 
@@ -42,7 +58,13 @@ app = FastAPI(title="learn-embed", lifespan=lifespan)
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     embedder = getattr(app.state, "embedder", None)
-    return {"status": "ok" if embedder else "loading", "model": MODEL_NAME, "dim": DIM}
+    gate = getattr(app.state, "embedding_gate", None)
+    return {
+        "status": "ok" if embedder else "loading",
+        "model": MODEL_NAME,
+        "dim": DIM,
+        "queue": await gate.snapshot() if gate else None,
+    }
 
 
 @app.post("/v1/embeddings")
@@ -72,7 +94,17 @@ async def embeddings(request: Request) -> Any:
         return error("INPUT_TOO_LONG", f"each input must be at most {MAX_CHARS} characters")
 
     embedder = app.state.embedder
-    vectors = await asyncio.to_thread(embedder.encode, texts)
+    try:
+        async with app.state.embedding_gate.slot():
+            vectors = await asyncio.to_thread(embedder.encode, texts)
+    except EmbeddingBusy:
+        return error(
+            "EMBEDDING_BUSY",
+            "嵌入服务正忙，请稍后重试",
+            429,
+            retryable=True,
+            headers={"Retry-After": "2"},
+        )
 
     return {
         "object": "list",

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import uuid
 import re
+from time import monotonic
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from starlette.exceptions import HTTPException
@@ -17,11 +18,14 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from learn_api.errors import ApiError, api_error_handler, error_response, unhandled_handler
+from learn_api.job_events import JobEventBroker
+from learn_core.config import get_settings
 from learn_core.learning.ownership import LearningObjectMissing
 from learn_core.learning.creation import CreationConflict
 from learn_core.llm.providers import ProviderError
+from learn_core import monitoring
 from learn_api.routers import (
-    assistant, conversations, generation, jobs, materials, me, models, nodes, notes, paths, progress, projects, providers, quizzes, reports, review, search, tools,
+    assistant, conversations, generation, jobs, local_monitor, materials, me, models, nodes, notes, paths, progress, projects, providers, quizzes, reports, review, search, tools,
 )
 
 log = logging.getLogger("learn_api")
@@ -60,12 +64,17 @@ def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         validate_dev_auth()
-        yield
+        try:
+            yield
+        finally:
+            await app.state.job_event_broker.close()
 
     app = FastAPI(title="learn-everything-api", version="2.0", lifespan=lifespan)
+    app.state.job_event_broker = JobEventBroker(get_settings().procrastinate_dsn)
 
     @app.middleware("http")
     async def request_id(request: Request, call_next):
+        started = monotonic()
         supplied = request.headers.get("X-Request-Id", "")
         rid = supplied if re.fullmatch(r"[A-Za-z0-9-]{1,64}", supplied) else uuid.uuid4().hex
         request.state.request_id = rid
@@ -88,6 +97,7 @@ def create_app() -> FastAPI:
         renewed = getattr(request.state, 'authorized_entry_cookie', '')
         if renewed:
             response.headers.append('Set-Cookie', renewed)
+        monitoring.record_request(request, response.status_code, (monotonic() - started) * 1000)
         return response
 
     @app.exception_handler(ApiError)
@@ -142,7 +152,7 @@ def create_app() -> FastAPI:
 
     for module in (
         assistant, me, models, providers, projects, nodes, notes, progress, reports, review, quizzes, conversations,
-        materials, paths, search, jobs, generation, tools,
+        materials, paths, search, jobs, generation, tools, local_monitor,
     ):
         app.include_router(module.router, prefix="/api/v2")
 

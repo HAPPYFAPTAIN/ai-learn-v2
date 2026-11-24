@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { navigate } from "./navigation";
 import { createDemo } from "../../src/demo/data";
 
 test("production CSP allows formulas, highlighted code, mindmaps and theme switching", async ({
@@ -42,14 +43,24 @@ test("production CSP allows formulas, highlighted code, mindmaps and theme switc
   await expect(page.locator(".hljs-string")).toContainText("Hello, learning!");
   await page.getByRole("button", { name: "切换浅色主题" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await page
-    .getByRole("navigation", { name: "主导航" })
-    .getByRole("link", { name: "学习路线", exact: true })
-    .click();
+  await navigate(page, "学习路线");
   await page.getByRole("button", { name: "思维导图", exact: true }).click();
   const map = page.getByRole("region", { name: "思维导图", exact: true });
   await expect(map.getByRole("img")).toBeVisible();
   await expect(map.locator("svg")).toContainText(/认识\s*Python/);
-  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  const fonts = await page.evaluate(async () => {
+    await document.fonts.ready;
+    const faces = [...document.fonts].filter((face) =>
+      /MiSans/i.test(face.family),
+    );
+    return {
+      check: document.fonts.check('500 16px "MiSans VF"'),
+      total: faces.length,
+      loaded: faces.some((face) => face.status === "loaded"),
+    };
+  });
+  expect(fonts.check).toBe(true);
+  expect(fonts.total).toBeGreaterThan(0);
+  expect(fonts.loaded).toBe(true);
   expect(violations).toEqual([]);
 });

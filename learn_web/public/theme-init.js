@@ -1,9 +1,6 @@
 try {
-        document.documentElement.dataset.theme =
-          localStorage.getItem("learn.theme") ||
-          (matchMedia("(prefers-color-scheme: dark)").matches
-            ? "dark"
-            : "light");
-      } catch {
-        document.documentElement.dataset.theme = "light";
-      }
+  document.documentElement.dataset.theme =
+    localStorage.getItem("learn.theme") || "dark";
+} catch {
+  document.documentElement.dataset.theme = "dark";
+}

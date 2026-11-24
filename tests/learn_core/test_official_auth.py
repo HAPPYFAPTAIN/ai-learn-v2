@@ -37,6 +37,17 @@ def setup_client(monkeypatch):
     get_settings.cache_clear()
 
 
+def test_verifier_reuses_client_without_caching_identity(setup_client):
+    build, calls = setup_client
+    c = build()
+    verifier = auth._verifier
+    client = verifier._client
+    for _ in range(2):
+        r = c.get('/api/v2/me', headers={'X-Learn-Internal-Secret':SECRET})
+        assert r.status_code == 200
+    assert verifier._client is client and len(calls) == 2
+
+
 def test_official_bootstrap_and_renewal_preserve_cookie_flags(setup_client):
     build, calls = setup_client
     cookie = 'learn_entry=renewed-ticket; Path=/official/learn-everything; HttpOnly; Secure; SameSite=Lax'

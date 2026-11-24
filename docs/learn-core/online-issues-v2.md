@@ -9,7 +9,7 @@
 | 1 账号事件撞号 | UUID 事件编号，保留步骤后缀与旧计数表 | `test_online_handoff_v2.py`：两个账号首次生成、问答事件不同 |
 | 2 提交与阻塞 | `SessionDep` 在响应前提交；SSE 查库进线程池；同步上传；连接和语句超时 | 同上：真实提交约束失败返回 500、6 路 SSE、同账号双上传 |
 | 3 运维兜底 | 每日备份及恢复演练脚本、用户级 timer、内存 drop-in、安全错误日志 | 同上：日志脱敏；本机临时 PostgreSQL 已执行备份恢复；服务器 cgroup 待验 |
-| 4 输出截断 | 生成 16000、问答 8000、润色 4000–16000；问答/润色保留部分正文，结构化生成失败保护旧内容 | 同上及 `test_llm_gateway.py`、`test_conversation_jobs.py` |
+| 4 输出截断 | 生成默认 250000（实际受供应商上限约束）、问答 8000、润色 4000–16000；问答/润色保留部分正文，结构化生成失败保护旧内容 | 同上及 `test_llm_gateway.py`、`test_conversation_jobs.py` |
 | 5 崩溃后重发 | 问答/润色持久化 `gatewayCallPending`，未知结果停止重发 | 同上：模拟写库前崩溃，第二次执行不再请求模型 |
 | 6 悬挂任务 | 按租户对账超时 running 和缺失队列任务 | 同上及 `test_reaper_cli.py` |
 | 7 问答排队 | 问答、助教、润色和全局助手走 `chat`；生成、批改走 `llm` | `test_conversation_jobs.py`、`test_global_assistant.py`；部署需额外 chat worker |

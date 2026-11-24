@@ -41,7 +41,7 @@ class HttpTicketVerifier:
         settings = get_settings()
         self._url = url or settings.authorize_url
         self._secret = internal_secret if internal_secret is not None else settings.internal_secret
-        self._transport = transport
+        self._client = httpx.Client(timeout=5.0, transport=transport, follow_redirects=False)
 
     def verify(self, ticket: str) -> Principal:
         return self._authorize(ticket)[0]
@@ -50,11 +50,10 @@ class HttpTicketVerifier:
         cookie = SimpleCookie()
         cookie['learn_entry'] = ticket
         try:
-            with httpx.Client(timeout=5.0, transport=self._transport, follow_redirects=False) as client:
-                response = client.get(self._url, headers={
-                    'Cookie':cookie.output(header='').strip(),
-                    'X-Original-URI':'/official/learn-everything/',
-                })
+            response = self._client.get(self._url, headers={
+                'Cookie':cookie.output(header='').strip(),
+                'X-Original-URI':'/official/learn-everything/',
+            })
         except httpx.HTTPError as exc:
             raise ApiError('GATEWAY_UNAVAILABLE', '官网登录验证暂不可用，请稍后重试') from exc
 

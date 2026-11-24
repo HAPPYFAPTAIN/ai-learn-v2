@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -14,10 +15,28 @@ from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from learn_core.config import get_settings
+from learn_core.db.models import JobProgress
 from learn_core.tenancy.context import current_tenant_or_none
 
 _engine: Engine | None = None
 _session_factory: sessionmaker[Session] | None = None
+JOB_NOTIFY_CHANNEL = "learn_job_progress"
+_JOB_NOTIFY_KEY = "learn_job_progress_notifications"
+
+
+def queue_job_progress_notification(session: Session, *, tenant_id, job_id: str) -> None:
+    tenant = tenant_id or current_tenant_or_none()
+    if tenant and job_id:
+        session.info.setdefault(_JOB_NOTIFY_KEY, set()).add((str(tenant), str(job_id)))
+
+
+@event.listens_for(Session, "before_flush")
+def _track_job_progress_changes(session: Session, flush_context, instances) -> None:
+    for row in (*session.new, *session.dirty, *session.deleted):
+        if isinstance(row, JobProgress):
+            queue_job_progress_notification(
+                session, tenant_id=row.tenant_id, job_id=row.job_id
+            )
 
 
 def _apply_tenant(conn) -> None:
@@ -66,6 +85,18 @@ def session_scope() -> Iterator[Session]:
     session = get_session_factory()()
     try:
         yield session
+        session.flush()
+        for tenant_id, job_id in sorted(session.info.pop(_JOB_NOTIFY_KEY, ())):
+            session.execute(
+                text("SELECT pg_notify(:channel, :payload)"),
+                {
+                    "channel": JOB_NOTIFY_CHANNEL,
+                    "payload": json.dumps(
+                        {"tenantId": tenant_id, "jobId": job_id},
+                        separators=(",", ":"),
+                    ),
+                },
+            )
         session.commit()
     except Exception:
         session.rollback()

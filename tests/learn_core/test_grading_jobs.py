@@ -43,7 +43,7 @@ def test_semantic_grade_duplicate_submit_restore_and_no_recharge(tenant, monkeyp
     mock_gateway(monkeypatch, json.dumps([{"questionId": ids[1], "correct": True, "feedback": "覆盖了命名和存储两个要点。"}]))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     assert read_job(tenant, jid)[0] == "done", read_job(tenant, jid)
-    monkeypatch.setattr(generation, "GatewayClient", lambda: pytest.fail("完成后不得重复扣费"))
+    monkeypatch.setattr(generation, "GatewayClient", lambda **kwargs: pytest.fail("完成后不得重复扣费"))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     assert enqueue(tenant, quiz_id, answers) == jid
     with tenant_context(tenant[0]), session_scope() as session:
@@ -69,7 +69,7 @@ def test_choice_grading_does_not_require_or_call_model(tenant, monkeypatch):
     with tenant_context(tenant[0]), session_scope() as session:
         session.get(TenantSetting, tenant[0]).chat_model = ""
     jid = enqueue(tenant, quiz_id, {str(ids[0]): "B"})
-    monkeypatch.setattr(generation, "GatewayClient", lambda: pytest.fail("选择题不调用模型"))
+    monkeypatch.setattr(generation, "GatewayClient", lambda **kwargs: pytest.fail("选择题不调用模型"))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     assert read_job(tenant, jid)[0] == "done"
     assert read_job(tenant, jid)[1]["grade"]["correct"] == 0
@@ -96,7 +96,7 @@ def test_grading_rejects_stale_questions_and_unknown_answers(tenant, monkeypatch
     jid = enqueue(tenant, quiz_id, {str(ids[1]): "数据容器"})
     with tenant_context(tenant[0]), session_scope() as session:
         session.get(QuizQuestion, ids[1]).answer = "修改后的答案"
-    monkeypatch.setattr(generation, "GatewayClient", lambda: pytest.fail("过期题目不应调用模型"))
+    monkeypatch.setattr(generation, "GatewayClient", lambda **kwargs: pytest.fail("过期题目不应调用模型"))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     assert read_job(tenant, jid)[0] == "cancelled"
 

@@ -69,119 +69,79 @@ export default function Home() {
   }
   return (
     <>
-      <section className="home-hero">
-        <div>
-          <h1>
-            每一份好奇，
-            <br />
-            都值得一个<span>学习计划。</span>
-          </h1>
-          <p>
-            从一个想学的目标开始，把知识化成自己的能力。
-            <br />
-            按自己的节奏，一步一步来。
-          </p>
-          <a className="button primary" href="#goal">
-            开始新的学习 <Icon name="arrow" />
-          </a>
-        </div>
-        <div className="hero-art" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="art-card">
-            <span className="art-line" />
-            <span className="art-line short" />
-            <div className="art-progress">
-              <Icon name="check" size={27} />
-            </div>
-            <span className="art-line" />
-          </div>
-          <span className="floating-label label-one">理解 · 练习 · 掌握</span>
-          <span className="floating-label label-two">每天进步一点点 ↗</span>
-          <span className="art-spark">✦</span>
-        </div>
-      </section>
-      <section id="goal" className="panel goal-panel">
-        <div className="section-title">
-          <span className="number-label">01</span>
-          <div>
-            <h2>写下你的学习目标</h2>
-            <p className="muted">
-              你想学会什么？可以描述当前基础和希望达到的程度。
-            </p>
-          </div>
-        </div>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (goal.trim() && !blocked) create.mutate();
-          }}
-        >
-          <label htmlFor="goal-text" className="sr-only">
-            学习目标
-          </label>
-          <AutoTextarea
-            id="goal-text"
-            placeholder="比如：我想从零学习 Python，能独立写一个整理文件的小工具…"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            maxLength={5000}
-            disabled={blocked}
-            required
-          />
-          <div className="form-footer">
-            <label className="inline-label">
-              每周投入{" "}
-              <Input
-                type="number"
-                aria-label="每周投入小时"
-                min={0.5}
-                max={80}
-                step={0.5}
-                value={hours}
-                disabled={blocked}
-                onChange={(e) => setHours(Number(e.target.value))}
-                required
-              />{" "}
-              小时
+      <section className="home-command">
+        <p className="eyebrow">AI LEARN / 学习空间</p>
+        <h1>
+          每一份好奇，
+          <span>都从一个目标开始。</span>
+        </h1>
+        <p className="home-lede">写下想学会的事，把它拆成可以完成的章节。</p>
+        <section id="goal" className="home-start" aria-label="创建学习计划">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (goal.trim() && !blocked) create.mutate();
+            }}
+          >
+            <label htmlFor="goal-text" className="sr-only">
+              学习目标
             </label>
-            <button className="primary" disabled={!goal.trim() || blocked}>
-              {create.isPending ? "正在创建…" : "创建学习计划"}
-              <Icon name="arrow" />
-            </button>
-          </div>
-          <p className="muted small">
-            {__DEMO__
-              ? "演示模式仅创建示例计划，不调用模型。"
-              : "创建后自动进入工作台并用当前主模型生成学习路线，将消耗模型额度。"}
-          </p>
-          {missingModel && (
-            <p role="alert">
-              请先到「模型设置」选择主模型。{" "}
-              <Link className="button" to="/models">
-                前往模型设置
-              </Link>
-            </p>
-          )}
-          <ErrorNotice error={create.error} />
-          <WriteRecovery
-            error={create.error}
-            onCheck={checkCreated}
-            onAllowRetry={() => create.reset()}
-          />
-        </form>
+            <AutoTextarea
+              id="goal-text"
+              placeholder="想学什么？例如：用 Python 做一个整理文件的小工具"
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              maxLength={5000}
+              disabled={blocked}
+              required
+            />
+            <div className="home-start-footer">
+              <label className="inline-label">
+                每周{" "}
+                <Input
+                  type="number"
+                  aria-label="每周投入小时"
+                  min={0.5}
+                  max={80}
+                  step={0.5}
+                  value={hours}
+                  disabled={blocked}
+                  onChange={(e) => setHours(Number(e.target.value))}
+                  required
+                />{" "}
+                小时
+              </label>
+              <button className="primary" disabled={!goal.trim() || blocked}>
+                {create.isPending ? "正在创建…" : "创建学习计划"}
+                <Icon name="arrow" />
+              </button>
+            </div>
+            {missingModel && (
+              <p role="alert">
+                请先到「模型设置」选择主模型。{" "}
+                <Link className="button" to="/models">
+                  前往模型设置
+                </Link>
+              </p>
+            )}
+            <ErrorNotice error={create.error} />
+            <WriteRecovery
+              error={create.error}
+              onCheck={checkCreated}
+              onAllowRetry={() => create.reset()}
+            />
+          </form>
+        </section>
       </section>
-      <section className="section-space">
-        <div className="section-title spread">
-          <div>
-            <h2>我的学习计划</h2>
-          </div>
-          <span className="badge">{projects.length} 个计划</span>
+      <section className="home-plans" aria-labelledby="home-plans-title">
+        <div className="home-plans-heading">
+          <h2 id="home-plans-title">我的学习计划</h2>
+          <span>{projects.length}</span>
         </div>
         {projects.length ? (
           <ProjectCards projects={projects} />
         ) : (
-          <div className="empty-inline">暂无学习计划，写下第一个目标吧。</div>
+          <div className="empty-inline">还没有学习计划。</div>
         )}
       </section>
     </>

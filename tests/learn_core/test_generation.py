@@ -97,8 +97,12 @@ def mock_gateway(monkeypatch, content=None, handler=None):
         assert request.headers["X-End-User"].startswith("fusion-")
         body = json.loads(request.content)
         assert body["reasoning_effort"] == "low"
+        assert body["max_tokens"] == 250000
         return httpx.Response(200, json={"model": "deepseek-test", "choices": [{"message": {"content": content}, "finish_reason": "stop"}], "usage": {"total_tokens": 42}})
-    monkeypatch.setattr(generation, "GatewayClient", lambda: GatewayClient(transport=httpx.MockTransport(handler or respond)))
+    def client(**kwargs):
+        assert kwargs["timeout"] == 600
+        return GatewayClient(transport=httpx.MockTransport(handler or respond), **kwargs)
+    monkeypatch.setattr(generation, "GatewayClient", client)
 
 
 @db_test
@@ -132,7 +136,7 @@ def test_roadmap_and_lesson_use_legacy_rules_and_persist_timings(tenant, monkeyp
         node = session.scalar(select(Knode).where(Knode.project_id == tenant[1], Knode.code == "1.1"))
         nid = node.id
     # Crash recovery after the result commit is a no-op, not a second charge.
-    monkeypatch.setattr(generation, "GatewayClient", lambda: pytest.fail("已经完成不应再次调用模型"))
+    monkeypatch.setattr(generation, "GatewayClient", lambda **kwargs: pytest.fail("已经完成不应再次调用模型"))
     run_generation(tenant=str(tenant[0]), job_id=jid)
     lesson = enqueue(tenant, "lesson", nid)
     mock_gateway(monkeypatch, LESSON)
@@ -236,7 +240,7 @@ def test_recovered_in_flight_request_is_not_sent_again(tenant, monkeypatch):
     with pytest.raises(SystemExit):
         run_generation(tenant=str(tenant[0]), job_id=jid)
     assert read_job(tenant, jid)[0] == "running"
-    monkeypatch.setattr(generation, "GatewayClient", lambda: pytest.fail("replayed paid request"))
+    monkeypatch.setattr(generation, "GatewayClient", lambda **kwargs: pytest.fail("replayed paid request"))
     run_generation(tenant=str(tenant[0]), job_id=jid, attempt=1)
     state, _, error = read_job(tenant, jid)
     assert state == "failed" and "结果未确认" in error

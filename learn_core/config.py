@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     # 本机嵌入服务
     embed_url: str = "http://127.0.0.1:18090"
     embed_dim: int = 384
+    embed_concurrency: int = Field(default=1, ge=1, le=4)
+    embed_queue_size: int = Field(default=8, ge=0, le=64)
 
     # 官网模型网关
     gateway_url: str = "http://127.0.0.1:18040/v1"
@@ -56,12 +58,16 @@ class Settings(BaseSettings):
     model_source: Literal["personal", "gateway"] = "personal"
     provider_encryption_key: SecretStr = SecretStr("")
     gateway_read_timeout: float = Field(default=120, gt=0, le=600)
+    generation_read_timeout: float = Field(default=600, gt=0, le=600)
+    generation_max_tokens: int = Field(default=250000, ge=1, le=1000000)
     gateway_concurrency: int = 16
     tenant_interactive_leases: int = 2
     background_llm_concurrency: int = 6
 
     # 任务队列
     procrastinate_dsn: str = "postgresql://learn_app:app@127.0.0.1:5432/learn_dev"
+
+    local_monitor: bool = False
 
     log_level: str = "INFO"
 

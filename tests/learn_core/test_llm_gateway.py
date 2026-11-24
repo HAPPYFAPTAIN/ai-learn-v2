@@ -92,6 +92,27 @@ def _gateway(handler) -> GatewayClient:
     )
 
 
+def test_known_output_limit_is_rejected_before_lease_or_provider_call():
+    suffix = uuid.uuid4().hex[:8]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("an over-limit request must not reach the provider")
+
+    with _tenant(f"gw-limit-{suffix}") as tid, tenant_context(tid):
+        with _gateway(handler) as client:
+            with pytest.raises(GatewayError) as excinfo:
+                client.chat_detached(
+                    job_id="test-output-limit", purpose="lesson",
+                    event_id="ln-limit-1-1", model="glm-5.3-flash",
+                    messages=[{"role": "user", "content": "hi"}], max_tokens=250000,
+                )
+        assert excinfo.value.status == 422
+        assert excinfo.value.code == "MODEL_OUTPUT_LIMIT"
+        with session_scope() as session:
+            assert session.execute(text("SELECT count(*) FROM llm_lease WHERE tenant_id = :tid"), {"tid": tid}).scalar_one() == 0
+            assert session.execute(text("SELECT count(*) FROM model_call WHERE tenant_id = :tid"), {"tid": tid}).scalar_one() == 0
+
+
 def test_chat_records_model_call_and_forwards_event_id():
     suffix = uuid.uuid4().hex[:8]
     seen: dict = {}

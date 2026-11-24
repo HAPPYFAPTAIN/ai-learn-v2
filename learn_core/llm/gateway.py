@@ -37,6 +37,34 @@ class GatewayError(RuntimeError):
                              "GATEWAY_REJECTED" if status >= 400 else "GATEWAY_UNAVAILABLE")
 
 
+_OUTPUT_LIMITS = {
+    "glm-5.3": 128_000,
+    "glm-5.3-flash": 128_000,
+    "glm-5.3-flashx": 128_000,
+    "glm-5.3-flashx-legal": 128_000,
+}
+
+
+def output_token_limit(model: str) -> int | None:
+    name = model.strip().lower()
+    if name.startswith("personal."):
+        parts = name.split(".", 2)
+        name = parts[2] if len(parts) == 3 else name
+    return _OUTPUT_LIMITS.get(name)
+
+
+def validate_output_tokens(model: str, requested: Any) -> None:
+    if isinstance(requested, bool) or not isinstance(requested, int):
+        return
+    limit = output_token_limit(model)
+    if limit is not None and requested > limit:
+        raise GatewayError(
+            422,
+            f"当前模型单次输出上限为 {limit} tokens，本次生成请求超过上限，未发送模型请求",
+            code="MODEL_OUTPUT_LIMIT",
+        )
+
+
 @dataclass
 class ChatResult:
     content: str
@@ -56,11 +84,11 @@ class GatewayClient:
     ) -> None:
         settings = get_settings()
         self._key = product_key if product_key is not None else settings.gateway_product_key
-        read_timeout = settings.gateway_read_timeout if timeout is None else timeout
-        self._detached_lease_ttl = timedelta(seconds=max(300, read_timeout + 60))
+        self._read_timeout = settings.gateway_read_timeout if timeout is None else timeout
+        self._detached_lease_ttl = timedelta(seconds=max(300, self._read_timeout + 60))
         self._client = httpx.Client(
             base_url=(base_url or settings.gateway_url).rstrip("/"),
-            timeout=httpx.Timeout(read_timeout, connect=5, write=10, pool=5),
+            timeout=httpx.Timeout(self._read_timeout, connect=5, write=10, pool=5),
             transport=transport,
         )
 
@@ -127,10 +155,12 @@ class GatewayClient:
                     credential = resolve(session, selected)
                 except ProviderError as exc:
                     raise GatewayError(422, str(exc)) from None
-            holder = acquire(session, tenant_id=tenant_id, lane=lane, ttl=self._detached_lease_ttl)
 
         payload: dict[str, Any] = {"messages": list(messages), "model": selected, **params}
         actual_model = credential.model if credential else selected
+        validate_output_tokens(actual_model, params.get("max_tokens"))
+        with session_scope() as session:
+            holder = acquire(session, tenant_id=tenant_id, lane=lane, ttl=self._detached_lease_ttl)
         if "kimi" in actual_model.lower():
             payload.pop("temperature", None)
             payload.pop("top_p", None)
@@ -146,7 +176,7 @@ class GatewayClient:
                     try:
                         response = call(credential, 'POST', '/chat/completions',
                                         payload={**payload, 'model': credential.model},
-                                        timeout=get_settings().gateway_read_timeout)
+                                        timeout=self._read_timeout)
                     except ProviderError as exc:
                         raise GatewayError(422, str(exc)) from None
                 else:

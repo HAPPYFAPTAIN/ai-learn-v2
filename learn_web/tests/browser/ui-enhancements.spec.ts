@@ -231,7 +231,10 @@ test("annotation failures preserve the draft and chapter changes clear it", asyn
   await page.getByRole("button", { name: "保存批注" }).click();
   await expect(page.locator(".annotation-card")).toHaveCount(1);
   await page.getByRole("link", { name: /返回章节目录/ }).click();
-  await page.getByRole("link", { name: /变量，让信息有个名字/ }).click();
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: /变量，让信息有个名字/ })
+    .click();
   await page.getByRole("button", { name: "查看本章批注" }).click();
   await expect(page.locator(".annotation-card")).toHaveCount(0);
 });
@@ -255,6 +258,7 @@ test("annotation location refuses missing and ambiguous quotations", async ({
     }),
   );
   await page.goto("/study?project=1&chapter=11");
+  await expect(page.locator(".lesson-reading .prose")).toBeVisible();
   await page.getByRole("button", { name: "查看本章批注" }).click();
   await page
     .locator(".annotation-card")

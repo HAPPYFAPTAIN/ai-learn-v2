@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createDemo } from "../../src/demo/data";
 import { samplePdf } from "./pdfFixture";
+import { navigate, openNavigation, openNavigationGroup } from "./navigation";
 async function mock(page: Page, empty = false) {
   const demo = createDemo(empty);
   await page.route("**/api/v2/**", async (route) => {
@@ -33,7 +34,7 @@ const pages = [
 
 for (const width of [1024, 1440, 1920]) {
   for (const theme of ["light", "dark"]) {
-    test(`sidebar collapses for focused study at ${width}px in ${theme}`, async ({
+    test(`chapter drawer keeps study context at ${width}px in ${theme}`, async ({
       page,
     }, testInfo) => {
       await page.setViewportSize({ width, height: 960 });
@@ -43,106 +44,178 @@ for (const width of [1024, 1440, 1920]) {
       );
       await mock(page);
       await page.goto("/study?project=1&chapter=12");
-      const sidebar = page.locator("#primary-nav");
-      const collapse = page.getByRole("button", {
-        name: "收起侧栏",
-        exact: true,
-      });
-      const expand = page.getByRole("button", {
-        name: "展开侧栏",
-        exact: true,
-      });
-      await expect(collapse).toBeVisible();
-      const before = (await page.getByRole("main").boundingBox())!;
-      // A layout toggle must keep the selected tab and unsaved input intact.
+      await expect(
+        page.getByRole("heading", { name: "变量，让信息有个名字" }),
+      ).toBeVisible();
+      const drawer = page.locator("#primary-nav");
+      const trigger = page.locator('button[aria-label="打开导航"]:visible');
+      await expect(drawer).toHaveAttribute("inert", "");
+      await expect(trigger).toBeVisible();
+      // The page sits beside the chapter rail and runs to the window edge.
+      const main = (await page.getByRole("main").boundingBox())!;
+      const rail = (await page.locator(".nav-rail").boundingBox())!;
+      const clientWidth = await page.evaluate(
+        () => document.documentElement.clientWidth,
+      );
+      expect(main.x).toBe(rail.x + rail.width);
+      expect(main.x + main.width).toBe(clientWidth);
       await page.getByRole("tab", { name: "笔记", exact: true }).click();
       const textbox = page.getByRole("textbox", {
         name: "记下你的理解",
         exact: true,
       });
-      await textbox.fill("收起菜单时保留的笔记草稿");
-      await collapse.click();
-      await expect(sidebar).toBeHidden();
-      await expect(expand).toBeFocused();
-      await expect(expand).toHaveAttribute("aria-expanded", "false");
+      await textbox.fill("打开章节抽屉时保留的笔记草稿");
+      await trigger.click();
+      const close = page.getByRole("button", {
+        name: "收起侧栏",
+        exact: true,
+      });
+      await expect(drawer).toBeVisible();
+      await expect(drawer).not.toHaveAttribute("inert", "");
+      await expect(close).toBeFocused();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        drawer.getByRole("link", { name: /变量，让信息有个名字/ }),
+      ).toBeVisible();
       await expect(
         page.getByRole("tab", { name: "笔记", exact: true }),
       ).toHaveAttribute("aria-selected", "true");
-      await expect(textbox).toHaveValue("收起菜单时保留的笔记草稿");
-      const after = (await page.getByRole("main").boundingBox())!;
-      expect(after.width).toBeGreaterThan(before.width);
-      expect(after.x).toBe(0);
-      expect(after.width).toBe(width);
+      await expect(textbox).toHaveValue("打开章节抽屉时保留的笔记草稿");
       await expect(page).toHaveURL(/chapter=12/);
-      await page.screenshot({ path: testInfo.outputPath("focused-study.png") });
-      await textbox.fill("");
+      await page.screenshot({
+        path: testInfo.outputPath("chapter-drawer.png"),
+      });
+      await close.click();
+      await expect(drawer).toHaveAttribute("inert", "");
+      await expect(trigger).toBeFocused();
+      await expect(trigger).toHaveAttribute("aria-expanded", "false");
       await page.reload();
-      await expect(sidebar).toBeHidden();
-      await expect(expand).toBeVisible();
-      await expand.focus();
+      await expect(drawer).toHaveAttribute("inert", "");
+      await trigger.focus();
       await page.keyboard.press("Enter");
-      await expect(sidebar).toBeVisible();
-      await expect(collapse).toBeFocused();
-      await expect(collapse).toHaveAttribute("aria-expanded", "true");
+      await expect(drawer).toBeVisible();
+      await expect(close).toBeFocused();
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true);
       await page.screenshot({
-        path: testInfo.outputPath("sidebar-restored.png"),
+        path: testInfo.outputPath("chapter-drawer-keyboard.png"),
       });
     });
   }
 }
 
-test("collapsed desktop preference keeps mobile navigation usable", async ({
+test("sticky header stays fixed while the page scrolls", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 500 });
+  await mock(page);
+  await page.goto("/study?project=1&chapter=12");
+  await expect(
+    page.getByRole("heading", { name: "变量，让信息有个名字" }),
+  ).toBeVisible();
+  await page.locator(".topbar").waitFor();
+  await expect(page.locator(".rail-progress, .rail-avatar")).toHaveCount(0);
+  const frames = await page.evaluate(async () => {
+    const bar = document.querySelector(".topbar")!;
+    const result: { scrollY: number; top: number; height: number }[] = [];
+    for (const y of [0, 40, 80, 160, 320]) {
+      window.scrollTo({ top: y, behavior: "instant" });
+      await new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      );
+      const rect = bar.getBoundingClientRect();
+      result.push({
+        scrollY: window.scrollY,
+        top: rect.top,
+        height: rect.height,
+      });
+    }
+    return result;
+  });
+  expect(new Set(frames.map((frame) => frame.top))).toEqual(new Set([0]));
+  expect(new Set(frames.map((frame) => frame.height))).toEqual(new Set([64]));
+  expect(frames.at(-1)!.scrollY).toBeGreaterThan(200);
+});
+
+test("large navigation reveals one smaller section at a time", async ({
+  page,
+}) => {
+  await mock(page);
+  await page.goto("/study?project=1&chapter=12");
+  await openNavigation(page);
+  const drawer = page.locator("#primary-nav");
+  const current = drawer.getByRole("button", { name: /当前学习计划/ });
+  await expect(current).toHaveAttribute("aria-expanded", "true");
+  await expect(
+    drawer.getByRole("link", { name: /变量，让信息有个名字/ }),
+  ).toBeVisible();
+  await expect(
+    drawer.getByRole("link", { name: "学习首页", exact: true }),
+  ).toHaveCount(0);
+
+  await openNavigationGroup(page, "开始学习");
+  await expect(
+    drawer.getByRole("button", { name: /开始学习/ }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await expect(current).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    drawer.getByRole("link", { name: "学习首页", exact: true }),
+  ).toBeVisible();
+  await expect(
+    drawer.getByRole("link", { name: "学习工作台", exact: true }),
+  ).toHaveCount(0);
+
+  await drawer.getByRole("button", { name: /练习与复习/ }).click();
+  await expect(
+    drawer.getByRole("button", { name: /开始学习/ }),
+  ).toHaveAttribute("aria-expanded", "false");
+  await expect(
+    drawer.getByRole("link", { name: "查漏测验", exact: true }),
+  ).toBeVisible();
+  await expect(
+    drawer.getByRole("link", { name: "学习首页", exact: true }),
+  ).toHaveCount(0);
+});
+
+test("chapter drawer remains usable across desktop and mobile widths", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 960 });
   await mock(page);
   await page.goto("/study?project=1&chapter=12");
-  await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
+  const drawer = page.locator("#primary-nav");
+  await page.locator('button[aria-label="打开导航"]:visible').click();
   await page.setViewportSize({ width: 390, height: 844 });
-  const sidebar = page.locator("#primary-nav");
-  await expect(sidebar).toHaveAttribute("inert", "");
-  await page.getByRole("button", { name: "打开导航", exact: true }).click();
-  await expect(sidebar).not.toHaveAttribute("inert", "");
+  await expect(drawer).toHaveAttribute("inert", "");
+  const mobileTrigger = page.locator('button[aria-label="打开导航"]:visible');
+  await mobileTrigger.click();
+  await openNavigationGroup(page, "开始学习");
   await expect(
-    page.getByRole("link", { name: "学习首页", exact: true }),
+    drawer.getByRole("link", { name: "学习首页", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
-  await expect(sidebar).toHaveAttribute("inert", "");
-  await expect(
-    page.getByRole("button", { name: "打开导航", exact: true }),
-  ).toBeFocused();
-  await page.getByRole("button", { name: "打开导航", exact: true }).click();
-  await page.getByRole("link", { name: "学习工作台", exact: true }).click();
+  await expect(drawer).toHaveAttribute("inert", "");
+  await expect(mobileTrigger).toBeFocused();
+  await navigate(page, "学习工作台");
   await expect(page).toHaveURL(/\/study$/);
-  await expect(sidebar).toHaveAttribute("inert", "");
+  await expect(drawer).toHaveAttribute("inert", "");
   await page.setViewportSize({ width: 1440, height: 960 });
-  await expect(sidebar).toBeHidden();
-  await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
-  await expect(sidebar).toBeVisible();
+  await expect(page.locator(".nav-rail")).toBeVisible();
 });
 
-test("sidebar toggle works when preference storage is unavailable", async ({
-  page,
-}) => {
+test("chapter drawer closes with Escape and the backdrop", async ({ page }) => {
   await mock(page);
-  await page.addInitScript(() => {
-    const original = Storage.prototype.setItem;
-    Storage.prototype.setItem = function (key, value) {
-      if (key === "learn.sidebar.collapsed")
-        throw new DOMException("Storage blocked", "SecurityError");
-      original.call(this, key, value);
-    };
-  });
   await page.goto("/study");
-  await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
-  await expect(page.locator("#primary-nav")).toBeHidden();
-  await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
-  await expect(page.locator("#primary-nav")).toBeVisible();
+  const drawer = page.locator("#primary-nav");
+  const trigger = page.locator('button[aria-label="打开导航"]:visible');
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveAttribute("inert", "");
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.mouse.click(1100, 600);
+  await expect(drawer).toHaveAttribute("inert", "");
 });
 
 for (const width of [390, 1440]) {
@@ -151,14 +224,16 @@ for (const width of [390, 1440]) {
       page,
     }, testInfo) => {
       await page.setViewportSize({ width, height: 960 });
+      await page.addInitScript(
+        (theme) => localStorage.setItem("learn.theme", theme),
+        theme,
+      );
       await mock(page, true);
       const requests: string[] = [];
       page.on("request", (r) => {
         if (r.url().includes("/api/v2/")) requests.push(r.url());
       });
       await page.goto("/chat");
-      if (theme === "dark")
-        await page.getByRole("button", { name: "切换深色主题" }).click();
       const main = page.getByRole("main");
       async function check(path: string) {
         await expect(
@@ -282,7 +357,7 @@ for (const width of [390, 1440]) {
     await mock(page);
     await page.goto("/roadmap?project=1");
     if (width === 1440)
-      await page.getByRole("button", { name: "切换深色主题" }).click();
+      await page.getByRole("button", { name: "切换浅色主题" }).click();
     await page.getByRole("button", { name: "生成周计划", exact: true }).click();
     await expect(page.locator(".week-card")).toHaveCount(8);
     await page
@@ -1221,7 +1296,10 @@ test("workbench saves notes and project changes clear the previous draft", async
     page.getByRole("heading", { name: "从留白开始理解版式" }),
   ).toBeVisible();
   await expect(page).not.toHaveURL(/chapter=/);
-  await page.getByRole("link", { name: /从留白开始理解版式/ }).click();
+  await page
+    .getByRole("main")
+    .getByRole("link", { name: /从留白开始理解版式/ })
+    .click();
   await page.getByRole("tab", { name: "笔记" }).click();
   await expect(page.getByLabel("记下你的理解")).toHaveValue("");
 });
@@ -1240,7 +1318,7 @@ test("reading completion preserves mastery and uses completion statistics", asyn
   await expect(
     page.getByRole("button", { name: "已完成学习", exact: true }),
   ).toBeDisabled();
-  await page.getByRole("link", { name: "学习看板", exact: true }).click();
+  await navigate(page, "学习看板");
   await expect(
     page.locator(".stat-card").filter({ hasText: "已完成章节" }),
   ).toContainText("2");
@@ -1594,13 +1672,19 @@ for (const width of [390, 1440])
       await expect(page.getByRole("tablist")).toHaveCount(0);
       const first = page.locator(".chapter-card").first();
       const directory = (await first.boundingBox())!;
-      const main = (await page.locator("#main-content").boundingBox())!;
-      expect(directory.width).toBeGreaterThan(main.width * 0.75);
+      // The directory fills the same content track as the page heading above.
+      const track = (await page
+        .locator("#main-content .page-heading")
+        .boundingBox())!;
+      expect(directory.width).toBeCloseTo(track.width, 0);
       await page.screenshot({
         path: testInfo.outputPath("chapters.png"),
         fullPage: true,
       });
-      await page.getByRole("link", { name: /变量，让信息有个名字/ }).click();
+      await page
+        .getByRole("main")
+        .getByRole("link", { name: /变量，让信息有个名字/ })
+        .click();
       await expect(page).toHaveURL(/project=1&chapter=12/);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(
         "变量，让信息有个名字",
@@ -1610,7 +1694,8 @@ for (const width of [390, 1440])
       ).toBeVisible();
       await expect(page.locator(".chapter-directory")).toHaveCount(0);
       const lesson = (await page.locator(".lesson-panel").boundingBox())!;
-      expect(lesson.width).toBeGreaterThan(main.width * 0.75);
+      // The lesson takes that whole track too; only its text keeps to a column.
+      expect(lesson.width).toBeCloseTo(track.width, 0);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= innerWidth,
@@ -1631,9 +1716,7 @@ for (const width of [390, 1440])
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(
         "变量，让信息有个名字",
       );
-      if (width === 390)
-        await page.getByRole("button", { name: "打开导航" }).click();
-      await page.getByRole("link", { name: "学习工作台", exact: true }).click();
+      await navigate(page, "学习工作台");
       await expect(page).toHaveURL(/\/study$/);
       await expect(page.locator(".project-card")).toHaveCount(2);
       await page.getByRole("link", { name: /读懂设计的基本语言/ }).click();
@@ -2816,20 +2899,29 @@ for (const width of [390, 1440]) {
       );
       await mock(page);
       await page.goto("/study?project=1&chapter=12");
+      await openNavigation(page);
+      const drawer = page.locator("#primary-nav");
+      for (const title of [
+        "开始学习",
+        "当前学习计划",
+        "练习与复习",
+        "知识与资料",
+        "设置",
+      ]) {
+        await expect(
+          drawer.getByRole("button", { name: new RegExp(title) }),
+        ).toBeVisible();
+      }
       await expect(
-        page.getByRole("navigation", { name: "主导航" }).getByRole("link"),
-      ).toHaveText([
-        "学习首页",
-        "学习路线",
-        "学习工作台",
-        "间隔复习",
-        "查漏测验",
-        "学习看板",
-        "知识问答",
-        "资料库",
-        "学习工具",
-        "模型设置",
-      ]);
+        drawer.getByRole("button", { name: /当前学习计划/ }),
+      ).toHaveAttribute("aria-expanded", "true");
+      await expect(
+        drawer.getByRole("link", { name: "学习工作台", exact: true }),
+      ).toBeVisible();
+      await expect(
+        drawer.getByRole("link", { name: /变量，让信息有个名字/ }),
+      ).toBeVisible();
+      await page.getByRole("button", { name: "收起侧栏" }).click();
       await page
         .getByRole("button", { name: "打开以太小助", exact: true })
         .click();
@@ -2842,14 +2934,7 @@ for (const width of [390, 1440]) {
       await input.fill("跨页保存的小助草稿");
       if (width < 850)
         await assistant.getByRole("button", { name: "关闭以太小助" }).click();
-      if (width < 850)
-        await page
-          .getByRole("button", { name: "打开导航", exact: true })
-          .click();
-      await page
-        .getByRole("navigation", { name: "主导航" })
-        .getByRole("link", { name: "资料库", exact: true })
-        .click();
+      await navigate(page, "资料库");
       if (width < 850)
         await page
           .getByRole("button", { name: "打开以太小助", exact: true })

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { navigate } from "./navigation";
 
 for (const width of [390, 1440])
   for (const theme of ["light", "dark"]) {
@@ -136,8 +137,12 @@ test("switching supplier filters models and only confirmation changes primary", 
   await expect(page.locator(".primary-model-summary")).toContainText(
     "阿里云百炼 / qwen-flash",
   );
-  await page.getByRole("link", { name: "资料库", exact: true }).click();
-  await page.getByRole("link", { name: "模型设置", exact: true }).click();
+  await navigate(page, "资料库");
+  await expect(
+    page.getByRole("heading", { name: "我的资料", exact: true }),
+  ).toBeVisible();
+  await navigate(page, "模型设置");
+  await expect(page).toHaveURL(/\/models/);
   await expect(picker).toContainText("qwen-flash");
   await page.reload();
   await expect(picker).toContainText("deepseek-flash");
@@ -246,8 +251,12 @@ test("empty state adds a custom connection with multiple model IDs", async ({
   await expect(page.locator(".primary-model-summary")).toContainText(
     "我的模型服务 / model-two",
   );
-  await page.getByRole("link", { name: "学习首页", exact: true }).click();
-  await page.getByRole("link", { name: "模型设置", exact: true }).click();
+  await navigate(page, "学习首页");
+  await expect(
+    page.getByRole("heading", { level: 1 }).filter({ hasText: "每一份好奇" }),
+  ).toBeVisible();
+  await navigate(page, "模型设置");
+  await expect(page).toHaveURL(/\/models/);
   await expect(picker).toContainText("model-two");
 });
 

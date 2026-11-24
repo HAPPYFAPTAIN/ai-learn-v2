@@ -137,8 +137,50 @@ def hybrid_search(
     if not query and query_vector is None:
         return []
 
-    apply_ann_settings(session)
+    if query_vector is None:
+        sql = """
+            WITH txt AS (
+                SELECT chunk_id,
+                       row_number() OVER (
+                           ORDER BY ts_rank_cd(tsv, plainto_tsquery('simple', :qtok)) DESC
+                       ) AS rnk
+                  FROM rag_chunk
+                 WHERE index_id = :index_id
+                   AND (NOT :filter_sources OR source_id = ANY(CAST(:source_ids AS text[])))
+                   AND tsv @@ plainto_tsquery('simple', :qtok)
+                 ORDER BY ts_rank_cd(tsv, plainto_tsquery('simple', :qtok)) DESC
+                 LIMIT :pool
+            )
+            SELECT c.chunk_id, c.source_id, c.text, c.metadata,
+                   1.0 / (%(rrf)s + t.rnk) AS score
+              FROM txt t
+              JOIN rag_chunk c ON c.chunk_id = t.chunk_id AND c.index_id = :index_id
+             ORDER BY score DESC
+             LIMIT :limit
+        """ % {"rrf": _RRF_K}
+        rows = session.execute(
+            text(sql),
+            {
+                "index_id": index_id,
+                "qtok": tokenize_for_tsv(query),
+                "pool": pool,
+                "limit": limit,
+                "filter_sources": source_ids is not None,
+                "source_ids": source_ids or [],
+            },
+        ).mappings()
+        return [
+            SearchHit(
+                chunk_id=row["chunk_id"],
+                source_id=row["source_id"],
+                text=row["text"],
+                metadata=row["metadata"] or {},
+                score=float(row["score"]),
+            )
+            for row in rows
+        ]
 
+    apply_ann_settings(session)
     sql = """
         WITH vec AS (
             SELECT chunk_id,

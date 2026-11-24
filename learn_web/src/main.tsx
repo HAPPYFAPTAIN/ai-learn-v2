@@ -12,22 +12,36 @@ import App from "./App";
 import SessionGate from "./session/SessionGate";
 import { queryClient } from "./query";
 import "./styles.css";
+import "./misans.css";
+import "./learning-skin.css";
 // Entry has already exchanged the ticket for a cookie. Never retain it in URLs.
 const entryUrl = new URL(location.href);
 if (entryUrl.searchParams.has("ticket")) {
   entryUrl.searchParams.delete("ticket");
   history.replaceState(history.state, "", entryUrl);
 }
-const Home = lazy(() => import("./pages/Home"));
-const Workbench = lazy(() => import("./pages/Workbench"));
-const Roadmap = lazy(() => import("./pages/Roadmap"));
-const Chat = lazy(() => import("./pages/Chat"));
-const Library = lazy(() => import("./pages/Library"));
-const Review = lazy(() => import("./pages/Review"));
-const Quiz = lazy(() => import("./pages/Quiz"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const Tools = lazy(() => import("./pages/Tools"));
-const Models = lazy(() => import("./pages/Models"));
+const pageChunks = {
+  home: () => import("./pages/Home"),
+  workbench: () => import("./pages/Workbench"),
+  roadmap: () => import("./pages/Roadmap"),
+  chat: () => import("./pages/Chat"),
+  library: () => import("./pages/Library"),
+  review: () => import("./pages/Review"),
+  quiz: () => import("./pages/Quiz"),
+  dashboard: () => import("./pages/Dashboard"),
+  tools: () => import("./pages/Tools"),
+  models: () => import("./pages/Models"),
+};
+const Home = lazy(pageChunks.home);
+const Workbench = lazy(pageChunks.workbench);
+const Roadmap = lazy(pageChunks.roadmap);
+const Chat = lazy(pageChunks.chat);
+const Library = lazy(pageChunks.library);
+const Review = lazy(pageChunks.review);
+const Quiz = lazy(pageChunks.quiz);
+const Dashboard = lazy(pageChunks.dashboard);
+const Tools = lazy(pageChunks.tools);
+const Models = lazy(pageChunks.models);
 function OldProjectLink() {
   const { projectId } = useParams();
   return (
@@ -75,6 +89,15 @@ const router = createBrowserRouter(
   ],
   { basename },
 );
+// Fetch the other pages once the first one is on screen, so the next link
+// pressed opens without a wait. Lesson text is what most sessions open
+// first, and its renderer is the one piece that is slow to arrive.
+const whenIdle =
+  window.requestIdleCallback ?? ((task: () => void) => setTimeout(task, 300));
+whenIdle(() => {
+  for (const load of Object.values(pageChunks)) void load();
+  void import("./components/Markdown");
+});
 async function start() {
   // This branch and demo code are removed from the production build.
   if (__DEMO__) {
@@ -92,7 +115,12 @@ async function start() {
               </p>
             }
           >
-            <RouterProvider router={router} />
+            {/* A link keeps the current page on screen until the next one is
+                ready, instead of blanking the whole app to a loading line. */}
+            <RouterProvider
+              router={router}
+              future={{ v7_startTransition: true }}
+            />
           </Suspense>
         </SessionGate>
       </QueryClientProvider>

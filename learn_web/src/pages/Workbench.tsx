@@ -71,18 +71,18 @@ export default function Workbench() {
           <span aria-hidden="true">←</span> 返回学习计划
         </Link>
       )}
-      <div className="page-heading study-heading">
-        <h1 ref={heading} tabIndex={-1} className="study-title">
-          {chapter ? current?.title || "章节学习" : "学习工作台"}
-        </h1>
-        <p className="muted">
-          {chapter
-            ? project?.title
-            : project
+      {!chapter && (
+        <div className="page-heading study-heading">
+          <h1 ref={heading} tabIndex={-1} className="study-title">
+            学习工作台
+          </h1>
+          <p className="muted">
+            {project
               ? `${project.title} · 选择一个章节，开始今天的学习。`
               : "每天一点积累，离目标更近一步。"}
-        </p>
-      </div>
+          </p>
+        </div>
+      )}
       {!id ? (
         <Empty title="暂无学习计划" />
       ) : (
@@ -110,6 +110,7 @@ export default function Workbench() {
                 <Lesson
                   key={current.id}
                   node={current}
+                  prev={nodes.data.items[nodes.data.items.indexOf(current) - 1]}
                   next={nodes.data.items[nodes.data.items.indexOf(current) + 1]}
                 />
               ) : (
@@ -190,11 +191,23 @@ export default function Workbench() {
   );
 }
 
-function Lesson({ node, next }: { node: KNode; next?: KNode }) {
+function Lesson({
+  node,
+  next,
+  prev,
+}: {
+  node: KNode;
+  next?: KNode;
+  prev?: KNode;
+}) {
   const confirmDiscard = useConfirmDiscard();
   const { id } = useProject();
   const client = useQueryClient();
+  const title = useRef<HTMLHeadingElement>(null);
   const [tab, setTab] = useState("内容");
+  useEffect(() => {
+    title.current?.focus({ preventScroll: true });
+  }, [node.id]);
   const tasks = useQuery({
     queryKey: key("tasks", id),
     queryFn: ({ signal }) => endpoints.tasks(id, signal),
@@ -214,10 +227,31 @@ function Lesson({ node, next }: { node: KNode; next?: KNode }) {
       void client.invalidateQueries({ queryKey: key("tasks", id) }),
   });
   return (
-    <article className="panel lesson-panel">
-      <p className="eyebrow">
-        {node.stage || "当前章节"} / {node.code}
-      </p>
+    <article className="panel lesson-panel lesson-stage">
+      <header className="lesson-hero">
+        <p className="eyebrow">
+          {node.stage || "当前章节"} / {node.code}
+        </p>
+        <h1 ref={title} tabIndex={-1}>
+          {node.title}
+        </h1>
+        <p>
+          {node.description
+            ? "先理解这一小步，再动手验证。"
+            : "这一节还没有正文，可以先用 AI 生成课程内容。"}
+        </p>
+        <div className="lesson-meta">
+          <span>
+            预计用时 <strong>{node.estHours || 1} 小时</strong>
+          </span>
+          <span>
+            当前掌握度 <strong>{Math.round(node.mastery * 100)}%</strong>
+          </span>
+          <span>
+            内容版本 <strong>{node.contentVersion}</strong>
+          </span>
+        </div>
+      </header>
       <div className="tabs" role="tablist" aria-label="章节内容">
         {["内容", "笔记", "练习"].map((t) => (
           <button
@@ -270,30 +304,20 @@ function Lesson({ node, next }: { node: KNode; next?: KNode }) {
               ready={node.contentVersion > 0 && node.description.length >= 100}
             />
             <div className="content-actions lesson-completion">
-              <button
-                className="primary"
-                disabled={progress.isPending || node.status === "done"}
-                onClick={() => progress.mutate()}
-              >
-                {node.status === "done"
-                  ? "已完成学习"
-                  : progress.isPending
-                    ? "正在保存…"
-                    : "标记为已学完"}
-              </button>
-              {(node.status === "done" || progress.isSuccess) &&
-                (next ? (
-                  <Link
-                    className="button primary"
-                    to={`/study?project=${id}&chapter=${next.id}`}
-                  >
-                    前往下一节 <Icon name="arrow" size={16} />
-                  </Link>
-                ) : (
-                  <Link className="button" to={`/study?project=${id}`}>
-                    已完成最后一节，返回目录
-                  </Link>
-                ))}
+              <div>
+                <p className="lesson-next-label">Checkpoint</p>
+                <button
+                  className="primary"
+                  disabled={progress.isPending || node.status === "done"}
+                  onClick={() => progress.mutate()}
+                >
+                  {node.status === "done"
+                    ? "已完成学习"
+                    : progress.isPending
+                      ? "正在保存…"
+                      : "标记为已学完"}
+                </button>
+              </div>
               <Link
                 className="button study-ask"
                 to={`/chat?project=${id}&chapter=${node.id}`}
@@ -302,6 +326,59 @@ function Lesson({ node, next }: { node: KNode; next?: KNode }) {
               </Link>
             </div>
             <ErrorNotice error={progress.error} />
+            {(node.status === "done" || progress.isSuccess) && (
+              <section className="lesson-next" aria-label="下一节">
+                <p className="lesson-next-label">Next</p>
+                <div className="lesson-pager">
+                  {prev ? (
+                    <Link
+                      className="pager-link"
+                      to={`/study?project=${id}&chapter=${prev.id}`}
+                    >
+                      <span>
+                        <small>上一节 · {prev.code}</small>
+                        <strong>{prev.title}</strong>
+                      </span>
+                    </Link>
+                  ) : (
+                    <Link className="pager-link" to={`/study?project=${id}`}>
+                      <span>
+                        <small>已是第一节</small>
+                        <strong>章节目录</strong>
+                      </span>
+                    </Link>
+                  )}
+                  {next ? (
+                    <Link
+                      className="pager-link pager-next"
+                      aria-label="前往下一节"
+                      to={`/study?project=${id}&chapter=${next.id}`}
+                    >
+                      <span>
+                        <small>下一节 · {next.code}</small>
+                        <strong>{next.title}</strong>
+                      </span>
+                      <Icon name="arrow" size={24} />
+                    </Link>
+                  ) : (
+                    <Link
+                      className="pager-link pager-next"
+                      aria-label="已完成最后一节，返回目录"
+                      to={`/study?project=${id}`}
+                    >
+                      <span>
+                        <small>本章已完成</small>
+                        <strong>已完成最后一节，返回目录</strong>
+                      </span>
+                      <Icon name="arrow" size={24} />
+                    </Link>
+                  )}
+                </div>
+                <p className="lesson-note">
+                  进度已保存。下一节仍可随时从章节抽屉回到这里。
+                </p>
+              </section>
+            )}
           </>
         )}
         {tab === "笔记" && <NotesManager node={node} />}

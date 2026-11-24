@@ -151,9 +151,9 @@ def test_truncated_lesson_has_explicit_code_and_never_overwrites_content(tenant,
         node=Knode(project_id=tenant[1],code='partial',title='Original',description='Keep original');s.add(node);s.flush();nid=node.id
     jid=enqueue(tenant,'lesson',node_id=nid)
     def partial(req):
-        assert json.loads(req.content)['max_tokens']==16000
+        assert json.loads(req.content)['max_tokens']==250000
         return httpx.Response(200,json={'choices':[{'finish_reason':'length','message':{'content':LESSON}}]})
-    monkeypatch.setattr(generation,'GatewayClient',lambda:GatewayClient(transport=httpx.MockTransport(partial)))
+    monkeypatch.setattr(generation,'GatewayClient',lambda **kwargs:GatewayClient(transport=httpx.MockTransport(partial),**kwargs))
     generation.run_generation(tenant=str(tenant[0]),job_id=jid)
     state,p,error=read_job(tenant,jid)
     assert state=='failed' and p['errorCode']=='OUTPUT_TRUNCATED' and '缩小章节范围' in error

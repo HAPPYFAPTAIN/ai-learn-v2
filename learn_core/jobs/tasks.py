@@ -51,12 +51,12 @@ def _set_job(tenant_id: "UUID", job_id: str, **fields) -> None:
 
     from sqlalchemy import text as sql_text
 
-    from learn_core.db.engine import session_scope
+    from learn_core.db.engine import queue_job_progress_notification, session_scope
     from learn_core.tenancy.context import tenant_context
 
     with tenant_context(tenant_id):
         with session_scope() as session:
-            session.execute(
+            result = session.execute(
                 sql_text(
                     """
                     UPDATE job_progress
@@ -74,6 +74,10 @@ def _set_job(tenant_id: "UUID", job_id: str, **fields) -> None:
                     "error": fields.get("error"),
                 },
             )
+            if result.rowcount:
+                queue_job_progress_notification(
+                    session, tenant_id=tenant_id, job_id=job_id
+                )
 
 
 @app.task(name='learn_core.jobs.tasks.index_material', queue='io', retry=0)

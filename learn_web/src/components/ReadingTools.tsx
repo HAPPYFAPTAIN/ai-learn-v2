@@ -19,7 +19,12 @@ export default function ReadingTools({
   const body = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(() => {
     const saved = Number(localStorage.getItem("learn.reading.size"));
-    return saved >= 16 && saved <= 24 ? saved : 18;
+    // Wide screens open at the chapter reading size; phones start smaller.
+    return saved >= 16 && saved <= 24
+      ? saved
+      : window.matchMedia("(min-width: 768px)").matches
+        ? 22
+        : 18;
   });
   const [search, setSearch] = useState("");
   const [current, setCurrent] = useState(0);

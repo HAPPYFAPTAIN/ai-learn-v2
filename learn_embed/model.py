@@ -18,8 +18,7 @@ os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 from fastembed import TextEmbedding  # noqa: E402
 
-MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
-DIM = 384
+from learn_embed.constants import DIM, MODEL_NAME  # noqa: E402
 
 
 class Embedder:

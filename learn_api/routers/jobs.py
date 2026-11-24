@@ -1,8 +1,8 @@
 """任务进度与事件流。
 
 长操作返回 202 + jobId，前端订阅 ``/jobs/{id}/events``。
-事件源是 ``job_progress`` 表，所以多进程部署不需要粘性会话；
-代价是每个订阅者 1 秒轮询一次，等规模起来再换 LISTEN/NOTIFY。
+每个 API 进程通过一个 PostgreSQL LISTEN 连接接收入口共享通知，
+收到通知后再按租户读取最新任务；15 秒轮询仅用于监听断线兜底。
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import anyio
 import json
 from typing import Annotated, AsyncIterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -28,7 +28,7 @@ from learn_api.schemas import JobOut
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 TERMINAL_STATES = {"done", "failed", "cancelled"}
-POLL_SECONDS = 1.0
+FALLBACK_SECONDS = 15.0
 
 
 def _serialize(row: JobProgress) -> dict:
@@ -57,7 +57,7 @@ def get_job(job_id: str, session: SessionDep) -> dict:
 
 
 @router.get("/{job_id}/events")
-def job_events(job_id: str, session: SessionDep) -> StreamingResponse:
+def job_events(job_id: str, request: Request, session: SessionDep) -> StreamingResponse:
     row = session.scalars(
         select(JobProgress).where(JobProgress.job_id == job_id)
     ).first()
@@ -65,45 +65,45 @@ def job_events(job_id: str, session: SessionDep) -> StreamingResponse:
         raise ApiError("NOT_FOUND", "job not found")
     snapshot = _serialize(row)
     tenant_id = row.tenant_id
+    broker = request.app.state.job_event_broker
 
     def poll():
         with tenant_context(tenant_id), session_scope() as scoped:
             current = scoped.scalar(select(JobProgress).where(JobProgress.job_id == job_id))
             return _serialize(current) if current else None
 
+    def event(name: str, payload: dict | None = None) -> bytes:
+        data = "{}" if payload is None else json.dumps(payload, ensure_ascii=False, default=str)
+        return f"event: {name}\ndata: {data}\n\n".encode()
+
     async def stream() -> AsyncIterator[bytes]:
         last = snapshot
+        yield event("progress", snapshot)
         if snapshot["state"] in TERMINAL_STATES:
-            yield b"event: end\ndata: {}\n\n"
+            yield event("end")
             return
-        while True:
-            payload = await anyio.to_thread.run_sync(poll)
-            if payload is None:
-                yield b"event: gone\ndata: {}\n\n"
-                return
-            if payload != last:
-                yield (
-                    "event: progress\ndata: "
-                    + json.dumps(payload, ensure_ascii=False, default=str)
-                    + "\n\n"
-                ).encode()
-                last = payload
-                if payload["state"] in TERMINAL_STATES:
-                    yield b"event: end\ndata: {}\n\n"
+        queue = await broker.subscribe(tenant_id, job_id)
+        try:
+            while True:
+                payload = await anyio.to_thread.run_sync(poll)
+                if payload is None:
+                    yield event("gone")
                     return
-            await asyncio.sleep(POLL_SECONDS)
+                if payload != last:
+                    yield event("progress", payload)
+                    last = payload
+                    if payload["state"] in TERMINAL_STATES:
+                        yield event("end")
+                        return
+                try:
+                    await asyncio.wait_for(queue.get(), timeout=FALLBACK_SECONDS)
+                except TimeoutError:
+                    yield b": keep-alive\n\n"
+        finally:
+            broker.unsubscribe(tenant_id, job_id, queue)
 
-    yield_snapshot = (
-        "event: progress\ndata: " + json.dumps(snapshot, ensure_ascii=False, default=str) + "\n\n"
-    ).encode()
     return StreamingResponse(
-        _prepend(yield_snapshot, stream()),
+        stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
-
-
-async def _prepend(first: bytes, rest: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
-    yield first
-    async for chunk in rest:
-        yield chunk

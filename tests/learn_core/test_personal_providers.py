@@ -13,7 +13,7 @@ from learn_core.config import get_settings, Settings
 from learn_core.db.engine import session_scope, get_engine
 from learn_core.db.models import ModelProvider, TenantSetting, JobProgress, ModelCall
 from learn_core.llm import providers
-from learn_core.llm.gateway import GatewayClient
+from learn_core.llm.gateway import GatewayClient, GatewayError, output_token_limit, validate_output_tokens
 from learn_core.tenancy.context import tenant_context
 from tests.learn_core.test_generation import tenant, db_test, ROADMAP
 from tests.learn_core.test_model_settings import client_for
@@ -29,6 +29,31 @@ def personal(monkeypatch):
 def payload(**kwargs):
     return providers.ProviderInput(id=uuid4().hex[:12], provider='custom', name='我的模型',
         baseUrl='https://api.provider.test/v1', apiKey='test-user-private-key', models=['qwen-test'], **kwargs)
+
+
+def test_generation_limits_have_dedicated_defaults(monkeypatch):
+    for name in ('LEARN_GATEWAY_READ_TIMEOUT', 'LEARN_GENERATION_READ_TIMEOUT', 'LEARN_GENERATION_MAX_TOKENS'):
+        monkeypatch.delenv(name, raising=False)
+    settings = Settings(_env_file=None)
+    assert settings.gateway_read_timeout == 120
+    assert settings.generation_read_timeout == 600
+    assert settings.generation_max_tokens == 250000
+
+
+@pytest.mark.parametrize('model', ['glm-5.3', 'GLM-5.3-Flash', 'glm-5.3-flashx', 'personal.abc123.glm-5.3-flashx-legal'])
+def test_known_model_output_limit_is_enforced_without_clamping(model):
+    assert output_token_limit(model) == 128000
+    validate_output_tokens(model, 128000)
+    with pytest.raises(GatewayError) as excinfo:
+        validate_output_tokens(model, 250000)
+    assert excinfo.value.status == 422
+    assert excinfo.value.code == 'MODEL_OUTPUT_LIMIT'
+    assert '128000' in str(excinfo.value)
+
+
+def test_unknown_model_output_limit_is_not_invented():
+    assert output_token_limit('custom-model') is None
+    validate_output_tokens('custom-model', 250000)
 
 
 def test_default_is_personal_and_encryption_is_bound_to_tenant_and_connection(personal, monkeypatch):
@@ -167,6 +192,8 @@ def test_real_generation_uses_owned_key_without_gateway_fallback_or_db_lease(ten
         assert get_engine().pool.checkedout() == 0
         assert credential.key == 'test-user-private-key'
         assert kwargs['payload']['model'] == 'qwen-test'
+        assert kwargs['payload']['max_tokens'] == 250000
+        assert kwargs['timeout'] == 600
         return httpx.Response(200, json={'model':'qwen-test', 'choices':[{'message':{'content':json.dumps(ROADMAP)}, 'finish_reason':'stop'}], 'usage':{'total_tokens':42}})
     monkeypatch.setattr(providers, 'call', call)
     run_generation(tenant=str(tenant[0]), job_id=jid)

@@ -7,30 +7,21 @@ export default function ProjectCards({ projects }: { projects: Project[] }) {
   return (
     <div className="project-grid">
       {projects.map((p, i) => (
-        <article className="panel project-card" key={p.id}>
+        <article className="project-card" key={p.id}>
           <Link className="project-card-link" to={`/study?project=${p.id}`}>
-            <div className="project-card-top">
-              <span className="project-symbol">
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span className="badge">
+            <span className="project-symbol">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+            <div className="project-main">
+              <h3>{p.title}</h3>
+              <p>
+                每周 {p.weeklyHours} 小时 ·{" "}
                 {p.status === "active" ? "学习中" : p.status}
-              </span>
+              </p>
             </div>
-            <h3>{p.title}</h3>
-            <p className="muted clamp-two">
-              {p.goal || "从今天开始，慢慢积累。"}
-            </p>
-            <div className="project-card-bottom">
-              <span>每周 {p.weeklyHours} 小时</span>
-              <span>
-                进入计划 <Icon name="arrow" size={16} />
-              </span>
-            </div>
+            <Icon name="arrow" size={18} />
           </Link>
-          <div className="project-card-actions">
-            <DeleteLearningButton project={p} />
-          </div>
+          <DeleteLearningButton project={p} />
         </article>
       ))}
     </div>

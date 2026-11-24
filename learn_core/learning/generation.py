@@ -11,6 +11,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import select, text, update
 from sqlalchemy.orm import Session
 
+from learn_core.config import get_settings
 from learn_core.db.engine import session_scope
 from learn_core.db.models import JobProgress, Project, Knode, TenantSetting
 from learn_core.learning.prompts.roadmap import SYSTEM as ROADMAP_SYSTEM, USER_TEMPLATE
@@ -261,11 +262,13 @@ def run_generation(*, tenant: str, job_id: str, attempt: int = 0) -> None:
                         return
                     progress["gatewayCallPending"] = True
                     row.progress = dict(progress)
-                with GatewayClient() as gateway:
+                settings = get_settings()
+                with GatewayClient(timeout=settings.generation_read_timeout) as gateway:
                     result = gateway.chat_detached(
                         event_id=progress["eventId"], job_id=job_id,
                         messages=progress["prepared"],
-                        purpose=kind, model=progress["model"], max_tokens=16000,
+                        purpose=kind, model=progress["model"],
+                        max_tokens=settings.generation_max_tokens,
                     )
                 if result.truncated:
                     raise GatewayError(422, "生成内容超出长度上限，未能保存。可以缩小章节范围后重试。", code='OUTPUT_TRUNCATED')

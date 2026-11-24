@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { createDemo } from "../../src/demo/data";
+import { navigate } from "./navigation";
 
 async function mock(page: Page) {
   const demo = createDemo();
@@ -102,7 +103,10 @@ for (const width of [390, 1440]) {
     await mock(page);
     await notes(page);
     await page.getByRole("link", { name: "返回章节目录", exact: true }).click();
-    await page.getByRole("link", { name: /认识 Python 与第一个程序/ }).click();
+    await page
+      .getByRole("main")
+      .getByRole("link", { name: /认识 Python 与第一个程序/ })
+      .click();
     await page.getByRole("tab", { name: "笔记", exact: true }).click();
     await page.getByLabel("记下你的理解").fill("不能被误丢弃的笔记");
     await page.getByRole("tab", { name: "内容", exact: true }).click();
@@ -409,7 +413,7 @@ test("chat guards unsent questions and explicit retries reuse the original reque
     return route.fallback();
   });
   await page.getByLabel("向助教提问").fill("请解释变量");
-  await page.getByRole("link", { name: "学习路线", exact: true }).click();
+  await navigate(page, "学习路线");
   await expect(warning(page)).toContainText("问答输入");
   await warning(page).getByRole("button", { name: "继续编辑" }).click();
   await page.getByRole("button", { name: "发送", exact: true }).click();
